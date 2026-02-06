@@ -54,7 +54,7 @@ const HISTORY_KEY = "arenas.lotes.history.v1";
 
 const defaultQuote: QuoteState = {
   precio: 0,
-  inicialMonto: 10000,
+  inicialMonto: 6000,
   cuotas: 24,
   interesAnual: 0,
 };
