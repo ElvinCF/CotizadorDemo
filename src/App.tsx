@@ -6,7 +6,8 @@ import {
   type ReactZoomPanPinchRef,
 } from "react-zoom-pan-pinch";
 import Papa from "papaparse";
-import LotesSvg from "./components/LotesSvg";
+import html2canvas from "html2canvas";
+import ArenasSvg from "./components/arenas";
 import "./App.css";
 
 type Lote = {
@@ -58,10 +59,17 @@ const defaultQuote: QuoteState = {
   interesAnual: 0,
 };
 
+const MAP_WIDTH = 1122;
+const MAP_HEIGHT = 1588;
+const mapVars = {
+  "--map-width": `${MAP_WIDTH}px`,
+  "--map-height": `${MAP_HEIGHT}px`,
+} as React.CSSProperties;
+
 const defaultOverlay: OverlayTransform = {
-  x: 94,
-  y: 14,
-  scale: 0.82,
+  x: 131,
+  y: 137,
+  scale: 0.715,
 };
 
 const statusToClass = (value: string | undefined) => {
@@ -121,6 +129,11 @@ const formatArea = (value: number | null) => {
   return `${value.toFixed(2)} m2`;
 };
 
+const formatNumber = (value: number | null) => {
+  if (value == null || Number.isNaN(value)) return "";
+  return value.toFixed(2);
+};
+
 const quoteMonthly = (monto: number, cuotas: number, interesAnual: number) => {
   if (cuotas <= 0) return 0;
   const i = interesAnual / 12 / 100;
@@ -149,7 +162,6 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoveredPos, setHoveredPos] = useState({ x: 0, y: 0 });
-  const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [quote, setQuote] = useState<QuoteState>(defaultQuote);
   const [filters, setFilters] = useState({
@@ -162,6 +174,7 @@ function App() {
   });
   const [view, setView] = useState<"mapa" | "tabla">("mapa");
   const [overlay, setOverlay] = useState<OverlayTransform>(defaultOverlay);
+  const [drawerTab, setDrawerTab] = useState<"cotizar" | "separar">("cotizar");
   const [mapTransform, setMapTransform] = useState({
     scale: 1,
     positionX: 0,
@@ -175,6 +188,12 @@ function App() {
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const mapTransformRef = useRef(mapTransform);
   const containerSizeRef = useRef({ width: 0, height: 0 });
+  const hasFitRef = useRef(false);
+  const lastHoveredRef = useRef<string | null>(null);
+  const lastSelectedRef = useRef<string | null>(null);
+  const highlightedRef = useRef<Set<string>>(new Set());
+  const hoverPosRef = useRef({ x: 0, y: 0 });
+  const hoverRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetch("/assets/lotes.csv")
@@ -260,48 +279,70 @@ function App() {
         precio: selectedLote.price || 0,
       }));
     }
+    if (selectedLote) {
+      setDrawerTab("cotizar");
+    }
   }, [selectedLote?.price]);
 
   useEffect(() => {
     const root = svgRef.current;
-    if (!root) return;
-    const hovered = hoveredId ? root.querySelector(`#${CSS.escape(hoveredId)}`) : null;
-    root.querySelectorAll(".is-hovered").forEach((el) => el.classList.remove("is-hovered"));
-    if (hovered) hovered.classList.add("is-hovered");
-  }, [hoveredId]);
-
-  useEffect(() => {
-    const root = svgRef.current;
-    if (!root) return;
-    root.querySelectorAll(".is-selected").forEach((el) => el.classList.remove("is-selected"));
-    if (selectedId) {
-      const target = root.querySelector(`#${CSS.escape(selectedId)}`);
-      if (target) target.classList.add("is-selected");
+    if (!root || view !== "mapa") return;
+    const prev = lastHoveredRef.current;
+    if (prev && prev !== hoveredId) {
+      const prevEl = root.querySelector(`#${CSS.escape(prev)}`);
+      prevEl?.classList.remove("is-hovered");
     }
-  }, [selectedId]);
+    if (hoveredId) {
+      const nextEl = root.querySelector(`#${CSS.escape(hoveredId)}`);
+      nextEl?.classList.add("is-hovered");
+    }
+    lastHoveredRef.current = hoveredId;
+  }, [hoveredId, view]);
 
   useEffect(() => {
     const root = svgRef.current;
-    if (!root) return;
-    root
-      .querySelectorAll(".is-highlighted")
-      .forEach((el) => el.classList.remove("is-highlighted"));
+    if (!root || view !== "mapa") return;
+    const prev = lastSelectedRef.current;
+    if (prev && prev !== selectedId) {
+      const prevEl = root.querySelector(`#${CSS.escape(prev)}`);
+      prevEl?.classList.remove("is-selected");
+    }
+    if (selectedId) {
+      const nextEl = root.querySelector(`#${CSS.escape(selectedId)}`);
+      nextEl?.classList.add("is-selected");
+    }
+    lastSelectedRef.current = selectedId;
+  }, [selectedId, view]);
+
+  useEffect(() => {
+    const root = svgRef.current;
+    if (!root || view !== "mapa") return;
+    const prev = highlightedRef.current;
     highlightedIds.forEach((id) => {
-      const target = root.querySelector(`#${CSS.escape(id)}`);
-      if (target) target.classList.add("is-highlighted");
+      if (!prev.has(id)) {
+        const target = root.querySelector(`#${CSS.escape(id)}`);
+        target?.classList.add("is-highlighted");
+      }
     });
-  }, [highlightedIds]);
+    prev.forEach((id) => {
+      if (!highlightedIds.has(id)) {
+        const target = root.querySelector(`#${CSS.escape(id)}`);
+        target?.classList.remove("is-highlighted");
+      }
+    });
+    highlightedRef.current = new Set(highlightedIds);
+  }, [highlightedIds, view]);
 
   useEffect(() => {
     const root = svgRef.current;
-    if (!root) return;
+    if (!root || view !== "mapa") return;
     lotes.forEach((lote) => {
       const target = root.querySelector(`#${CSS.escape(lote.id)}`);
       if (target) {
         target.setAttribute("data-status", lote.condicion);
       }
     });
-  }, [lotes]);
+  }, [lotes, view]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -315,29 +356,35 @@ function App() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (hoverRafRef.current != null) {
+        cancelAnimationFrame(hoverRafRef.current);
+        hoverRafRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const element = mapContainerRef.current;
     if (!element || !transformRef.current) return;
 
-    const observer = new ResizeObserver(() => {
+    const fitToContainer = () => {
       const { width, height } = element.getBoundingClientRect();
       if (!width || !height) return;
 
-      const prev = containerSizeRef.current;
-      if (!prev.width || !prev.height) {
-        containerSizeRef.current = { width, height };
-        return;
-      }
+      const nextScale = Math.min(width / MAP_WIDTH, height / MAP_HEIGHT);
+      const nextX = (width - MAP_WIDTH * nextScale) / 2;
+      const nextY = (height - MAP_HEIGHT * nextScale) / 2;
 
-      if (prev.width === width && prev.height === height) return;
       containerSizeRef.current = { width, height };
+      transformRef.current?.setTransform(nextX, nextY, nextScale, 0, "easeOut");
+    };
 
-      const { scale, positionX, positionY } = mapTransformRef.current;
-      const centerX = (prev.width / 2 - positionX) / scale;
-      const centerY = (prev.height / 2 - positionY) / scale;
-      const nextX = width / 2 - centerX * scale;
-      const nextY = height / 2 - centerY * scale;
-
-      transformRef.current?.setTransform(nextX, nextY, scale, 0, "easeOut");
+    const observer = new ResizeObserver(() => {
+      if (!hasFitRef.current) {
+        fitToContainer();
+        hasFitRef.current = true;
+      }
     });
 
     observer.observe(element);
@@ -368,8 +415,16 @@ function App() {
       setRightOpen(true);
       return;
     }
-    setHoveredId(id);
-    setHoveredPos({ x: event.clientX, y: event.clientY });
+    if (hoveredId !== id) {
+      setHoveredId(id);
+    }
+    hoverPosRef.current = { x: event.clientX, y: event.clientY };
+    if (hoverRafRef.current == null) {
+      hoverRafRef.current = requestAnimationFrame(() => {
+        setHoveredPos(hoverPosRef.current);
+        hoverRafRef.current = null;
+      });
+    }
   };
 
   const updateOverride = (id: string, patch: LoteOverride) => {
@@ -398,87 +453,224 @@ function App() {
 
   const montoInicial = Math.min(quote.inicialMonto, quote.precio);
   const financiado = Math.max(quote.precio - montoInicial, 0);
-  const cuota = quoteMonthly(financiado, quote.cuotas, quote.interesAnual);
+  const cuota = quoteMonthly(financiado, quote.cuotas, 0);
+  const cuotaRapida = (meses: number, inicial: number) =>
+    Math.max((quote.precio - inicial) / meses, 0);
 
   const hoveredLote = useMemo(
     () => lotes.find((item) => item.id === hoveredId) ?? null,
     [hoveredId, lotes]
   );
 
-  const drawerCount = (leftOpen ? 1 : 0) + (rightOpen ? 1 : 0);
-  const MapView = (
-    <section className={`map-shell drawer-open-${drawerCount}`}>
-      <aside className={`drawer-panel left ${leftOpen ? "open" : ""}`}>
-        <div className="drawer__header">
-          <h3>Filtros</h3>
-          <button className="btn ghost" onClick={() => setLeftOpen(false)}>
-            Cerrar
-          </button>
-        </div>
-        <div className="drawer__body">
-          <label>
-            MZ
-            <input
-              value={filters.mz}
-              onChange={(event) => setFilters({ ...filters, mz: event.target.value })}
-              placeholder="A o B"
-            />
-          </label>
-          <label>
-            Estado
-            <select
-              value={filters.status}
-              onChange={(event) => setFilters({ ...filters, status: event.target.value })}
-            >
-              <option value="TODOS">Todos</option>
-              <option value="LIBRE">Libre</option>
-              <option value="SEPARADO">Separado</option>
-              <option value="VENDIDO">Vendido</option>
-            </select>
-          </label>
-          <label>
-            Precio minimo
-            <input
-              type="number"
-              value={filters.priceMin}
-              onChange={(event) => setFilters({ ...filters, priceMin: event.target.value })}
-            />
-          </label>
-          <label>
-            Precio maximo
-            <input
-              type="number"
-              value={filters.priceMax}
-              onChange={(event) => setFilters({ ...filters, priceMax: event.target.value })}
-            />
-          </label>
-          <label>
-            Area minima (m2)
-            <input
-              type="number"
-              value={filters.areaMin}
-              onChange={(event) => setFilters({ ...filters, areaMin: event.target.value })}
-            />
-          </label>
-          <label>
-            Area maxima (m2)
-            <input
-              type="number"
-              value={filters.areaMax}
-              onChange={(event) => setFilters({ ...filters, areaMax: event.target.value })}
-            />
-          </label>
-          <button className="btn" onClick={resetFilters}>
-            Limpiar filtros
-          </button>
-        </div>
-      </aside>
+  const exportTableCsv = () => {
+    const headers = ["MZ", "LT", "AREA_M2", "ASESOR", "PRECIO", "CONDICION"];
+    const rows = filteredLotes.map((lote) => [
+      lote.mz,
+      String(lote.lote),
+      formatNumber(lote.areaM2),
+      lote.asesor ?? "",
+      formatNumber(lote.price),
+      lote.condicion,
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
 
-      <section className="map-card viewer">
-        <div className="map-header">
-          <div className="map-header__info">
-            <strong>{lotes.length}</strong> lotes cargados -{" "}
-            <strong>{filteredLotes.length}</strong> visibles
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `lotes_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPrintable = async () => {
+    const standardQuoteHtml = `
+      <section class="card">
+        <h3>Cotizacion estandar</h3>
+        <div class="grid">
+          <div><span>Precio</span><strong>${formatMoney(quote.precio)}</strong></div>
+          <div><span>Inicial</span><strong>${formatMoney(montoInicial)}</strong></div>
+          <div><span>Meses</span><strong>${quote.cuotas}</strong></div>
+          <div><span>Cuota mensual</span><strong>${formatMoney(cuota)}</strong></div>
+        </div>
+      </section>
+    `;
+
+    const manualQuoteHtml = `
+      <section class="card">
+        <h3>Cotizacion manual</h3>
+        <div class="grid">
+          <div><span>Precio</span><strong>${formatMoney(quote.precio)}</strong></div>
+          <div><span>Inicial</span><strong>${formatMoney(montoInicial)}</strong></div>
+          <div><span>Meses</span><strong>${quote.cuotas}</strong></div>
+          <div><span>Cuota mensual</span><strong>${formatMoney(cuota)}</strong></div>
+        </div>
+        <p class="muted">Formula: (Precio - Inicial) / Meses</p>
+      </section>
+    `;
+
+    const loteHtml = selectedLote
+      ? `
+      <section class="card">
+        <h3>Detalle del lote</h3>
+        <div class="grid">
+          <div><span>Lote</span><strong>${selectedLote.id}</strong></div>
+          <div><span>Area</span><strong>${formatArea(selectedLote.areaM2)}</strong></div>
+          <div><span>Precio</span><strong>${formatMoney(selectedLote.price)}</strong></div>
+          <div><span>Estado</span><strong>${selectedLote.condicion}</strong></div>
+          <div><span>Asesor</span><strong>${selectedLote.asesor ?? "—"}</strong></div>
+        </div>
+      </section>
+    `
+      : "";
+
+    const tableHtml =
+      view === "tabla"
+        ? `
+      <section class="card">
+        <h3>Resumen de lotes (${filteredLotes.length})</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>MZ</th>
+              <th>LT</th>
+              <th>AREA (M2)</th>
+              <th>ASESOR</th>
+              <th>PRECIO</th>
+              <th>CONDICION</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredLotes
+              .map(
+                (lote) => `
+              <tr>
+                <td>${lote.mz}</td>
+                <td>${lote.lote}</td>
+                <td>${formatArea(lote.areaM2)}</td>
+                <td>${lote.asesor ?? "—"}</td>
+                <td>${formatMoney(lote.price)}</td>
+                <td>${lote.condicion}</td>
+              </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </section>
+    `
+        : "";
+
+    let mapCaptureHtml = "";
+    if (view === "mapa" && mapContainerRef.current) {
+      const target = mapContainerRef.current;
+      const canvas = await html2canvas(target, {
+        backgroundColor: "#f7f0e4",
+        useCORS: true,
+        scale: 2,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: target.clientWidth,
+        windowHeight: target.clientHeight,
+        onclone: (doc) => {
+          doc.querySelectorAll(".map-controls, .hover-tooltip").forEach((el) => {
+            (el as HTMLElement).style.display = "none";
+          });
+          doc.querySelectorAll(".map-container").forEach((el) => {
+            const node = el as HTMLElement;
+            node.style.position = "relative";
+            node.style.top = "0";
+            node.style.left = "0";
+          });
+        },
+      });
+      const dataUrl = canvas.toDataURL("image/png");
+      mapCaptureHtml = `
+        <section class="card">
+          <h3>Vista actual del mapa</h3>
+          <div class="map-box">
+            <img src="${dataUrl}" alt="Mapa capturado" />
+          </div>
+        </section>
+      `;
+    }
+
+    const html = `
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <title>Reporte Arenas Malabrigo</title>
+          <style>
+            @page { size: A4; margin: 14mm; }
+            body { font-family: "Space Grotesk", Arial, sans-serif; color: #1b1b1b; }
+            h1 { margin: 0 0 6px; color: #c24a18; }
+            .sub { margin: 0 0 16px; color: #6a5c4c; }
+            .card { border: 1px solid #efd4c1; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+            .grid span { display: block; font-size: 12px; color: #6a5c4c; }
+            .grid strong { font-size: 14px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { padding: 6px 8px; border-bottom: 1px solid #f0dccd; text-align: left; }
+            th { background: #fff3e7; color: #8f3a18; }
+            .map-box img { width: 100%; border-radius: 8px; border: 1px solid #f0dccd; }
+            .muted { color: #6a5c4c; font-size: 12px; margin-top: 6px; }
+          </style>
+        </head>
+        <body>
+          <h1>Mapa interactivo – Arenas Malabrigo</h1>
+          <p class="sub">Reporte generado el ${new Date().toLocaleString("es-PE")}</p>
+          ${loteHtml}
+          ${standardQuoteHtml}
+          ${manualQuoteHtml}
+          ${mapCaptureHtml}
+          ${tableHtml}
+        </body>
+      </html>
+    `;
+
+    const win = window.open("", "_blank", "width=1024,height=768");
+    if (!win) return;
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
+  const drawerCount = rightOpen ? 1 : 0;
+  const MapView = (
+    <section className="map-page">
+      <section className="map-intro">
+        <div className="map-intro__panel-title">Arenas Club – Caracteristicas</div>
+        <div className="map-intro__grid">
+          <article>
+            <h4>🛫 Al filo de la pista</h4>
+            <p>Ubicacion privilegiada con acceso directo.</p>
+          </article>
+          <article>
+            <h4>💧⚡ Servicios instalados</h4>
+            <p>Red de agua en cada lote y luz con transformador de Hidrandina.</p>
+          </article>
+          <article>
+            <h4>📄 Titulo propio</h4>
+            <p>Con su partida registral en SUNARP.</p>
+          </article>
+          <article>
+            <h4>🏝️ Cadena de clubes</h4>
+            <p>Acceso exclusivo a nivel nacional para todos nuestros clientes.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className={`map-shell drawer-open-${drawerCount}`}>
+        <section className="map-card viewer">
+          <div className="map-header">
+            <div className="map-header__info">
+              <strong>{lotes.length}</strong> lotes cargados -{" "}
+              <strong>{filteredLotes.length}</strong> visibles
           </div>
           <div className="legend">
             <span className="legend__item libre">Libre</span>
@@ -499,8 +691,22 @@ function App() {
               Tabla
             </button>
           </div>
+          <div className="export-actions">
+            <button className="btn ghost" onClick={exportPrintable}>
+              PDF / Imprimir
+            </button>
+            {view === "tabla" && (
+              <button className="btn ghost" onClick={exportTableCsv}>
+                Exportar Excel
+              </button>
+            )}
+          </div>
         </div>
-        <div ref={mapContainerRef} className={`map-container ${isPanning ? "is-panning" : ""}`}>
+          <div
+            ref={mapContainerRef}
+            className={`map-container ${isPanning ? "is-panning" : ""}`}
+            style={mapVars}
+          >
           {view === "mapa" ? (
             <TransformWrapper
               ref={transformRef}
@@ -514,7 +720,7 @@ function App() {
               initialPositionY={0}
               alignmentAnimation={{ disabled: true }}
               panning={{ velocityDisabled: true }}
-              wheel={{ smoothStep: 0.005 }}
+              wheel={{ step: 0.04, smoothStep: 0.003 }}
               onTransformed={(_, state) => {
                 setMapTransform(state);
                 mapTransformRef.current = state;
@@ -550,7 +756,20 @@ function App() {
                     <button className="btn ghost" onClick={() => zoomOut()}>
                       -
                     </button>
-                    <button className="btn ghost" onClick={() => resetTransform()}>
+                    <button
+                      className="btn ghost"
+                      onClick={() => {
+                        if (mapContainerRef.current) {
+                          const { width, height } = mapContainerRef.current.getBoundingClientRect();
+                          const nextScale = Math.min(width / MAP_WIDTH, height / MAP_HEIGHT);
+                          const nextX = (width - MAP_WIDTH * nextScale) / 2;
+                          const nextY = (height - MAP_HEIGHT * nextScale) / 2;
+                          setTransform(nextX, nextY, nextScale);
+                          return;
+                        }
+                        resetTransform();
+                      }}
+                    >
                       Reset
                     </button>
                     <div className="zoom-indicator">{Math.round(mapTransform.scale * 100)}%</div>
@@ -576,9 +795,11 @@ function App() {
                         src="/assets/plano-fondo-demo.png"
                         alt="Plano de fondo"
                         className="map-background"
+                        draggable={false}
                       />
-                      <LotesSvg
+                      <ArenasSvg
                         svgRef={svgRef}
+                        className="lotes-svg"
                         style={overlayStyle(overlay)}
                         onMouseMove={handleSvgPointer}
                         onClick={handleSvgPointer}
@@ -591,27 +812,100 @@ function App() {
             </TransformWrapper>
           ) : (
             <div className="table-view">
-              <div className="table-header">
-                <span>Lote</span>
-                <span>Area</span>
-                <span>Precio</span>
-                <span>Estado</span>
-              </div>
-              {filteredLotes.map((lote) => (
-                <button
-                  className={`table-row ${selectedId === lote.id ? "selected" : ""}`}
-                  key={lote.id}
-                  onClick={() => {
-                    setSelectedId(lote.id);
-                    setRightOpen(true);
-                  }}
-                >
-                  <span>{lote.id}</span>
-                  <span>{formatArea(lote.areaM2)}</span>
-                  <span>{formatMoney(lote.price)}</span>
-                  <span>{lote.condicion}</span>
+              <div className="table-filters">
+                <label>
+                  MZ
+                  <input
+                    value={filters.mz}
+                    onChange={(event) => setFilters({ ...filters, mz: event.target.value })}
+                    placeholder="A o B"
+                  />
+                </label>
+                <label>
+                  Estado
+                  <select
+                    value={filters.status}
+                    onChange={(event) => setFilters({ ...filters, status: event.target.value })}
+                  >
+                    <option value="TODOS">Todos</option>
+                    <option value="LIBRE">Libre</option>
+                    <option value="SEPARADO">Separado</option>
+                    <option value="VENDIDO">Vendido</option>
+                  </select>
+                </label>
+                <label>
+                  Precio min
+                  <input
+                    type="number"
+                    value={filters.priceMin}
+                    onChange={(event) => setFilters({ ...filters, priceMin: event.target.value })}
+                    placeholder="Desde S/ ..."
+                  />
+                </label>
+                <label>
+                  Precio max
+                  <input
+                    type="number"
+                    value={filters.priceMax}
+                    onChange={(event) => setFilters({ ...filters, priceMax: event.target.value })}
+                    placeholder="Hasta S/ ..."
+                  />
+                </label>
+                <label>
+                  Area min
+                  <input
+                    type="number"
+                    value={filters.areaMin}
+                    onChange={(event) => setFilters({ ...filters, areaMin: event.target.value })}
+                    placeholder="Min m2"
+                  />
+                </label>
+                <label>
+                  Area max
+                  <input
+                    type="number"
+                    value={filters.areaMax}
+                    onChange={(event) => setFilters({ ...filters, areaMax: event.target.value })}
+                    placeholder="Max m2"
+                  />
+                </label>
+                <button className="btn ghost" onClick={resetFilters}>
+                  Limpiar
                 </button>
-              ))}
+              </div>
+              <div className="table-scroll">
+                <div className="table-header">
+                  <span>MZ</span>
+                  <span>LT</span>
+                  <span>AREA (M2)</span>
+                  <span>ASESOR</span>
+                  <span>PRECIO</span>
+                  <span>CONDICION</span>
+                  <span></span>
+                </div>
+                {filteredLotes.map((lote) => (
+                  <button
+                    className={`table-row ${selectedId === lote.id ? "selected" : ""}`}
+                    key={lote.id}
+                    onClick={() => {
+                      setSelectedId(lote.id);
+                      setRightOpen(true);
+                    }}
+                  >
+                    <span className="table-cell strong">{lote.mz}</span>
+                    <span className="table-cell strong">{lote.lote}</span>
+                    <span className="table-cell">{formatArea(lote.areaM2)}</span>
+                    <span className="table-cell">{lote.asesor ?? "—"}</span>
+                    <span className="table-cell">{formatMoney(lote.price)}</span>
+                    <span className={`table-cell status-pill ${statusToClass(lote.condicion)}`}>
+                      {lote.condicion === "LIBRE" ? "DISPONIBLE" : lote.condicion}
+                    </span>
+                    <span className="table-cell table-action" aria-hidden="true">
+                      🔎
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {hoveredLote && view === "mapa" && (
@@ -625,153 +919,160 @@ function App() {
               <span>{hoveredLote.condicion}</span>
             </div>
           )}
-        </div>
-        <div className="map-footer">
-          {hoveredLote ? (
-            <span className="map-pill info">
-              <strong>{hoveredLote.id}</strong>
-              <span>{formatArea(hoveredLote.areaM2)}</span>
-              <span>{formatMoney(hoveredLote.price)}</span>
-              <span className={`status-pill ${statusToClass(hoveredLote.condicion)}`}>
-                {hoveredLote.condicion}
-              </span>
-            </span>
-          ) : (
-            <span className="map-pill">Pasa el mouse sobre un lote</span>
-          )}
-          {selectedLote ? (
-            <span className="map-pill active">
-              Seleccionado {selectedLote.id} - {formatMoney(selectedLote.price)} -{" "}
-              {selectedLote.condicion}
-            </span>
-          ) : (
-            <span className="map-pill">Selecciona un lote para cotizar</span>
-          )}
-        </div>
-      </section>
+          </div>
+          
+        </section>
 
       <aside className={`drawer-panel right ${rightOpen ? "open" : ""}`}>
         <div className="drawer__header">
           <h3>Cotizador</h3>
-          <button className="btn ghost" onClick={() => setRightOpen(false)}>
-            Cerrar
-          </button>
+          <div className="drawer__header-actions">
+            <a
+              className="btn ghost instagram"
+              href="https://www.instagram.com/arenasmalabrigo/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Instagram
+            </a>
+            <button className="btn ghost" onClick={() => setRightOpen(false)}>
+              Cerrar
+            </button>
+          </div>
         </div>
         <div className="drawer__body">
           {selectedLote ? (
-            <div className="lote-details">
-              <h4>Lote {selectedLote.id}</h4>
-              <div className="details-grid">
-                <div>
-                  <span className="detail-label">
-                    <span className="detail-icon">M2</span>
-                    Area
-                  </span>
-                  <strong>{formatArea(selectedLote.areaM2)}</strong>
-                </div>
-                <div>
-                  <span className="detail-label">
-                    <span className="detail-icon">$</span>
-                    Precio base
-                  </span>
-                  <strong>{formatMoney(selectedLote.price)}</strong>
-                </div>
-                <div>
-                  <span className="detail-label">
-                    <span className="detail-icon">St</span>
-                    Estado
-                  </span>
-                  <strong>{selectedLote.condicion}</strong>
-                </div>
-                <div>
-                  <span className="detail-label">
-                    <span className="detail-icon">As</span>
-                    Asesor
-                  </span>
-                  <strong>{selectedLote.asesor ?? "-"}</strong>
-                </div>
+            <>
+              <div className="drawer-chips">
+                <span className="chip">MZ {selectedLote.mz}</span>
+                <span className="chip">Lote {selectedLote.lote}</span>
+                <span className={`chip status-pill ${statusToClass(selectedLote.condicion)}`}>
+                  {selectedLote.condicion === "LIBRE" ? "DISPONIBLE" : selectedLote.condicion}
+                </span>
               </div>
-            </div>
+
+              <div className="drawer-tabs">
+                <button
+                  className={`btn tab ${drawerTab === "cotizar" ? "active" : ""}`}
+                  onClick={() => setDrawerTab("cotizar")}
+                >
+                  Cotizador
+                </button>
+                <button
+                  className={`btn tab ${drawerTab === "separar" ? "active" : ""}`}
+                  onClick={() => setDrawerTab("separar")}
+                >
+                  Separar Lote
+                </button>
+              </div>
+
+              {drawerTab === "cotizar" ? (
+                <>
+                  <div className="drawer-cards">
+                    <div className="drawer-card">
+                      <span>Area</span>
+                      <strong>{formatArea(selectedLote.areaM2)}</strong>
+                    </div>
+                    <div className="drawer-card">
+                      <span>Precio</span>
+                      <strong>{formatMoney(selectedLote.price)}</strong>
+                    </div>
+                    <div className="drawer-card">
+                      <span>Asesor</span>
+                      <strong>{selectedLote.asesor ?? "—"}</strong>
+                    </div>
+                    <div className="drawer-card">
+                      <span>Inicial (referencia)</span>
+                      <strong>{formatMoney(quote.inicialMonto)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="quick-quotes">
+                    <h4>Cuotas rapidas (inicial fija {formatMoney(quote.inicialMonto)})</h4>
+                    <div className="quick-grid">
+                      {[12, 24, 36].map((meses) => (
+                        <div className="quick-card" key={meses}>
+                          <span>{meses} meses</span>
+                          <strong>{formatMoney(cuotaRapida(meses, quote.inicialMonto))}</strong>
+                        </div>
+                      ))}
+                      <div className="quick-card formula">
+                        <span>Formula</span>
+                        <strong>(Precio - Inicial) / Meses</strong>
+                        <em>Referencia informativa.</em>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="quote-box compact">
+                    <h4>Cotizacion manual</h4>
+                    <div className="quote-grid">
+                      <label>
+                        Inicial (S/)
+                        <input
+                          type="number"
+                          value={quote.inicialMonto}
+                          onChange={(event) =>
+                            setQuote({ ...quote, inicialMonto: Number(event.target.value || 0) })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Meses (1 a 36)
+                        <input
+                          type="number"
+                          min={1}
+                          max={36}
+                          value={quote.cuotas}
+                          onChange={(event) =>
+                            setQuote({ ...quote, cuotas: Number(event.target.value || 0) })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="quote-highlight">
+                      <span>Cuota mensual estimada</span>
+                      <strong>{formatMoney(cuota)}</strong>
+                      <small>Formula: (Precio - Inicial) / Meses</small>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="client-form">
+                  <h4>Separar lote</h4>
+                  <label>
+                    Nombre completo
+                    <input placeholder="Cliente" />
+                  </label>
+                  <label>
+                    DNI
+                    <input placeholder="Documento" />
+                  </label>
+                  <label>
+                    Telefono
+                    <input placeholder="+51 ..." />
+                  </label>
+                  <label>
+                    Email
+                    <input placeholder="correo@ejemplo.com" />
+                  </label>
+                  <label>
+                    Comentarios
+                    <textarea placeholder="Detalle adicional" rows={3} />
+                  </label>
+                  <div className="drawer-actions">
+                    <button className="btn primary">Registrar interes</button>
+                    <button className="btn ghost">Contactar asesor</button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <p className="muted">Selecciona un lote para ver detalles.</p>
           )}
-
-          <div className="quote-box">
-            <h4>Cotizacion</h4>
-            <label>
-              Precio
-              <input
-                type="number"
-                value={quote.precio}
-                onChange={(event) => setQuote({ ...quote, precio: Number(event.target.value || 0) })}
-              />
-            </label>
-            <label>
-              Inicial (S/)
-              <input
-                type="number"
-                value={quote.inicialMonto}
-                onChange={(event) =>
-                  setQuote({ ...quote, inicialMonto: Number(event.target.value || 0) })
-                }
-              />
-            </label>
-            <label>
-              Cuotas (meses)
-              <input
-                type="number"
-                value={quote.cuotas}
-                onChange={(event) => setQuote({ ...quote, cuotas: Number(event.target.value || 0) })}
-              />
-            </label>
-            <label>
-              Interes anual (%)
-              <input
-                type="number"
-                value={quote.interesAnual}
-                onChange={(event) =>
-                  setQuote({ ...quote, interesAnual: Number(event.target.value || 0) })
-                }
-              />
-            </label>
-            <div className="quote-summary">
-              <div>
-                <span>Inicial</span>
-                <strong>{formatMoney(montoInicial)}</strong>
-              </div>
-              <div>
-                <span>Financiado</span>
-                <strong>{formatMoney(financiado)}</strong>
-              </div>
-              <div>
-                <span>Cuota estimada</span>
-                <strong>{formatMoney(cuota)}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div className="client-form">
-            <h4>Separar lote</h4>
-            <label>
-              Nombre completo
-              <input placeholder="Cliente" />
-            </label>
-            <label>
-              DNI
-              <input placeholder="Documento" />
-            </label>
-            <label>
-              Telefono
-              <input placeholder="+51 ..." />
-            </label>
-            <label>
-              Email
-              <input placeholder="correo@ejemplo.com" />
-            </label>
-            <button className="btn primary">Registrar interes</button>
-          </div>
         </div>
       </aside>
+    </section>
     </section>
   );
 
@@ -780,8 +1081,19 @@ function App() {
       <div className="app-shell">
         <header className="topbar">
           <div className="brand">
-            <span className="brand__title">Arenas Malabrigo</span>
-            <span className="brand__subtitle">Mapa interactivo de lotes</span>
+            <div className="brand__headline">
+              <span className="brand__icon" aria-hidden="true">
+                🏖️
+              </span>
+              <div className="brand__text">
+                <span className="brand__title">Mapa interactivo – Arenas Malabrigo</span>
+                <span className="brand__desc">
+                  Solo informativo: mira <strong>precio</strong>, <strong>condición</strong> y{" "}
+                  <strong>asesor</strong>. Busca por <strong>Manzana</strong> o{" "}
+                  <strong>Manzana + Lote</strong> o mira el <strong>Resumen general</strong>.
+                </span>
+              </div>
+            </div>
           </div>
           <div className="topbar__actions">
             <nav className="nav-links">
@@ -795,9 +1107,6 @@ function App() {
                 Editor
               </NavLink>
             </nav>
-            <button className="btn ghost" onClick={() => setLeftOpen(true)}>
-              Filtros
-            </button>
             <button className="btn ghost" onClick={() => setRightOpen(true)}>
               Cotizador
             </button>
@@ -817,15 +1126,34 @@ function App() {
                   </p>
                   <div className="seller-table">
                     <div className="seller-row header">
-                      <span>Lote</span>
-                      <span>Estado</span>
-                      <span>Precio</span>
-                      <span>Cliente</span>
+                      <span>MZ</span>
+                      <span>LT</span>
+                      <span>AREA (M2)</span>
+                      <span>ASESOR</span>
+                      <span>PRECIO</span>
+                      <span>ESTADO</span>
+                      <span>CLIENTE(S)</span>
                     </div>
                     {lotes.map((lote) => (
                       <div className="seller-row" key={lote.id}>
-                        <span>{lote.id}</span>
+                        <span>{lote.mz}</span>
+                        <span>{lote.lote}</span>
+                        <span>{formatArea(lote.areaM2)}</span>
+                        <span>{lote.asesor ?? "—"}</span>
+                        <div className="price-input">
+                          <span>S/</span>
+                          <input
+                            type="number"
+                            value={lote.price ?? ""}
+                            onChange={(event) =>
+                              updateOverride(lote.id, {
+                                price: event.target.value ? Number(event.target.value) : null,
+                              })
+                            }
+                          />
+                        </div>
                         <select
+                          className={`seller-status ${statusToClass(lote.condicion)}`}
                           value={lote.condicion}
                           onChange={(event) =>
                             updateOverride(lote.id, { condicion: event.target.value })
@@ -835,15 +1163,6 @@ function App() {
                           <option value="SEPARADO">SEPARADO</option>
                           <option value="VENDIDO">VENDIDO</option>
                         </select>
-                        <input
-                          type="number"
-                          value={lote.price ?? ""}
-                          onChange={(event) =>
-                            updateOverride(lote.id, {
-                              price: event.target.value ? Number(event.target.value) : null,
-                            })
-                          }
-                        />
                         <input
                           type="text"
                           value={lote.cliente ?? ""}
@@ -944,15 +1263,17 @@ function App() {
                         </code>
                       </div>
                     </div>
-                    <div className="editor-canvas">
+                    <div className="editor-canvas" style={mapVars}>
                       <div className="map-layer">
                         <img
                           src="/assets/plano-fondo-demo.png"
                           alt="Plano de fondo"
                           className="map-background"
+                          draggable={false}
                         />
-                        <LotesSvg
+                        <ArenasSvg
                           svgRef={svgRef}
+                          className="lotes-svg"
                           style={overlayStyle(overlay)}
                           onMouseMove={handleSvgPointer}
                           onClick={handleSvgPointer}
@@ -976,3 +1297,4 @@ function App() {
 }
 
 export default App;
+

@@ -18,13 +18,13 @@
 
 body {
   margin: 0;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  overflow: auto;
   background: radial-gradient(circle at top, #fef7e8 0%, #f4efe6 35%, #e8e2d6 100%);
 }
 
 #root {
-  height: 100vh;
+  min-height: 100vh;
 }
 
 button,
