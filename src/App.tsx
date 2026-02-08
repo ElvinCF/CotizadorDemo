@@ -902,13 +902,15 @@ function App() {
             .price-card { border: 2px solid #7a4a00; border-radius: 14px; padding: 12px; background: #fffdf9; font-size: 1.08rem; }
             .price-card h3 { margin: 0 0 8px; font-size: 1.35rem; }
             .price-card .price { font-size: 1.85rem; font-weight: 700; color: #b14518; }
-            .price-card .sub { font-size: 1rem; color: #6a5c4c; }
+            .price-card .sub { font-size: 1.05rem; color: #6a5c4c; }
             .price-list { margin-top: 6px; display: grid; gap: 4px; font-size: 1.2rem; }
             .price-list > div { display: flex; justify-content: space-between; gap: 8px; }
             .price-list strong { text-align: right; font-weight: 700; }
             .quick { border: 1px solid #2c2c2c; border-radius: 12px; padding: 8px 10px; margin-top: 8px; font-size: 1.15rem; border-color: #c47a00; }
             .quick-row { display: flex; justify-content: space-between; }
-            .savings { margin-top: 10px; font-weight: 700; font-size: 1.25rem; text-align: center; }
+            .savings { margin-top: 10px; font-weight: 800; font-size: 1.45rem; text-align: center; color: #1f8a4c; }
+            .expiry { margin-top: 4px; font-weight: 700; font-size: 1.1rem; color: #b14518; }
+            .monthly { font-size: 1.2rem; font-weight: 700; }
             .footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
             .project-logo { height: 40px; object-fit: contain; border: 1px solid #efd4c1; border-radius: 10px; padding: 6px; background: #fffaf1; }
           </style>
@@ -921,6 +923,7 @@ function App() {
                 <h1>Proforma Arenas Malabrigo</h1>
                 <div class="meta">Fecha y hora: ${created.toLocaleString("es-PE")}</div>
                 <div class="meta">Agente de ventas: ${vendorName} · ${vendorPhone}</div>
+                <div class="expiry">Vence: ${proforma.fechaCaducidad}</div>
               </div>
               <img src="/assets/Logo_Arenas_Malabrigo.svg" class="logo" alt="Arenas Malabrigo" />
             </div>
@@ -962,7 +965,7 @@ function App() {
                   <div class="quick-row"><span>24 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarRegular)[24])}</strong></div>
                   <div class="quick-row"><span>36 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarRegular)[36])}</strong></div>
                 </div>
-                <div class="sub">Pago mensual en ${proforma.meses} meses: ${formatMoney(proformaCuotaRegular)}</div>
+                <div class="sub monthly">Pago mensual en ${proforma.meses} meses: ${formatMoney(proformaCuotaRegular)}</div>
               </div>
               <div class="price-card">
                 <h3>Precio promocional</h3>
@@ -978,7 +981,7 @@ function App() {
                   <div class="quick-row"><span>24 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarPromo)[24])}</strong></div>
                   <div class="quick-row"><span>36 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarPromo)[36])}</strong></div>
                 </div>
-                <div class="sub">Pago mensual en ${proforma.meses} meses: ${formatMoney(proformaCuotaPromo)}</div>
+                <div class="sub monthly">Pago mensual en ${proforma.meses} meses: ${formatMoney(proformaCuotaPromo)}</div>
               </div>
             </div>
 
