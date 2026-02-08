@@ -1,14 +1,16 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom";
+﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import {
   TransformComponent,
   TransformWrapper,
   type ReactZoomPanPinchRef,
 } from "react-zoom-pan-pinch";
 import Papa from "papaparse";
-import html2canvas from "html2canvas";
 import ArenasSvg from "./components/arenas";
+import { projectInfo } from "./data/projectInfo";
 import "./App.css";
+
+const MemoArenasSvg = memo(ArenasSvg);
 
 type Lote = {
   id: string;
@@ -49,8 +51,42 @@ type OverlayTransform = {
   scale: number;
 };
 
+type ProformaState = {
+  cliente: {
+    nombre: string;
+    dni: string;
+    celular: string;
+    direccion: string;
+    correo: string;
+  };
+  lote: {
+    proyecto: string;
+    mz: string;
+    lote: string;
+    area: string;
+    ubicacion: string;
+  };
+  precioRegular: number;
+  precioPromocional: number;
+  descuentoSoles: number;
+  descuentoPct: number;
+  diasVigencia: number;
+  fechaCaducidad: string;
+  separacion: number;
+  inicial: number;
+  meses: number;
+  vendedor: {
+    nombre: string;
+    celular: string;
+  };
+  creadoEn: string;
+};
+
 const OVERRIDES_KEY = "arenas.lotes.overrides.v1";
-const HISTORY_KEY = "arenas.lotes.history.v1";
+const PROFORMA_VENDOR_KEY = "arenas.proforma.vendor.v1";
+const PROYECTO_FIJO = "Arenas Malabrigo";
+const EMPRESA_DIRECCION =
+  "CALLE BALTAZAR GAVILAN mz: F Lote: 7 URB. SANTO DOMINGUITO TRUJILLO LA LIBERTAD";
 
 const defaultQuote: QuoteState = {
   precio: 0,
@@ -83,6 +119,17 @@ const statusToClass = (value: string | undefined) => {
   }
 };
 
+const normalizeStatusLabel = (value: string | undefined) => {
+  switch ((value || "").toUpperCase()) {
+    case "VENDIDO":
+      return "VENDIDO";
+    case "SEPARADO":
+      return "SEPARADO";
+    default:
+      return "DISPONIBLE";
+  }
+};
+
 const cleanNumber = (value: string | undefined) => {
   if (!value) return null;
   const normalized = value.replace(/[^\d.,-]/g, "").replace(",", "");
@@ -102,19 +149,6 @@ const loadOverrides = (): Record<string, LoteOverride> => {
   }
 };
 
-const saveOverrides = (overrides: Record<string, LoteOverride>) => {
-  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
-};
-
-const appendHistory = (entry: string) => {
-  const now = new Date().toISOString();
-  const line = `${now} | ${entry}`;
-  const raw = localStorage.getItem(HISTORY_KEY);
-  const history = raw ? (JSON.parse(raw) as string[]) : [];
-  history.unshift(line);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 200)));
-};
-
 const formatMoney = (value: number | null) => {
   if (value == null) return "-";
   return new Intl.NumberFormat("es-PE", {
@@ -132,6 +166,16 @@ const formatArea = (value: number | null) => {
 const formatNumber = (value: number | null) => {
   if (value == null || Number.isNaN(value)) return "";
   return value.toFixed(2);
+};
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const toDateValue = (date: Date) => date.toISOString().slice(0, 10);
+
+const addDays = (base: Date, days: number) => {
+  const next = new Date(base);
+  next.setDate(next.getDate() + days);
+  return next;
 };
 
 const quoteMonthly = (monto: number, cuotas: number, interesAnual: number) => {
@@ -173,8 +217,27 @@ function App() {
     areaMax: "",
   });
   const [view, setView] = useState<"mapa" | "tabla">("mapa");
-  const [overlay, setOverlay] = useState<OverlayTransform>(defaultOverlay);
+  const [overlay] = useState<OverlayTransform>(defaultOverlay);
   const [drawerTab, setDrawerTab] = useState<"cotizar" | "separar">("cotizar");
+  const [proformaOpen, setProformaOpen] = useState(false);
+  const [proformaDirty, setProformaDirty] = useState(false);
+  const [proformaConfirmClose, setProformaConfirmClose] = useState(false);
+  const [proformaAlert, setProformaAlert] = useState<string | null>(null);
+  const [proforma, setProforma] = useState<ProformaState>({
+    cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
+    lote: { proyecto: PROYECTO_FIJO, mz: "", lote: "", area: "", ubicacion: "" },
+    precioRegular: 0,
+    precioPromocional: 0,
+    descuentoSoles: 0,
+    descuentoPct: 0,
+    diasVigencia: 3,
+    fechaCaducidad: toDateValue(addDays(new Date(), 3)),
+    separacion: 0,
+    inicial: 6000,
+    meses: 24,
+    vendedor: { nombre: "", celular: "" },
+    creadoEn: new Date().toISOString(),
+  });
   const [mapTransform, setMapTransform] = useState({
     scale: 1,
     positionX: 0,
@@ -187,6 +250,7 @@ function App() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const mapTransformRef = useRef(mapTransform);
+  const transformRafRef = useRef<number | null>(null);
   const containerSizeRef = useRef({ width: 0, height: 0 });
   const hasFitRef = useRef(false);
   const lastHoveredRef = useRef<string | null>(null);
@@ -194,6 +258,7 @@ function App() {
   const highlightedRef = useRef<Set<string>>(new Set());
   const hoverPosRef = useRef({ x: 0, y: 0 });
   const hoverRafRef = useRef<number | null>(null);
+  const lastPriceEditedRef = useRef<"soles" | "pct" | "promo" | null>(null);
 
   useEffect(() => {
     fetch("/assets/lotes.csv")
@@ -243,6 +308,45 @@ function App() {
       if (channel) channel.close();
     };
   }, []);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(PROFORMA_VENDOR_KEY);
+    if (!raw) return;
+    try {
+      const saved = JSON.parse(raw) as { nombre?: string; celular?: string };
+      setProforma((current) => ({
+        ...current,
+        vendedor: {
+          nombre: saved.nombre ?? current.vendedor.nombre,
+          celular: saved.celular ?? current.vendedor.celular,
+        },
+      }));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!proformaOpen) return;
+    const raw = localStorage.getItem(PROFORMA_VENDOR_KEY);
+    if (!raw) return;
+    try {
+      const saved = JSON.parse(raw) as { nombre?: string; celular?: string };
+      setProforma((current) => ({
+        ...current,
+        vendedor: {
+          nombre: saved.nombre ?? current.vendedor.nombre,
+          celular: saved.celular ?? current.vendedor.celular,
+        },
+      }));
+    } catch {
+      // ignore
+    }
+  }, [proformaOpen]);
+
+  useEffect(() => {
+    localStorage.setItem(PROFORMA_VENDOR_KEY, JSON.stringify(proforma.vendedor));
+  }, [proforma.vendedor]);
 
   const lotes = useMemo(() => applyOverrides(rawLotes, overrides), [rawLotes, overrides]);
 
@@ -347,6 +451,14 @@ function App() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (proformaOpen) {
+          if (proformaDirty) {
+            setProformaConfirmClose(true);
+          } else {
+            setProformaOpen(false);
+          }
+          return;
+        }
         setRightOpen(false);
       }
     };
@@ -359,6 +471,10 @@ function App() {
       if (hoverRafRef.current != null) {
         cancelAnimationFrame(hoverRafRef.current);
         hoverRafRef.current = null;
+      }
+      if (transformRafRef.current != null) {
+        cancelAnimationFrame(transformRafRef.current);
+        transformRafRef.current = null;
       }
     };
   }, []);
@@ -396,7 +512,7 @@ function App() {
 
 
 
-  const handleSvgPointer = (event: React.MouseEvent<SVGSVGElement>) => {
+  const handleSvgPointer = useCallback((event: React.MouseEvent<SVGSVGElement>) => {
     const target = event.target as SVGElement | null;
     const id = target?.getAttribute("id");
     if (!id || !/^[A-Z]-\d+/.test(id)) {
@@ -424,21 +540,11 @@ function App() {
         hoverRafRef.current = null;
       });
     }
-  };
+  }, [hoveredId]);
 
-  const updateOverride = (id: string, patch: LoteOverride) => {
-    setOverrides((current) => {
-      const next = { ...current, [id]: { ...current[id], ...patch } };
-      saveOverrides(next);
-      appendHistory(`${id} => ${JSON.stringify(patch)}`);
-      if ("BroadcastChannel" in window) {
-        const channel = new BroadcastChannel("arenas-lotes-sync");
-        channel.postMessage("sync");
-        channel.close();
-      }
-      return next;
-    });
-  };
+  const handleSvgLeave = useCallback(() => {
+    setHoveredId(null);
+  }, []);
 
   const resetFilters = () =>
     setFilters({
@@ -460,6 +566,103 @@ function App() {
     () => lotes.find((item) => item.id === hoveredId) ?? null,
     [hoveredId, lotes]
   );
+
+  const proformaAhorro = Math.max(proforma.precioRegular - proforma.precioPromocional, 0);
+  const precioFinanciarRegular = Math.max(
+    proforma.precioRegular - proforma.separacion - proforma.inicial,
+    0
+  );
+  const precioFinanciarPromo = Math.max(
+    proforma.precioPromocional - proforma.separacion - proforma.inicial,
+    0
+  );
+  const proformaCuotaRegular = proforma.meses ? precioFinanciarRegular / proforma.meses : 0;
+  const proformaCuotaPromo = proforma.meses ? precioFinanciarPromo / proforma.meses : 0;
+  const cuotasRapidas = (monto: number) => ({
+    12: Math.max(monto / 12, 0),
+    24: Math.max(monto / 24, 0),
+    36: Math.max(monto / 36, 0),
+  });
+
+  const refreshProformaFromLote = (lote: Lote) => {
+    const regular = lote.price ?? 0;
+    const promo = regular;
+    const inicial = clamp(6000, 6000, promo || 6000);
+    const dias = 3;
+    lastPriceEditedRef.current = null;
+    setProforma({
+      cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
+      lote: {
+        proyecto: PROYECTO_FIJO,
+        mz: lote.mz,
+        lote: String(lote.lote),
+        area: formatArea(lote.areaM2),
+        ubicacion: projectInfo.locationText,
+      },
+      precioRegular: regular,
+      precioPromocional: promo,
+      descuentoSoles: Math.max(regular - promo, 0),
+      descuentoPct: regular ? Math.max(((regular - promo) / regular) * 100, 0) : 0,
+      diasVigencia: dias,
+      fechaCaducidad: toDateValue(addDays(new Date(), dias)),
+      separacion: 0,
+      inicial,
+      meses: 24,
+      vendedor: proforma.vendedor,
+      creadoEn: new Date().toISOString(),
+    });
+    setProformaDirty(false);
+  };
+
+  const recalcProforma = (draft: ProformaState) => {
+    const regular = Math.max(draft.precioRegular, 0);
+    let promo = Math.max(draft.precioPromocional, 0);
+    let descuentoSoles = Math.max(draft.descuentoSoles, 0);
+    let descuentoPct = Math.max(draft.descuentoPct, 0);
+
+    if (lastPriceEditedRef.current === "soles") {
+      descuentoSoles = clamp(descuentoSoles, 0, regular);
+      descuentoPct = regular ? (descuentoSoles / regular) * 100 : 0;
+      promo = Math.max(regular - descuentoSoles, 0);
+    } else if (lastPriceEditedRef.current === "pct") {
+      descuentoPct = clamp(descuentoPct, 0, 100);
+      descuentoSoles = (descuentoPct / 100) * regular;
+      promo = Math.max(regular - descuentoSoles, 0);
+    } else if (lastPriceEditedRef.current === "promo") {
+      promo = clamp(promo, 0, regular);
+      descuentoSoles = Math.max(regular - promo, 0);
+      descuentoPct = regular ? (descuentoSoles / regular) * 100 : 0;
+    } else {
+      promo = clamp(promo, 0, regular);
+      descuentoSoles = Math.max(regular - promo, 0);
+      descuentoPct = regular ? (descuentoSoles / regular) * 100 : 0;
+    }
+
+    const dias = clamp(Math.round(draft.diasVigencia || 0), 1, 30);
+    const fechaCaducidad = toDateValue(addDays(new Date(), dias));
+    const separacion = Math.max(draft.separacion, 0);
+    const inicial = Math.max(draft.inicial || 0, 6000);
+    const meses = clamp(Math.round(draft.meses || 1), 1, 36);
+
+    return {
+      ...draft,
+      precioRegular: regular,
+      precioPromocional: promo,
+      descuentoSoles,
+      descuentoPct,
+      diasVigencia: dias,
+      fechaCaducidad,
+      separacion,
+      inicial,
+      meses,
+    };
+  };
+
+  const updateProforma = (updater: (current: ProformaState) => ProformaState) => {
+    setProforma((current) => recalcProforma(updater(current)));
+    setProformaDirty(true);
+  };
+
 
   const exportTableCsv = () => {
     const headers = ["MZ", "LT", "AREA_M2", "ASESOR", "PRECIO", "CONDICION"];
@@ -485,6 +688,8 @@ function App() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  const overlayStyleMemo = useMemo(() => overlayStyle(overlay), [overlay]);
 
   const exportPrintable = async () => {
     const standardQuoteHtml = `
@@ -565,6 +770,7 @@ function App() {
 
     let mapCaptureHtml = "";
     if (view === "mapa" && mapContainerRef.current) {
+      const { default: html2canvas } = await import("html2canvas");
       const target = mapContainerRef.current;
       const canvas = await html2canvas(target, {
         backgroundColor: "#f7f0e4",
@@ -639,43 +845,259 @@ function App() {
     win.print();
   };
 
+  const exportProforma = async () => {
+    const requiredName = proforma.cliente.nombre.trim();
+    const requiredDni = proforma.cliente.dni.trim();
+    const requiredCel = proforma.cliente.celular.trim();
+    if (!requiredName || !requiredDni || !requiredCel) {
+      setProformaAlert("Completa nombre, DNI y celular del cliente para imprimir la proforma.");
+      return;
+    }
+
+    const created = new Date(proforma.creadoEn);
+    const line = (value: string) => (value.trim() ? value : "__________________________");
+    const vendorName = line(proforma.vendedor.nombre);
+    const vendorPhone = line(proforma.vendedor.celular);
+    const clientName = line(proforma.cliente.nombre);
+    const clientDni = line(proforma.cliente.dni);
+    const clientCel = line(proforma.cliente.celular);
+    const clientAddress = line(proforma.cliente.direccion);
+    const clientMail = line(proforma.cliente.correo);
+
+    const html = `
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <title>Proforma Arenas Malabrigo</title>
+          <style>
+            @page { size: A4; margin: 12mm; }
+            body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b1b1b; }
+            .page { border: 2px solid #d7b08a; border-radius: 16px; padding: 0; position: relative; overflow: hidden; }
+            .page::before,
+            .page::after {
+              content: "";
+              position: absolute;
+              left: 0;
+              right: 0;
+              height: 14mm;
+              background: linear-gradient(135deg, #1f8a4c 0 45%, #f4b24d 45% 60%, #1f8a4c 60% 100%);
+            }
+            .page::before { top: 0; }
+            .page::after {
+              bottom: 0;
+              transform: rotate(180deg);
+            }
+            .page-content { padding: 18mm 14px 18mm; position: relative; z-index: 1; }
+            .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+            .header h1 { margin: 0; font-size: 20px; color: #b14518; }
+            .meta { font-size: 11px; color: #6a5c4c; }
+            .logo { height: 34px; object-fit: contain; }
+            .section { border: 1px solid #efd4c1; border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
+            .section h2 { margin: 0 0 8px; font-size: 12px; color: #8f3a18; text-transform: uppercase; letter-spacing: 0.02em; }
+            .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; }
+            .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+            .label { font-size: 11px; color: #6a5c4c; display: block; }
+            .value { font-weight: 600; font-size: 12px; }
+            .price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
+            .price-card { border: 2px solid #7a4a00; border-radius: 14px; padding: 12px; background: #fffdf9; font-size: 1.08rem; }
+            .price-card h3 { margin: 0 0 8px; font-size: 1.35rem; }
+            .price-card .price { font-size: 1.85rem; font-weight: 700; color: #b14518; }
+            .price-card .sub { font-size: 1rem; color: #6a5c4c; }
+            .price-list { margin-top: 6px; display: grid; gap: 4px; font-size: 1.2rem; }
+            .price-list > div { display: flex; justify-content: space-between; gap: 8px; }
+            .price-list strong { text-align: right; font-weight: 700; }
+            .quick { border: 1px solid #2c2c2c; border-radius: 12px; padding: 8px 10px; margin-top: 8px; font-size: 1.15rem; border-color: #c47a00; }
+            .quick-row { display: flex; justify-content: space-between; }
+            .savings { margin-top: 10px; font-weight: 700; font-size: 1.25rem; text-align: center; }
+            .footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+            .project-logo { height: 40px; object-fit: contain; border: 1px solid #efd4c1; border-radius: 10px; padding: 6px; background: #fffaf1; }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="page-content">
+            <div class="header">
+              <div>
+                <h1>Proforma Arenas Malabrigo</h1>
+                <div class="meta">Fecha y hora: ${created.toLocaleString("es-PE")}</div>
+                <div class="meta">Agente de ventas: ${vendorName} · ${vendorPhone}</div>
+              </div>
+              <img src="/assets/Logo_Arenas_Malabrigo.svg" class="logo" alt="Arenas Malabrigo" />
+            </div>
+
+            <section class="section">
+              <h2>Datos del cliente</h2>
+              <div class="grid-4">
+                <div><span class="label">Nombre completo</span><span class="value">${clientName}</span></div>
+                <div><span class="label">DNI</span><span class="value">${clientDni}</span></div>
+                <div><span class="label">Celular</span><span class="value">${clientCel}</span></div>
+                <div><span class="label">Direccion</span><span class="value">${clientAddress}</span></div>
+                <div><span class="label">Correo</span><span class="value">${clientMail}</span></div>
+              </div>
+            </section>
+
+            <section class="section">
+              <h2>Informacion del lote</h2>
+              <div class="grid-4">
+                <div><span class="label">Proyecto</span><span class="value">${proforma.lote.proyecto}</span></div>
+                <div><span class="label">Ubicacion referencial</span><span class="value">${proforma.lote.ubicacion}</span></div>
+                <div><span class="label">Manzana</span><span class="value">${proforma.lote.mz}</span></div>
+                <div><span class="label">Lote</span><span class="value">${proforma.lote.lote}</span></div>
+                <div><span class="label">Area total</span><span class="value">${proforma.lote.area}</span></div>
+              </div>
+            </section>
+
+            <div class="price-grid">
+              <div class="price-card">
+                <h3>Precio regular</h3>
+                <div class="price">${formatMoney(proforma.precioRegular)}</div>
+                <div class="price-list">
+                  <div>Separacion: ${formatMoney(proforma.separacion)}</div>
+                  <div>Inicial: ${formatMoney(proforma.inicial)}</div>
+                  <div>Precio a financiar: ${formatMoney(precioFinanciarRegular)}</div>
+                </div>
+                <div class="quick">
+                  <div class="sub">Cotizado rapido de pago mensual</div>
+                  <div class="quick-row"><span>12 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarRegular)[12])}</strong></div>
+                  <div class="quick-row"><span>24 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarRegular)[24])}</strong></div>
+                  <div class="quick-row"><span>36 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarRegular)[36])}</strong></div>
+                </div>
+                <div class="sub">Pago mensual en ${proforma.meses} meses: ${formatMoney(proformaCuotaRegular)}</div>
+              </div>
+              <div class="price-card">
+                <h3>Precio promocional</h3>
+                <div class="price" style="color:#1f8a4c;">${formatMoney(proforma.precioPromocional)}</div>
+                <div class="price-list">
+                  <div>Separacion: ${formatMoney(proforma.separacion)}</div>
+                  <div>Inicial: ${formatMoney(proforma.inicial)}</div>
+                  <div>Precio a financiar: ${formatMoney(precioFinanciarPromo)}</div>
+                </div>
+                <div class="quick">
+                  <div class="sub">Cotizado rapido de pago mensual</div>
+                  <div class="quick-row"><span>12 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarPromo)[12])}</strong></div>
+                  <div class="quick-row"><span>24 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarPromo)[24])}</strong></div>
+                  <div class="quick-row"><span>36 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarPromo)[36])}</strong></div>
+                </div>
+                <div class="sub">Pago mensual en ${proforma.meses} meses: ${formatMoney(proformaCuotaPromo)}</div>
+              </div>
+            </div>
+
+            <div class="savings">Ahorro en: ${formatMoney(proformaAhorro)}</div>
+
+            <div class="footer">
+              <div class="meta">
+                <div><strong>Datos de la empresa</strong></div>
+                <div>${projectInfo.owner} · RUC ${projectInfo.ownerRuc}</div>
+                <div>${EMPRESA_DIRECCION}</div>
+              </div>
+              <img src="/assets/HOLA-TRUJILLO_LOGOTIPO.webp" class="project-logo" alt="Hola Trujillo" />
+            </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+    const win = window.open("", "_blank", "width=1024,height=768");
+    if (!win) return;
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
+  const openProforma = () => {
+    if (!selectedLote) {
+      setProformaAlert("Selecciona un lote para crear la proforma.");
+      return;
+    }
+    if (selectedLote.condicion === "VENDIDO") {
+      setProformaAlert("Este lote esta vendido. No se puede crear proforma.");
+      return;
+    }
+    refreshProformaFromLote(selectedLote);
+    setProformaOpen(true);
+  };
+
   const drawerCount = rightOpen ? 1 : 0;
   const MapView = (
     <section className="map-page">
       <section className="map-intro">
-        <div className="map-intro__panel-title">Arenas Club – Caracteristicas</div>
-        <div className="map-intro__grid">
-          <article>
-            <h4>🛫 Al filo de la pista</h4>
-            <p>Ubicacion privilegiada con acceso directo.</p>
-          </article>
-          <article>
-            <h4>💧⚡ Servicios instalados</h4>
-            <p>Red de agua en cada lote y luz con transformador de Hidrandina.</p>
-          </article>
-          <article>
-            <h4>📄 Titulo propio</h4>
-            <p>Con su partida registral en SUNARP.</p>
-          </article>
-          <article>
-            <h4>🏝️ Cadena de clubes</h4>
-            <p>Acceso exclusivo a nivel nacional para todos nuestros clientes.</p>
-          </article>
+        <div className="map-intro__title">
+          <div>
+            <span className="intro-kicker">Proyecto inmobiliario</span>
+            <div className="project-title">
+              <a
+                href="https://holatrujillo.com/condominio-ecologico-arenas-malabrigo/"
+                target="_blank"
+                rel="noreferrer"
+                className="project-logo-link"
+              >
+                <img
+                  src="/assets/Logo_Arenas_Malabrigo.svg"
+                  alt={projectInfo.name}
+                  className="project-logo"
+                />
+              </a>
+              <div>
+                <h3>
+                  {projectInfo.stage}
+                </h3>
+                <p className="intro-sub">
+                  Lotes listos para invertir o vivir. Servicios instalados y seguridad permanente.
+                </p>
+              </div >
+            </div>
+          </div >
+          <div className="intro-owner">
+            <span>Propietario</span>
+            <a href="https://www.holatrujillo.com/" target="_blank" rel="noreferrer">
+              <img
+                src="/assets/HOLA-TRUJILLO_LOGOTIPO.webp"
+                alt={projectInfo.owner}
+              />
+            </a>
+          </div>
         </div>
+
+        <div className="map-intro__split">
+          <div className="map-intro__summary">
+            <div className="intro-location">
+              <h4>Ubicacion</h4>
+              <ul>
+                <li>Predio: {projectInfo.location.predio}</li>
+                <li>Distrito: {projectInfo.location.distrito}</li>
+                <li>Provincia: {projectInfo.location.provincia}</li>
+                <li>Departamento: {projectInfo.location.departamento}</li>
+              </ul>
+            </div>
+            <div className="intro-amenities">
+              <h4>Beneficios del proyecto</h4>
+              <ul>
+                {projectInfo.amenities.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="map-intro__cards">
+            <div className="map-intro__panel-title">Razones para elegir tu lote</div>
+            <div className="map-intro__grid">
+              {projectInfo.salesHighlights.map((card) => (
+                <article key={card.title}>
+                  <h4>{card.title}</h4>
+                  <p>{card.description}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <section className={`map-shell drawer-open-${drawerCount}`}>
         <section className="map-card viewer">
           <div className="map-header">
-            <div className="map-header__info">
-              <strong>{lotes.length}</strong> lotes cargados -{" "}
-              <strong>{filteredLotes.length}</strong> visibles
-          </div>
-          <div className="legend">
-            <span className="legend__item libre">Libre</span>
-            <span className="legend__item separado">Separado</span>
-            <span className="legend__item vendido">Vendido</span>
-          </div>
           <div className="view-toggle">
             <button
               className={view === "mapa" ? "btn active" : "btn ghost"}
@@ -690,7 +1112,20 @@ function App() {
               Tabla
             </button>
           </div>
+            <div className="map-header__info">
+              <strong>{filteredLotes.length} de {lotes.length}</strong> lotes
+          </div>
+          <div className="legend">
+            <span className="legend__item libre">DISPONIBLE</span>
+            <span className="legend__item separado">SEPARADO</span>
+            <span className="legend__item vendido">VENDIDO</span>
+          </div>
           <div className="export-actions">
+            {selectedLote && selectedLote.condicion !== "VENDIDO" && (
+              <button className="btn ghost" onClick={openProforma}>
+                Crear proforma
+              </button>
+            )}
             <button className="btn ghost" onClick={exportPrintable}>
               PDF / Imprimir
             </button>
@@ -721,8 +1156,13 @@ function App() {
               panning={{ velocityDisabled: true }}
               wheel={{ step: 0.04, smoothStep: 0.003 }}
               onTransformed={(_, state) => {
-                setMapTransform(state);
                 mapTransformRef.current = state;
+                if (transformRafRef.current == null) {
+                  transformRafRef.current = requestAnimationFrame(() => {
+                    setMapTransform(mapTransformRef.current);
+                    transformRafRef.current = null;
+                  });
+                }
                 if (isPanningRef.current && panStartRef.current) {
                   const dx = state.positionX - panStartRef.current.x;
                   const dy = state.positionY - panStartRef.current.y;
@@ -736,8 +1176,8 @@ function App() {
                 isPanningRef.current = true;
                 draggedRef.current = false;
                 panStartRef.current = {
-                  x: mapTransform.positionX,
-                  y: mapTransform.positionY,
+                  x: mapTransformRef.current.positionX,
+                  y: mapTransformRef.current.positionY,
                 };
               }}
               onPanningStop={() => {
@@ -791,18 +1231,18 @@ function App() {
                   <TransformComponent wrapperClass="transform-wrapper">
                     <div className="map-layer">
                       <img
-                        src="/assets/plano-fondo-demo.png"
+                        src="/assets/plano-fondo-demo.webp"
                         alt="Plano de fondo"
                         className="map-background"
                         draggable={false}
                       />
-                      <ArenasSvg
+                      <MemoArenasSvg
                         svgRef={svgRef}
                         className="lotes-svg"
-                        style={overlayStyle(overlay)}
+                        style={overlayStyleMemo}
                         onMouseMove={handleSvgPointer}
                         onClick={handleSvgPointer}
-                        onMouseLeave={() => setHoveredId(null)}
+                        onMouseLeave={handleSvgLeave}
                       />
                     </div>
                   </TransformComponent>
@@ -896,8 +1336,8 @@ function App() {
                     <span className="table-cell">{formatArea(lote.areaM2)}</span>
                     <span className="table-cell">{lote.asesor ?? "—"}</span>
                     <span className="table-cell">{formatMoney(lote.price)}</span>
-                    <span className={`table-cell status-pill ${statusToClass(lote.condicion)}`}>
-                      {lote.condicion === "LIBRE" ? "DISPONIBLE" : lote.condicion}
+                  <span className={`table-cell status-pill ${statusToClass(lote.condicion)}`}>
+                      {normalizeStatusLabel(lote.condicion)}
                     </span>
                     <span className="table-cell table-action" aria-hidden="true">
                       🔎
@@ -932,7 +1372,7 @@ function App() {
               target="_blank"
               rel="noreferrer"
             >
-              Instagram
+              📸 Instagram
             </a>
             <button className="btn ghost" onClick={() => setRightOpen(false)}>
               Cerrar
@@ -946,7 +1386,7 @@ function App() {
                 <span className="chip">MZ {selectedLote.mz}</span>
                 <span className="chip">Lote {selectedLote.lote}</span>
                 <span className={`chip status-pill ${statusToClass(selectedLote.condicion)}`}>
-                  {selectedLote.condicion === "LIBRE" ? "DISPONIBLE" : selectedLote.condicion}
+                  {normalizeStatusLabel(selectedLote.condicion)}
                 </span>
               </div>
 
@@ -1086,207 +1526,439 @@ function App() {
               </span>
               <div className="brand__text">
                 <span className="brand__title">Mapa interactivo – Arenas Malabrigo</span>
-                <span className="brand__desc">
-                  Solo informativo: mira <strong>precio</strong>, <strong>condición</strong> y{" "}
-                  <strong>asesor</strong>. Busca por <strong>Manzana</strong> o{" "}
-                  <strong>Manzana + Lote</strong> o mira el <strong>Resumen general</strong>.
-                </span>
+                
               </div>
             </div>
           </div>
           <div className="topbar__actions">
-            <nav className="nav-links">
-              <NavLink to="/" end className="nav-link">
-                Viewer
-              </NavLink>
-              <NavLink to="/vendedor" className="nav-link">
-                Vendedor
-              </NavLink>
-              <NavLink to="/editor" className="nav-link">
-                Editor
-              </NavLink>
-            </nav>
-            <button className="btn ghost" onClick={() => setRightOpen(true)}>
-              Cotizador
-            </button>
+            
           </div>
         </header>
 
         <main className="main">
           <Routes>
             <Route path="/" element={MapView} />
-            <Route
-              path="/vendedor"
-              element={
-                <section className="seller-panel">
-                  <h3>Panel vendedor</h3>
-                  <p className="muted">
-                    Cambia estado, precio y cliente. Se sincroniza en otras pestanas (simulado).
-                  </p>
-                  <div className="seller-table">
-                    <div className="seller-row header">
-                      <span>MZ</span>
-                      <span>LT</span>
-                      <span>AREA (M2)</span>
-                      <span>ASESOR</span>
-                      <span>PRECIO</span>
-                      <span>ESTADO</span>
-                      <span>CLIENTE(S)</span>
-                    </div>
-                    {lotes.map((lote) => (
-                      <div className="seller-row" key={lote.id}>
-                        <span>{lote.mz}</span>
-                        <span>{lote.lote}</span>
-                        <span>{formatArea(lote.areaM2)}</span>
-                        <span>{lote.asesor ?? "—"}</span>
-                        <div className="price-input">
-                          <span>S/</span>
-                          <input
-                            type="number"
-                            value={lote.price ?? ""}
-                            onChange={(event) =>
-                              updateOverride(lote.id, {
-                                price: event.target.value ? Number(event.target.value) : null,
-                              })
-                            }
-                          />
-                        </div>
-                        <select
-                          className={`seller-status ${statusToClass(lote.condicion)}`}
-                          value={lote.condicion}
-                          onChange={(event) =>
-                            updateOverride(lote.id, { condicion: event.target.value })
-                          }
-                        >
-                          <option value="LIBRE">LIBRE</option>
-                          <option value="SEPARADO">SEPARADO</option>
-                          <option value="VENDIDO">VENDIDO</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={lote.cliente ?? ""}
-                          onChange={(event) =>
-                            updateOverride(lote.id, { cliente: event.target.value })
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              }
-            />
-            <Route
-              path="/editor"
-              element={
-                <section className="editor-panel">
-                  <div className="editor-header">
-                    <h3>Editor de overlay</h3>
-                    <p className="muted">Ajusta posicion y escala del SVG sobre el PNG fijo.</p>
-                  </div>
-                  <div className="editor-grid">
-                    <div className="editor-controls">
-                      <label>
-                        X ({overlay.x}px)
-                        <div className="editor-inputs">
-                          <input
-                            type="number"
-                            value={overlay.x}
-                            onChange={(event) =>
-                              setOverlay({ ...overlay, x: Number(event.target.value || 0) })
-                            }
-                          />
-                          <input
-                            type="range"
-                            min={-400}
-                            max={400}
-                            value={overlay.x}
-                            onChange={(event) =>
-                              setOverlay({ ...overlay, x: Number(event.target.value) })
-                            }
-                          />
-                        </div>
-                      </label>
-                      <label>
-                        Y ({overlay.y}px)
-                        <div className="editor-inputs">
-                          <input
-                            type="number"
-                            value={overlay.y}
-                            onChange={(event) =>
-                              setOverlay({ ...overlay, y: Number(event.target.value || 0) })
-                            }
-                          />
-                          <input
-                            type="range"
-                            min={-400}
-                            max={400}
-                            value={overlay.y}
-                            onChange={(event) =>
-                              setOverlay({ ...overlay, y: Number(event.target.value) })
-                            }
-                          />
-                        </div>
-                      </label>
-                      <label>
-                        Escala ({overlay.scale.toFixed(2)})
-                        <div className="editor-inputs">
-                          <input
-                            type="number"
-                            step={0.01}
-                            value={overlay.scale}
-                            onChange={(event) =>
-                              setOverlay({ ...overlay, scale: Number(event.target.value || 1) })
-                            }
-                          />
-                          <input
-                            type="range"
-                            min={0.5}
-                            max={2}
-                            step={0.01}
-                            value={overlay.scale}
-                            onChange={(event) =>
-                              setOverlay({ ...overlay, scale: Number(event.target.value) })
-                            }
-                          />
-                        </div>
-                      </label>
-                      <div className="editor-actions">
-                        <button className="btn" onClick={() => setOverlay(defaultOverlay)}>
-                          Reset
-                        </button>
-                      </div>
-                      <div className="editor-output">
-                        <span>Transform actual</span>
-                        <code>
-                          x: {overlay.x}, y: {overlay.y}, scale: {overlay.scale.toFixed(2)}
-                        </code>
-                      </div>
-                    </div>
-                    <div className="editor-canvas" style={mapVars}>
-                      <div className="map-layer">
-                        <img
-                          src="/assets/plano-fondo-demo.png"
-                          alt="Plano de fondo"
-                          className="map-background"
-                          draggable={false}
-                        />
-                        <ArenasSvg
-                          svgRef={svgRef}
-                          className="lotes-svg"
-                          style={overlayStyle(overlay)}
-                          onMouseMove={handleSvgPointer}
-                          onClick={handleSvgPointer}
-                          onMouseLeave={() => setHoveredId(null)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </section>
-              }
-            />
           </Routes>
         </main>
 
+        {proformaOpen && (
+          <div
+            className="modal-backdrop"
+            onClick={() => {
+              if (proformaDirty) {
+                setProformaConfirmClose(true);
+              } else {
+                setProformaOpen(false);
+              }
+            }}
+          >
+            <div
+              className="proforma-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="proforma-header">
+                <div>
+                  <h3>Proforma Arenas Malabrigo</h3>
+                  <p className="muted">
+                    {new Date(proforma.creadoEn).toLocaleString("es-PE")} · Vendedor:{" "}
+                    {proforma.vendedor.nombre || "-"}
+                  </p>
+                </div>
+                <div className="proforma-actions">
+                  <button className="btn ghost" onClick={exportProforma}>
+                    Imprimir
+                  </button>
+                  <button
+                    className="btn ghost"
+                    onClick={() => {
+                      if (proformaDirty) {
+                        setProformaConfirmClose(true);
+                      } else {
+                        setProformaOpen(false);
+                      }
+                    }}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <div className="proforma-body">
+                <section className="proforma-section">
+                  <h4>Agente de ventas</h4>
+                  <div className="proforma-fields two-cols">
+                    <label>
+                      Nombre
+                      <input
+                        value={proforma.vendedor.nombre}
+                        onChange={(event) =>
+                          updateProforma((current) => ({
+                            ...current,
+                            vendedor: { ...current.vendedor, nombre: event.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Numero
+                      <input
+                        value={proforma.vendedor.celular}
+                        onChange={(event) =>
+                          updateProforma((current) => ({
+                            ...current,
+                            vendedor: { ...current.vendedor, celular: event.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                </section>
+                <section className="proforma-section">
+                  <h3>Datos del cliente</h3>
+                  <div className="proforma-fields two-cols">
+                    <label>
+                      Nombre completo
+                      <input
+                        value={proforma.cliente.nombre}
+                        onChange={(event) =>
+                          updateProforma((current) => ({
+                            ...current,
+                            cliente: { ...current.cliente, nombre: event.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      DNI
+                      <input
+                        value={proforma.cliente.dni}
+                        onChange={(event) =>
+                          updateProforma((current) => ({
+                            ...current,
+                            cliente: { ...current.cliente, dni: event.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Celular
+                      <input
+                        value={proforma.cliente.celular}
+                        onChange={(event) =>
+                          updateProforma((current) => ({
+                            ...current,
+                            cliente: { ...current.cliente, celular: event.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Direccion
+                      <input
+                        value={proforma.cliente.direccion}
+                        onChange={(event) =>
+                          updateProforma((current) => ({
+                            ...current,
+                            cliente: { ...current.cliente, direccion: event.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Correo
+                      <input
+                        value={proforma.cliente.correo}
+                        onChange={(event) =>
+                          updateProforma((current) => ({
+                            ...current,
+                            cliente: { ...current.cliente, correo: event.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <section className="proforma-section">
+                  <h4>Informacion del lote</h4>
+                  <div className="proforma-fields two-cols">
+                    <label>
+                      Proyecto / Urbanizacion
+                      <span className="proforma-value">{proforma.lote.proyecto}</span>
+                    </label>
+                    <label>
+                      Manzana
+                      <span className="proforma-value">{proforma.lote.mz}</span>
+                    </label>
+                    <label>
+                      Lote
+                      <span className="proforma-value">{proforma.lote.lote}</span>
+                    </label>
+                    <label>
+                      Area total (m2)
+                      <span className="proforma-value">{proforma.lote.area}</span>
+                    </label>
+                    <label>
+                      Ubicacion referencial
+                      <span className="proforma-value">{proforma.lote.ubicacion}</span>
+                    </label>
+                  </div>
+                </section>
+
+                <section className="proforma-section">
+                  <div className="proforma-section__head">
+                    <h4>Cotizacion manual</h4>
+                    <span className="muted">Solo para el vendedor</span>
+                  </div>
+                  <div className="proforma-manual">
+                    <div className="proforma-manual__block">
+                      <h5>Preguntar a cliente</h5>
+                      <div className="proforma-fields manual-cols">
+                        <label>
+                          Inicial (S/)
+                          <input
+                            type="number"
+                            min={6000}
+                            value={proforma.inicial}
+                            onChange={(event) => {
+                              lastPriceEditedRef.current = null;
+                              updateProforma((current) => ({
+                                ...current,
+                                inicial: Number(event.target.value || 0),
+                              }));
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Separacion (S/)
+                          <input
+                            type="number"
+                            min={0}
+                            value={proforma.separacion}
+                            onChange={(event) => {
+                              lastPriceEditedRef.current = null;
+                              updateProforma((current) => ({
+                                ...current,
+                                separacion: Number(event.target.value || 0),
+                              }));
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Meses (1 a 36)
+                          <input
+                            type="number"
+                            min={1}
+                            max={36}
+                            value={proforma.meses}
+                            onChange={(event) => {
+                              lastPriceEditedRef.current = null;
+                              updateProforma((current) => ({
+                                ...current,
+                                meses: Number(event.target.value || 0),
+                              }));
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <small>Inicial minimo S/ 6,000</small>
+                    </div>
+                    <div className="proforma-manual__block">
+                      <h5>Solo vendedor</h5>
+                      <div className="proforma-fields manual-cols">
+                        <label>
+                          Descuento (S/)
+                          <input
+                            type="number"
+                            min={0}
+                            value={proforma.descuentoSoles}
+                            onChange={(event) => {
+                              lastPriceEditedRef.current = "soles";
+                              updateProforma((current) => ({
+                                ...current,
+                                descuentoSoles: Number(event.target.value || 0),
+                              }));
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Descuento (%)
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            value={proforma.descuentoPct}
+                            onChange={(event) => {
+                              lastPriceEditedRef.current = "pct";
+                              updateProforma((current) => ({
+                                ...current,
+                                descuentoPct: Number(event.target.value || 0),
+                              }));
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Precio promocional
+                          <input
+                            type="number"
+                            min={0}
+                            value={proforma.precioPromocional}
+                            onChange={(event) => {
+                              lastPriceEditedRef.current = "promo";
+                              updateProforma((current) => ({
+                                ...current,
+                                precioPromocional: Number(event.target.value || 0),
+                              }));
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <label className="manual-inline">
+                        Duracion de la promocion (dias)
+                        <input
+                          type="number"
+                          min={1}
+                          max={30}
+                          value={proforma.diasVigencia}
+                          onChange={(event) =>
+                            updateProforma((current) => ({
+                              ...current,
+                              diasVigencia: Number(event.target.value || 0),
+                            }))
+                          }
+                        />
+                      </label>
+                      <small>Valido hasta {proforma.fechaCaducidad}</small>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="proforma-section">
+                  <h4>Resumen de precios</h4>
+                  <div className="proforma-price-grid">
+                    <article className="proforma-price-card">
+                      <h5>Precio regular</h5>
+                      <div className="price">{formatMoney(proforma.precioRegular)}</div>
+                      <div className="price-list">
+                        <div>
+                          <span>Separacion</span>
+                          <strong>{formatMoney(proforma.separacion)}</strong>
+                        </div>
+                        <div>
+                          <span>Inicial</span>
+                          <strong>{formatMoney(proforma.inicial)}</strong>
+                        </div>
+                        <div>
+                          <span>Precio a financiar</span>
+                          <strong>{formatMoney(precioFinanciarRegular)}</strong>
+                        </div>
+                      </div>
+                      <div className="proforma-quick">
+                        <span>Cotizado rapido de pago mensual</span>
+                        <div>
+                          <span>12 meses</span>
+                          <strong>{formatMoney(cuotasRapidas(precioFinanciarRegular)[12])}</strong>
+                        </div>
+                        <div>
+                          <span>24 meses</span>
+                          <strong>{formatMoney(cuotasRapidas(precioFinanciarRegular)[24])}</strong>
+                        </div>
+                        <div>
+                          <span>36 meses</span>
+                          <strong>{formatMoney(cuotasRapidas(precioFinanciarRegular)[36])}</strong>
+                        </div>
+                      </div>
+                      <div className="proforma-monthly">
+                        Pago mensual en {proforma.meses} meses:{" "}
+                        <strong>{formatMoney(proformaCuotaRegular)}</strong>
+                      </div>
+                    </article>
+                    <article className="proforma-price-card promo">
+                      <h5>Precio promocional</h5>
+                      <div className="price">{formatMoney(proforma.precioPromocional)}</div>
+                      <div className="price-list">
+                        <div>
+                          <span>Separacion</span>
+                          <strong>{formatMoney(proforma.separacion)}</strong>
+                        </div>
+                        <div>
+                          <span>Inicial</span>
+                          <strong>{formatMoney(proforma.inicial)}</strong>
+                        </div>
+                        <div>
+                          <span>Precio a financiar</span>
+                          <strong>{formatMoney(precioFinanciarPromo)}</strong>
+                        </div>
+                      </div>
+                      <div className="proforma-quick">
+                        <span>Cotizado rapido de pago mensual</span>
+                        <div>
+                          <span>12 meses</span>
+                          <strong>{formatMoney(cuotasRapidas(precioFinanciarPromo)[12])}</strong>
+                        </div>
+                        <div>
+                          <span>24 meses</span>
+                          <strong>{formatMoney(cuotasRapidas(precioFinanciarPromo)[24])}</strong>
+                        </div>
+                        <div>
+                          <span>36 meses</span>
+                          <strong>{formatMoney(cuotasRapidas(precioFinanciarPromo)[36])}</strong>
+                        </div>
+                      </div>
+                      <div className="proforma-monthly">
+                        Pago mensual en {proforma.meses} meses:{" "}
+                        <strong>{formatMoney(proformaCuotaPromo)}</strong>
+                      </div>
+                    </article>
+                  </div>
+                  <div className="proforma-summary">
+                    Ahorro en: <strong>{formatMoney(proformaAhorro)}</strong>
+                  </div>
+                </section>
+
+                
+              </div>
+            </div>
+          </div>
+        )}
+
+        {proformaConfirmClose && (
+          <div className="modal-backdrop" onClick={() => setProformaConfirmClose(false)}>
+            <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+              <h4>Descartar cambios?</h4>
+              <p className="muted">Tienes cambios sin guardar. Deseas cerrar la proforma?</p>
+              <div className="confirm-actions">
+                <button className="btn ghost" onClick={() => setProformaConfirmClose(false)}>
+                  Cancelar
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setProformaConfirmClose(false);
+                    setProformaOpen(false);
+                    setProformaDirty(false);
+                  }}
+                >
+                  Descartar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {proformaAlert && (
+          <div className="modal-backdrop" onClick={() => setProformaAlert(null)}>
+            <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+              <h4>Proforma</h4>
+              <p className="muted">{proformaAlert}</p>
+              <div className="confirm-actions">
+                <button className="btn" onClick={() => setProformaAlert(null)}>
+                  Entendido
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
 
         
@@ -1296,4 +1968,3 @@ function App() {
 }
 
 export default App;
-

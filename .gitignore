@@ -17,6 +17,9 @@ dist-ssr
 coverage
 *.tsbuildinfo
 tmp_svg_*.txt
+.vercel
+.cache
+.parcel-cache
 
 # Editor directories and files
 .vscode/*
