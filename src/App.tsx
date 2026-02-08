@@ -216,6 +216,7 @@ function App() {
     areaMin: "",
     areaMax: "",
   });
+  const [tableFiltersOpen, setTableFiltersOpen] = useState(true);
   const [view, setView] = useState<"mapa" | "tabla">("mapa");
   const [overlay] = useState<OverlayTransform>(defaultOverlay);
   const [drawerTab, setDrawerTab] = useState<"cotizar" | "separar" | "proforma">("cotizar");
@@ -891,6 +892,9 @@ function App() {
             .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
             .header h1 { margin: 0; font-size: 20px; color: #b14518; }
             .meta { font-size: 11px; color: #6a5c4c; }
+            .meta-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+            .meta-line .expiry { font-weight: 700; font-size: 1.05rem; color: #b14518; }
+            .seller-name { font-size: 1.1rem; font-weight: 700; color: #1b1b1b; }
             .logo { height: 34px; object-fit: contain; }
             .section { border: 1px solid #efd4c1; border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
             .section h2 { margin: 0 0 8px; font-size: 12px; color: #8f3a18; text-transform: uppercase; letter-spacing: 0.02em; }
@@ -912,6 +916,7 @@ function App() {
             .expiry { margin-top: 4px; font-weight: 700; font-size: 1.1rem; color: #b14518; }
             .monthly { font-size: 1.2rem; font-weight: 700; }
             .footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+            .footer .meta { font-size: 12px; }
             .project-logo { height: 40px; object-fit: contain; border: 1px solid #efd4c1; border-radius: 10px; padding: 6px; background: #fffaf1; }
           </style>
         </head>
@@ -921,9 +926,11 @@ function App() {
             <div class="header">
               <div>
                 <h1>Proforma Arenas Malabrigo</h1>
-                <div class="meta">Fecha y hora: ${created.toLocaleString("es-PE")}</div>
-                <div class="meta">Agente de ventas: ${vendorName} · ${vendorPhone}</div>
-                <div class="expiry">Vence: ${proforma.fechaCaducidad}</div>
+                <div class="meta-line">
+                  <div class="meta">Fecha y hora: ${created.toLocaleString("es-PE")}</div>
+                  <div class="expiry">Vence: ${proforma.fechaCaducidad}</div>
+                </div>
+                <div class="meta">Agente de ventas: <span class="seller-name">${vendorName}</span> · ${vendorPhone}</div>
               </div>
               <img src="/assets/Logo_Arenas_Malabrigo.svg" class="logo" alt="Arenas Malabrigo" />
             </div>
@@ -1138,7 +1145,7 @@ function App() {
               </button>
             )}
             <button className="btn ghost" onClick={exportPrintable}>
-              PDF / Imprimir
+              Imprimir
             </button>
             {view === "tabla" && (
               <button className="btn ghost" onClick={exportTableCsv}>
@@ -1262,7 +1269,16 @@ function App() {
             </TransformWrapper>
           ) : (
             <div className="table-view">
-              <div className="table-filters">
+              <div className="table-filters__header">
+                <h4>Filtros</h4>
+                <button
+                  className="btn ghost"
+                  onClick={() => setTableFiltersOpen((prev) => !prev)}
+                >
+                  {tableFiltersOpen ? "Ocultar" : "Mostrar"}
+                </button>
+              </div>
+              <div className={`table-filters ${tableFiltersOpen ? "open" : "closed"}`}>
                 <label>
                   MZ
                   <input
@@ -1461,9 +1477,13 @@ function App() {
                         Inicial (S/)
                         <input
                           type="number"
+                          min={6000}
                           value={quote.inicialMonto}
                           onChange={(event) =>
-                            setQuote({ ...quote, inicialMonto: Number(event.target.value || 0) })
+                            setQuote({
+                              ...quote,
+                              inicialMonto: Math.max(Number(event.target.value || 0), 6000),
+                            })
                           }
                         />
                       </label>
@@ -1475,7 +1495,10 @@ function App() {
                           max={36}
                           value={quote.cuotas}
                           onChange={(event) =>
-                            setQuote({ ...quote, cuotas: Number(event.target.value || 0) })
+                            setQuote({
+                              ...quote,
+                              cuotas: clamp(Number(event.target.value || 0), 1, 36),
+                            })
                           }
                         />
                       </label>
@@ -1616,6 +1639,7 @@ function App() {
                     <label>
                       Nombre
                       <input
+                        type="text"
                         value={proforma.vendedor.nombre}
                         onChange={(event) =>
                           updateProforma((current) => ({
@@ -1628,6 +1652,9 @@ function App() {
                     <label>
                       Numero
                       <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="\\d{9}"
                         value={proforma.vendedor.celular}
                         onChange={(event) =>
                           updateProforma((current) => ({
@@ -1645,6 +1672,8 @@ function App() {
                     <label>
                       Nombre completo
                       <input
+                        type="text"
+                        required
                         value={proforma.cliente.nombre}
                         onChange={(event) =>
                           updateProforma((current) => ({
@@ -1657,6 +1686,10 @@ function App() {
                     <label>
                       DNI
                       <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="\\d{8}"
+                        required
                         value={proforma.cliente.dni}
                         onChange={(event) =>
                           updateProforma((current) => ({
@@ -1669,6 +1702,10 @@ function App() {
                     <label>
                       Celular
                       <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="\\d{9}"
+                        required
                         value={proforma.cliente.celular}
                         onChange={(event) =>
                           updateProforma((current) => ({
@@ -1681,6 +1718,7 @@ function App() {
                     <label>
                       Direccion
                       <input
+                        type="text"
                         value={proforma.cliente.direccion}
                         onChange={(event) =>
                           updateProforma((current) => ({
@@ -1693,6 +1731,7 @@ function App() {
                     <label>
                       Correo
                       <input
+                        type="email"
                         value={proforma.cliente.correo}
                         onChange={(event) =>
                           updateProforma((current) => ({
@@ -1750,7 +1789,7 @@ function App() {
                               lastPriceEditedRef.current = null;
                               updateProforma((current) => ({
                                 ...current,
-                                inicial: Number(event.target.value || 0),
+                                inicial: Math.max(Number(event.target.value || 0), 6000),
                               }));
                             }}
                           />
@@ -1781,7 +1820,7 @@ function App() {
                               lastPriceEditedRef.current = null;
                               updateProforma((current) => ({
                                 ...current,
-                                meses: Number(event.target.value || 0),
+                                meses: clamp(Number(event.target.value || 0), 1, 36),
                               }));
                             }}
                           />
