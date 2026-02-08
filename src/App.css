@@ -223,6 +223,8 @@
   padding: 10px 12px;
   background: #fffdf9;
   min-width: 220px;
+  display: grid;
+  gap: 10px;
 }
 
 .intro-owner span {
@@ -625,6 +627,87 @@
   padding: 16px;
   display: grid;
   gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .proforma-modal {
+    width: min(980px, 94vw);
+    height: 92vh;
+  }
+
+  .proforma-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .proforma-fields.two-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .proforma-fields.manual-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .proforma-manual {
+    grid-template-columns: 1fr;
+  }
+
+  .proforma-price-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .proforma-modal {
+    width: 100%;
+    height: 94vh;
+    border-radius: 16px;
+  }
+
+  .proforma-body {
+    padding: 14px;
+  }
+
+  .proforma-fields.two-cols,
+  .proforma-fields.manual-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .proforma-fields label,
+  .manual-inline {
+    font-size: 0.95rem;
+  }
+
+  .proforma-fields input,
+  .manual-inline input {
+    width: 100%;
+  }
+
+  .proforma-price-card {
+    font-size: 1rem;
+  }
+
+  .proforma-price-card h5 {
+    font-size: 1.2rem;
+  }
+
+  .proforma-price-card .price {
+    font-size: 1.6rem;
+  }
+
+  .proforma-price-card .price-list,
+  .proforma-quick {
+    font-size: 1rem;
+  }
+
+  .proforma-monthly,
+  .proforma-summary {
+    font-size: 1.1rem;
+  }
 }
 
 .confirm-actions {
@@ -1243,21 +1326,24 @@
 
 .drawer-tabs {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .drawer-tabs .btn.tab {
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #fff3e7;
-  border: 1px solid rgba(210, 120, 62, 0.2);
+  padding: 8px 16px;
+  border-radius: 12px 12px 0 0;
+  background: #fff1df;
+  border: 1px solid rgba(210, 120, 62, 0.35);
   color: #8f3a18;
+  font-weight: 700;
 }
 
 .drawer-tabs .btn.tab.active {
-  background: #f7c948;
+  background: #fffaf1;
   color: #1b1b1b;
-  border-color: transparent;
+  border-color: rgba(210, 120, 62, 0.6);
+  box-shadow: 0 -4px 10px rgba(180, 80, 20, 0.12);
 }
 
 .drawer-cards {
@@ -1281,6 +1367,20 @@
   font-weight: 600;
   font-size: 0.75rem;
   text-transform: uppercase;
+}
+
+.drawer-proforma {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(210, 120, 62, 0.2);
+  background: #fffdf9;
+  display: grid;
+  gap: 10px;
+}
+
+.drawer-proforma h4 {
+  margin: 0;
 }
 
 .quick-quotes h4 {

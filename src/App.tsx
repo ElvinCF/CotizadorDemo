@@ -218,7 +218,7 @@ function App() {
   });
   const [view, setView] = useState<"mapa" | "tabla">("mapa");
   const [overlay] = useState<OverlayTransform>(defaultOverlay);
-  const [drawerTab, setDrawerTab] = useState<"cotizar" | "separar">("cotizar");
+  const [drawerTab, setDrawerTab] = useState<"cotizar" | "separar" | "proforma">("cotizar");
   const [proformaOpen, setProformaOpen] = useState(false);
   const [proformaDirty, setProformaDirty] = useState(false);
   const [proformaConfirmClose, setProformaConfirmClose] = useState(false);
@@ -1060,6 +1060,14 @@ function App() {
                 alt={projectInfo.owner}
               />
             </a>
+            <a
+              className="btn ghost instagram"
+              href="https://www.instagram.com/arenasmalabrigo/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              📸 Instagram
+            </a>
           </div>
         </div>
 
@@ -1367,16 +1375,8 @@ function App() {
 
       <aside className={`drawer-panel right ${rightOpen ? "open" : ""}`}>
         <div className="drawer__header">
-          <h3>Cotizador</h3>
+          <h3>Acciones</h3>
           <div className="drawer__header-actions">
-            <a
-              className="btn ghost instagram"
-              href="https://www.instagram.com/arenasmalabrigo/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              📸 Instagram
-            </a>
             <button className="btn ghost" onClick={() => setRightOpen(false)}>
               Cerrar
             </button>
@@ -1385,14 +1385,6 @@ function App() {
         <div className="drawer__body">
           {selectedLote ? (
             <>
-              <div className="drawer-chips">
-                <span className="chip">MZ {selectedLote.mz}</span>
-                <span className="chip">Lote {selectedLote.lote}</span>
-                <span className={`chip status-pill ${statusToClass(selectedLote.condicion)}`}>
-                  {normalizeStatusLabel(selectedLote.condicion)}
-                </span>
-              </div>
-
               <div className="drawer-tabs">
                 <button
                   className={`btn tab ${drawerTab === "cotizar" ? "active" : ""}`}
@@ -1406,6 +1398,22 @@ function App() {
                 >
                   Separar Lote
                 </button>
+                {selectedLote.condicion !== "VENDIDO" && (
+                  <button
+                    className={`btn tab ${drawerTab === "proforma" ? "active" : ""}`}
+                    onClick={() => setDrawerTab("proforma")}
+                  >
+                    Proforma
+                  </button>
+                )}
+              </div>
+
+              <div className="drawer-chips">
+                <span className="chip">MZ {selectedLote.mz}</span>
+                <span className="chip">Lote {selectedLote.lote}</span>
+                <span className={`chip status-pill ${statusToClass(selectedLote.condicion)}`}>
+                  {normalizeStatusLabel(selectedLote.condicion)}
+                </span>
               </div>
 
               {drawerTab === "cotizar" ? (
@@ -1479,7 +1487,7 @@ function App() {
                     </div>
                   </div>
                 </>
-              ) : (
+              ) : drawerTab === "separar" ? (
                 <div className="client-form">
                   <h4>Separar lote</h4>
                   <label>
@@ -1506,6 +1514,22 @@ function App() {
                     <button className="btn primary">Registrar interes</button>
                     <button className="btn ghost">Contactar asesor</button>
                   </div>
+                </div>
+              ) : (
+                <div className="drawer-proforma">
+                  <h4>Crear proforma</h4>
+                  {selectedLote.condicion === "VENDIDO" ? (
+                    <p className="muted">Este lote esta vendido.</p>
+                  ) : (
+                    <>
+                      <p className="muted">
+                        Prepara una proforma con precio regular y promocional para este lote.
+                      </p>
+                      <button className="btn primary" onClick={openProforma}>
+                        Abrir proforma
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </>
