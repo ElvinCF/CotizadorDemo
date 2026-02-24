@@ -1091,38 +1091,7 @@ function App() {
           </div>
         </div>
 
-        <div className="map-intro__split">
-          <div className="map-intro__summary">
-            <div className="intro-location">
-              <h4>Ubicacion</h4>
-              <ul>
-                <li>Predio: {projectInfo.location.predio}</li>
-                <li>Distrito: {projectInfo.location.distrito}</li>
-                <li>Provincia: {projectInfo.location.provincia}</li>
-                <li>Departamento: {projectInfo.location.departamento}</li>
-              </ul>
-            </div>
-            <div className="intro-amenities">
-              <h4>Beneficios del proyecto</h4>
-              <ul>
-                {projectInfo.amenities.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <div className="map-intro__cards">
-            <div className="map-intro__panel-title">Razones para elegir tu lote</div>
-            <div className="map-intro__grid">
-              {projectInfo.salesHighlights.map((card) => (
-                <article key={card.title}>
-                  <h4>{card.title}</h4>
-                  <p>{card.description}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
+
 
       </section>
 
@@ -1588,7 +1557,7 @@ function App() {
                 🏖️
               </span>
               <div className="brand__text">
-                <span className="brand__title">Mapa interactivo – Arenas Malabrigo</span>
+                <span className="brand__title">Mapa Interactivo | Arenas Malabrigo</span>
                 
               </div>
             </div>
