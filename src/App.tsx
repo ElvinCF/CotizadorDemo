@@ -82,6 +82,18 @@ type ProformaState = {
   creadoEn: string;
 };
 
+type ValidatedNumberFieldProps = {
+  label: string;
+  value: number;
+  onChange: (next: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  invalid: boolean;
+  errorText: string;
+  labelClassName?: string;
+};
+
 const PROFORMA_VENDOR_KEY = "arenas.proforma.vendor.v1";
 const PROYECTO_FIJO = "Arenas Malabrigo";
 const EMPRESA_DIRECCION =
@@ -235,6 +247,39 @@ const loadLotesFromCsvFallback = async (): Promise<Lote[]> => {
   return enforceFixedStatuses(rows);
 };
 
+const ValidatedNumberField = ({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  invalid,
+  errorText,
+  labelClassName,
+}: ValidatedNumberFieldProps) => (
+  <label className={[labelClassName, invalid ? "has-error" : ""].filter(Boolean).join(" ")}>
+    {label}
+    <div className="field-control">
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        className={invalid ? "is-invalid" : ""}
+        onChange={(event) => onChange(Number(event.target.value || 0))}
+      />
+      {invalid ? (
+        <>
+          <span className="field-alert-icon" aria-hidden="true">!</span>
+          <small className="field-error-bubble" role="alert">{errorText}</small>
+        </>
+      ) : null}
+    </div>
+  </label>
+);
+
 function App() {
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
@@ -254,7 +299,10 @@ function App() {
   const [tableFiltersOpen, setTableFiltersOpen] = useState(true);
   const [view, setView] = useState<"mapa" | "tabla">("mapa");
   const [overlay] = useState<OverlayTransform>(defaultOverlay);
-  const [drawerTab, setDrawerTab] = useState<"cotizar" | "separar" | "proforma">("cotizar");
+  const previousMzRef = useRef<string | null>(null);
+  const previousLoteRef = useRef<number | null>(null);
+  const [pulseMz, setPulseMz] = useState(false);
+  const [pulseLote, setPulseLote] = useState(false);
   const [proformaOpen, setProformaOpen] = useState(false);
   const [proformaDirty, setProformaDirty] = useState(false);
   const [proformaConfirmClose, setProformaConfirmClose] = useState(false);
@@ -397,10 +445,23 @@ function App() {
         precio: selectedLote.price || 0,
       }));
     }
-    if (selectedLote) {
-      setDrawerTab("cotizar");
-    }
   }, [selectedLote?.price]);
+
+  useEffect(() => {
+    if (!selectedLote) return;
+    const prevMz = previousMzRef.current;
+    const prevLote = previousLoteRef.current;
+    if (prevMz != null && prevMz !== selectedLote.mz) {
+      setPulseMz(true);
+      window.setTimeout(() => setPulseMz(false), 420);
+    }
+    if (prevLote != null && prevLote !== selectedLote.lote) {
+      setPulseLote(true);
+      window.setTimeout(() => setPulseLote(false), 420);
+    }
+    previousMzRef.current = selectedLote.mz;
+    previousLoteRef.current = selectedLote.lote;
+  }, [selectedLote?.id]);
 
   useEffect(() => {
     const root = svgRef.current;
@@ -570,7 +631,9 @@ function App() {
       areaMax: "",
     });
 
-  const montoInicial = Math.min(quote.inicialMonto, quote.precio);
+  const quoteInvalidInicial = quote.inicialMonto < 6000;
+  const quoteInvalidMeses = quote.cuotas < 1 || quote.cuotas > 36;
+  const montoInicial = Math.min(Math.max(quote.inicialMonto, 0), quote.precio);
   const financiado = Math.max(quote.precio - montoInicial, 0);
   const cuota = quoteMonthly(financiado, quote.cuotas, 0);
   const cuotaRapida = (meses: number, inicial: number) =>
@@ -582,6 +645,8 @@ function App() {
   );
 
   const proformaAhorro = Math.max(proforma.precioRegular - proforma.precioPromocional, 0);
+  const proformaInvalidInicial = proforma.inicial < 6000;
+  const proformaInvalidMeses = proforma.meses < 1 || proforma.meses > 36;
   const precioFinanciarRegular = Math.max(
     proforma.precioRegular - proforma.separacion - proforma.inicial,
     0
@@ -590,8 +655,8 @@ function App() {
     proforma.precioPromocional - proforma.separacion - proforma.inicial,
     0
   );
-  const proformaCuotaRegular = proforma.meses ? precioFinanciarRegular / proforma.meses : 0;
-  const proformaCuotaPromo = proforma.meses ? precioFinanciarPromo / proforma.meses : 0;
+  const proformaCuotaRegular = proforma.meses > 0 ? precioFinanciarRegular / proforma.meses : 0;
+  const proformaCuotaPromo = proforma.meses > 0 ? precioFinanciarPromo / proforma.meses : 0;
   const cuotasRapidas = (monto: number) => ({
     12: Math.max(monto / 12, 0),
     24: Math.max(monto / 24, 0),
@@ -655,8 +720,8 @@ function App() {
     const dias = clamp(Math.round(draft.diasVigencia || 0), 1, 30);
     const fechaCaducidad = toDateValue(addDays(new Date(), dias));
     const separacion = Math.max(draft.separacion, 0);
-    const inicial = Math.max(draft.inicial || 0, 6000);
-    const meses = clamp(Math.round(draft.meses || 1), 1, 36);
+    const inicial = Math.max(draft.inicial || 0, 0);
+    const meses = Math.round(draft.meses || 0);
 
     return {
       ...draft,
@@ -1129,44 +1194,48 @@ function App() {
       <section className={`map-shell drawer-open-${drawerCount}`}>
         <section className="map-card viewer">
           <div className="map-header">
-          <div className="view-toggle">
-            <button
-              className={view === "mapa" ? "btn active" : "btn ghost"}
-              onClick={() => setView("mapa")}
-            >
-              Mapa
-            </button>
-            <button
-              className={view === "tabla" ? "btn active" : "btn ghost"}
-              onClick={() => setView("tabla")}
-            >
-              Tabla
-            </button>
+            <div className="map-header__left">
+              <div className="view-toggle">
+                <button
+                  className={view === "mapa" ? "btn active" : "btn ghost"}
+                  onClick={() => setView("mapa")}
+                >
+                  Mapa
+                </button>
+                <button
+                  className={view === "tabla" ? "btn active" : "btn ghost"}
+                  onClick={() => setView("tabla")}
+                >
+                  Tabla
+                </button>
+              </div>
+              <div className="map-header__info kpi-chip">
+                <strong>{filteredLotes.length} de {lotes.length}</strong> lotes
+              </div>
+              <div className="legend">
+                <span className="legend__item libre">DISPONIBLE</span>
+                <span className="legend__item separado">SEPARADO</span>
+                <span className="legend__item vendido">VENDIDO</span>
+              </div>
+            </div>
+            <div className="map-header__right">
+              <div className="export-actions">
+                {selectedLote && selectedLote.condicion !== "VENDIDO" && (
+                  <button className="btn ghost" onClick={openProforma}>
+                    Crear proforma
+                  </button>
+                )}
+                <button className="btn ghost" onClick={exportPrintable}>
+                  Imprimir
+                </button>
+                {view === "tabla" && (
+                  <button className="btn ghost" onClick={exportTableCsv}>
+                    Exportar Excel
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-            <div className="map-header__info">
-              <strong>{filteredLotes.length} de {lotes.length}</strong> lotes
-          </div>
-          <div className="legend">
-            <span className="legend__item libre">DISPONIBLE</span>
-            <span className="legend__item separado">SEPARADO</span>
-            <span className="legend__item vendido">VENDIDO</span>
-          </div>
-          <div className="export-actions">
-            {selectedLote && selectedLote.condicion !== "VENDIDO" && (
-              <button className="btn ghost" onClick={openProforma}>
-                Crear proforma
-              </button>
-            )}
-            <button className="btn ghost" onClick={exportPrintable}>
-              Imprimir
-            </button>
-            {view === "tabla" && (
-              <button className="btn ghost" onClick={exportTableCsv}>
-                Exportar Excel
-              </button>
-            )}
-          </div>
-        </div>
           <div
             ref={mapContainerRef}
             className={`map-container ${isPanning ? "is-panning" : ""}`}
@@ -1404,7 +1473,7 @@ function App() {
 
       <aside className={`drawer-panel right ${rightOpen ? "open" : ""}`}>
         <div className="drawer__header">
-          <h3>Acciones</h3>
+          <h3>Cotizador</h3>
           <div className="drawer__header-actions">
             <button className="btn ghost" onClick={() => setRightOpen(false)}>
               Cerrar
@@ -1414,116 +1483,73 @@ function App() {
         <div className="drawer__body">
           {selectedLote ? (
             <>
-              <div className="drawer-tabs">
-                <button
-                  className={`btn tab ${drawerTab === "cotizar" ? "active" : ""}`}
-                  onClick={() => setDrawerTab("cotizar")}
-                >
-                  Cotizador
-                </button>
-                <button
-                  className={`btn tab ${drawerTab === "separar" ? "active" : ""}`}
-                  onClick={() => setDrawerTab("separar")}
-                >
-                  Separar Lote
-                </button>
-                {selectedLote.condicion !== "VENDIDO" && (
-                  <button
-                    className={`btn tab ${drawerTab === "proforma" ? "active" : ""}`}
-                    onClick={() => setDrawerTab("proforma")}
-                  >
-                    Proforma
-                  </button>
-                )}
-              </div>
-
               <div className="drawer-chips">
-                <span className="chip">MZ {selectedLote.mz}</span>
-                <span className="chip">Lote {selectedLote.lote}</span>
+                <span className={`chip chip-emphasis ${pulseMz ? "pulse" : ""}`}>MZ {selectedLote.mz}</span>
+                <span className={`chip chip-emphasis ${pulseLote ? "pulse" : ""}`}>Lote {selectedLote.lote}</span>
                 <span className={`chip status-pill ${statusToClass(selectedLote.condicion)}`}>
                   {normalizeStatusLabel(selectedLote.condicion)}
                 </span>
               </div>
-
-              {drawerTab === "cotizar" ? (
-                <>
-                  <div className="drawer-cards">
-                    <div className="drawer-card">
-                      <span>Area</span>
-                      <strong>{formatArea(selectedLote.areaM2)}</strong>
-                    </div>
-                    <div className="drawer-card">
-                      <span>Precio</span>
-                      <strong>{formatMoney(selectedLote.price)}</strong>
-                    </div>
-                    <div className="drawer-card">
-                      <span>Asesor</span>
-                      <strong>{selectedLote.asesor ?? "—"}</strong>
-                    </div>
-                    <div className="drawer-card">
-                      <span>Inicial (referencia)</span>
-                      <strong>{formatMoney(quote.inicialMonto)}</strong>
-                    </div>
+              {selectedLote.asesor ? (
+                <div className="drawer-lote-headline">
+                  <div>
+                    <span>Asesor</span>
+                    <strong>{selectedLote.asesor}</strong>
                   </div>
+                </div>
+              ) : null}
 
-                  <div className="quick-quotes">
-                    <h4>Cuotas rapidas (inicial fija {formatMoney(quote.inicialMonto)})</h4>
-                    <div className="quick-grid">
-                      {[12, 24, 36].map((meses) => (
-                        <div className="quick-card" key={meses}>
-                          <span>{meses} meses</span>
-                          <strong>{formatMoney(cuotaRapida(meses, quote.inicialMonto))}</strong>
-                        </div>
-                      ))}
-                      <div className="quick-card formula">
-                        <span>Formula</span>
-                        <strong>(Precio - Inicial) / Meses</strong>
-                        <em>Referencia informativa.</em>
-                      </div>
-                    </div>
-                  </div>
+              <div className="drawer-cards">
+                <div className="drawer-card area-card">
+                  <span>Area total</span>
+                  <strong>{formatArea(selectedLote.areaM2)}</strong>
+                </div>
+                <div className="drawer-card price-card">
+                  <span>Precio del lote</span>
+                  <strong>{formatMoney(selectedLote.price)}</strong>
+                </div>
+              </div>
 
-                  <div className="quote-box compact">
-                    <h4>Cotizacion manual</h4>
-                    <div className="quote-grid">
-                      <label>
-                        Inicial (S/)
-                        <input
-                          type="number"
-                          min={6000}
-                          value={quote.inicialMonto}
-                          onChange={(event) =>
-                            setQuote({
-                              ...quote,
-                              inicialMonto: Math.max(Number(event.target.value || 0), 6000),
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        Meses (1 a 36)
-                        <input
-                          type="number"
-                          min={1}
-                          max={36}
-                          value={quote.cuotas}
-                          onChange={(event) =>
-                            setQuote({
-                              ...quote,
-                              cuotas: clamp(Number(event.target.value || 0), 1, 36),
-                            })
-                          }
-                        />
-                      </label>
+              <div className="quick-quotes">
+                <h4>Cuotas rapidas (inicial fija {formatMoney(quote.inicialMonto)})</h4>
+                <div className="quick-list">
+                  {[12, 24, 36].map((meses) => (
+                    <div className="quick-row-detail" key={meses}>
+                      <span>{meses} meses</span>
+                      <strong>{formatMoney(cuotaRapida(meses, quote.inicialMonto))}</strong>
                     </div>
-                    <div className="quote-highlight">
-                      <span>Cuota mensual estimada</span>
-                      <strong>{formatMoney(cuota)}</strong>
-                      <small>Formula: (Precio - Inicial) / Meses</small>
-                    </div>
-                  </div>
-                </>
-              ) : drawerTab === "separar" ? (
+                  ))}
+                </div>
+              </div>
+
+              <div className="quote-box compact">
+                <h4>Cotizacion manual</h4>
+                <div className="quote-grid">
+                  <ValidatedNumberField
+                    label="Inicial (S/)"
+                    value={quote.inicialMonto}
+                    min={0}
+                    invalid={quoteInvalidInicial}
+                    errorText="La inicial minima es S/ 6,000."
+                    onChange={(next) => setQuote({ ...quote, inicialMonto: next })}
+                  />
+                  <ValidatedNumberField
+                    label="Meses (1 a 36)"
+                    value={quote.cuotas}
+                    min={1}
+                    invalid={quoteInvalidMeses}
+                    errorText="El numero de meses debe estar entre 1 y 36."
+                    onChange={(next) => setQuote({ ...quote, cuotas: next })}
+                  />
+                </div>
+                <div className="quote-highlight">
+                  <span>Cuota mensual estimada</span>
+                  <strong>{formatMoney(cuota)}</strong>
+                  <small>Formula: (Precio - Inicial) / Meses</small>
+                </div>
+              </div>
+
+              <div className="drawer-hidden-content" aria-hidden="true">
                 <div className="client-form">
                   <h4>Separar lote</h4>
                   <label>
@@ -1551,23 +1577,7 @@ function App() {
                     <button className="btn ghost">Contactar asesor</button>
                   </div>
                 </div>
-              ) : (
-                <div className="drawer-proforma">
-                  <h4>Crear proforma</h4>
-                  {selectedLote.condicion === "VENDIDO" ? (
-                    <p className="muted">Este lote esta vendido.</p>
-                  ) : (
-                    <>
-                      <p className="muted">
-                        Prepara una proforma con precio regular y promocional para este lote.
-                      </p>
-                      <button className="btn primary" onClick={openProforma}>
-                        Abrir proforma
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
+              </div>
             </>
           ) : (
             <p className="muted">Selecciona un lote para ver detalles.</p>
@@ -1585,10 +1595,10 @@ function App() {
           <div className="brand">
             <div className="brand__headline">
               <span className="brand__icon" aria-hidden="true">
-                🏖️
+                <img src="/assets/Logo_Arenas_Malabrigo.svg" alt="" />
               </span>
               <div className="brand__text">
-                <span className="brand__title">Mapa interactivo – Arenas Malabrigo</span>
+                <span className="brand__title">Mapa cotizador – Arenas Malabrigo</span>
                 
               </div>
             </div>
@@ -1793,21 +1803,20 @@ function App() {
                     <div className="proforma-manual__block">
                       <h5>Preguntar a cliente</h5>
                       <div className="proforma-fields manual-cols">
-                        <label>
-                          Inicial (S/)
-                          <input
-                            type="number"
-                            min={6000}
-                            value={proforma.inicial}
-                            onChange={(event) => {
-                              lastPriceEditedRef.current = null;
-                              updateProforma((current) => ({
-                                ...current,
-                                inicial: Math.max(Number(event.target.value || 0), 6000),
-                              }));
-                            }}
-                          />
-                        </label>
+                        <ValidatedNumberField
+                          label="Inicial (S/)"
+                          value={proforma.inicial}
+                          min={0}
+                          invalid={proformaInvalidInicial}
+                          errorText="La inicial minima es S/ 6,000."
+                          onChange={(next) => {
+                            lastPriceEditedRef.current = null;
+                            updateProforma((current) => ({
+                              ...current,
+                              inicial: next,
+                            }));
+                          }}
+                        />
                         <label>
                           Separacion (S/)
                           <input
@@ -1823,22 +1832,20 @@ function App() {
                             }}
                           />
                         </label>
-                        <label>
-                          Meses (1 a 36)
-                          <input
-                            type="number"
-                            min={1}
-                            max={36}
-                            value={proforma.meses}
-                            onChange={(event) => {
-                              lastPriceEditedRef.current = null;
-                              updateProforma((current) => ({
-                                ...current,
-                                meses: clamp(Number(event.target.value || 0), 1, 36),
-                              }));
-                            }}
-                          />
-                        </label>
+                        <ValidatedNumberField
+                          label="Meses (1 a 36)"
+                          value={proforma.meses}
+                          min={1}
+                          invalid={proformaInvalidMeses}
+                          errorText="El numero de meses debe estar entre 1 y 36."
+                          onChange={(next) => {
+                            lastPriceEditedRef.current = null;
+                            updateProforma((current) => ({
+                              ...current,
+                              meses: next,
+                            }));
+                          }}
+                        />
                       </div>
                       <small>Inicial minimo S/ 6,000</small>
                     </div>
