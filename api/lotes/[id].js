@@ -1,4 +1,4 @@
-import { getSupabaseAdminClient, updateLoteById } from "../../lib/lotesService.mjs";
+import { getSupabaseAdminClient, updateLoteById } from "../../backend/lib/lotesService.mjs";
 
 export default async function handler(req, res) {
   if (req.method !== "PUT") {

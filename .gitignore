@@ -33,3 +33,9 @@ tmp_svg_*.txt
 *.njsproj
 *.sln
 *.sw?
+
+# Monorepo package outputs
+frontend/node_modules
+frontend/dist
+backend/node_modules
+backend/dist

@@ -1,17 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-
-type Lote = {
-  id: string;
-  mz: string;
-  lote: number;
-  areaM2: number | null;
-  price: number | null;
-  condicion: string;
-  asesor?: string;
-  cliente?: string;
-  comentario?: string;
-  ultimaModificacion?: string;
-};
+import { statusToClass } from "../domain/formatters";
+import type { Lote } from "../domain/types";
 
 type EditableFields = {
   price: string;
@@ -23,16 +12,6 @@ type EditableFields = {
 
 const formatArea = (value: number | null) => (value == null ? "-" : value.toFixed(2));
 
-const statusToClass = (value: string | undefined) => {
-  switch ((value || "").toUpperCase()) {
-    case "SEPARADO":
-      return "separado";
-    case "VENDIDO":
-      return "vendido";
-    default:
-      return "libre";
-  }
-};
 
 const normalizeStatus = (value: string | undefined) => {
   const normalized = String(value || "LIBRE").toUpperCase();

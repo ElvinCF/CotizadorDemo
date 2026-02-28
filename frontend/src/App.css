@@ -955,6 +955,7 @@
 .table-header {
   font-weight: 700;
   font-size: 0.85rem;
+  text-align: center;
   text-transform: uppercase;
   color: #8f3a18;
   padding: 14px 18px;
@@ -968,8 +969,8 @@
 .table-row {
   border: none;
   background: #fff;
-  padding: 16px 18px;
-  text-align: left;
+  padding: 1px 18px;
+  text-align: center;
   cursor: pointer;
   transition: background 0.15s ease;
   border-bottom: 1px solid rgba(210, 120, 62, 0.15);
@@ -1005,7 +1006,7 @@
   border: 1px solid rgba(210, 120, 62, 0.4);
   display: grid;
   place-items: center;
-  justify-self: end;
+  justify-self: center;
   background: #fffaf4;
 }
 
@@ -1808,7 +1809,7 @@ input.is-invalid {
   align-items: center;
   justify-content: center;
   width: fit-content;
-  justify-self: start;
+  justify-self: center;
 }
 
 .status-pill.libre {

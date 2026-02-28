@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import Papa from "papaparse";
 import { getSupabaseAdminClient, toLoteId } from "../lib/lotesService.mjs";
 
-const CSV_PATH = "public/assets/lotes.csv";
+const CSV_PATH = "frontend/public/assets/lotes.csv";
 const BATCH_SIZE = 200;
 
 const cleanNumber = (value) => {

@@ -1,22 +1,49 @@
-# Mapa interactivo � Arenas Malabrigo
+﻿# Mapa interactivo - Arenas Malabrigo
 
-MVP en React + Vite para un mapa de lotes con SVG sobre PNG. Incluye:
-- Vista **mapa** con zoom, pan, hover y seleccion de lotes.
-- Vista **tabla** con filtros y exportacion.
-- Panel **vendedor** para actualizar estado, precio y cliente.
-- Cotizador con impresion y exportacion CSV.
+Aplicación React + Vite para visualizar y cotizar lotes con overlay SVG sobre plano PNG.
+
+## Qué incluye
+- Mapa interactivo (zoom, pan, hover, selección de lote).
+- Vista tabla con filtros y exportación CSV.
+- Drawer de cotización manual y cuotas rápidas.
+- Modal de proforma imprimible.
+- Panel vendedor conectado a API (`/api/lotes`).
+
+## Estructura monorepo
+- `frontend/`: aplicación web (Vite + React).
+  - `frontend/src/`: UI, dominio y servicios de cliente.
+  - `frontend/public/`: assets estáticos del proyecto.
+- `backend/`: servidor local y herramientas de datos.
+  - `backend/server.mjs`
+  - `backend/lib/`
+  - `backend/scripts/`
+  - `backend/supabase/`
+- `api/`: funciones serverless (Vercel) para `/api/*`.
+
+## Modularización aplicada
+- `frontend/src/domain/`: tipos, constantes y utilidades compartidas.
+- `frontend/src/services/lotes.ts`: carga de lotes (API + fallback CSV).
+- `frontend/src/components/forms/ValidatedNumberField.tsx`.
+- `frontend/src/components/map/*`.
+- `frontend/src/components/drawer/CotizadorDrawer.tsx`.
+- `frontend/src/components/proforma/ProformaModal.tsx`.
 
 ## Requisitos
-- Node.js 18+ recomendado
+- Node.js 18+
 
-## Instalacion
+## Instalación
 ```bash
 npm install
 ```
 
-## Desarrollo
+## Desarrollo (frontend)
 ```bash
 npm run dev
+```
+
+## Desarrollo full stack local
+```bash
+npm run dev:full
 ```
 
 ## Build
@@ -25,20 +52,16 @@ npm run build
 ```
 
 ## Datos
-Por defecto se carga desde:
-```
-public/assets/lotes.csv
-```
-Columnas esperadas: `MZ`, `LOTE`, `AREA`, `PRECIO`, `CONDICION`, `ASESOR`.
+Fuente principal: API `/api/lotes`.
+Fallback: `frontend/public/assets/lotes.csv`.
+
+Columnas esperadas del CSV:
+`MZ`, `LOTE`, `AREA`, `PRECIO`, `CONDICION`, `ASESOR`, `CLIENTE`, `COMENTARIO`, `ULTIMA_MODIFICACION`.
 
 ## Exportaciones
-- **PDF/Imprimir**: genera una vista A4 con cotizacion y mapa visible.
-- **CSV**: exporta la tabla filtrada para Excel.
+- **Imprimir**: reporte A4 de vista actual.
+- **CSV**: exportación de tabla filtrada.
 
-## Notas de despliegue
-El SVG principal esta en:
-```
-src/components/arenas.tsx
-```
-
-Si vas a conectar Google Sheets, reemplaza el `fetch` del CSV por la URL publica o la API. 
+## Activos clave
+- SVG de lotes: `frontend/src/components/arenas.tsx`
+- Plano base: `frontend/public/assets/plano-fondo-demo.webp`
