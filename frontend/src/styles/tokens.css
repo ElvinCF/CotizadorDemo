@@ -5,8 +5,8 @@
   --font-mono: "Space Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
   --color-bg: #f5f4f0;
-  --color-surface-alt: #ffffff;
-  --color-surface: #0e1626;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f8f2e6;
   --color-panel: #fff7ef;
   --color-panel-alt: #fff1df;
   --color-panel-contrast: #f8f2e6;
@@ -50,8 +50,8 @@
   color-scheme: dark;
 
   --color-bg: #080f1d;
-  --color-surface-alt: #131c2d;
-  --color-surface: #faf5ee;
+  --color-surface: #101a2c;
+  --color-surface-alt: #141f32;
   --color-panel: #131d2d;
   --color-panel-alt: #0f1930;
   --color-panel-contrast: #0c1625;
