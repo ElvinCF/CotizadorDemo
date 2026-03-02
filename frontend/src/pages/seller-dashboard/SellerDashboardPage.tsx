@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { statusToClass } from "../domain/formatters";
-import type { Lote } from "../domain/types";
+import { Link } from "react-router-dom";
+import AppShell from "../../app/AppShell";
+import { statusToClass } from "../../domain/formatters";
+import type { Lote } from "../../domain/types";
 
 type EditableFields = {
   price: string;
@@ -36,7 +38,7 @@ const emptyDraft: EditableFields = {
   comentario: "",
 };
 
-function VendedorPanel() {
+function SellerDashboardPage() {
   const [rows, setRows] = useState<Lote[]>([]);
   const [drafts, setDrafts] = useState<Record<string, EditableFields>>({});
   const [loading, setLoading] = useState(true);
@@ -166,9 +168,21 @@ function VendedorPanel() {
     }
   };
 
+  const actions = (
+    <nav className="topbar-nav">
+      <Link className="btn ghost" to="/">
+        Ver mapa
+      </Link>
+      <Link className="btn ghost" to="/editor">
+        Editor overlay
+      </Link>
+    </nav>
+  );
+
   return (
-    <section className="seller-page">
-      <div className="seller-page__head">
+    <AppShell title="Panel de vendedores" actions={actions}>
+      <section className="seller-page">
+        <div className="seller-page__head">
         <div>
           <div className="seller-page__title-row">
             <h2>Pagina de vendedores</h2>
@@ -293,7 +307,8 @@ function VendedorPanel() {
         </table>
       </div>
     </section>
+    </AppShell>
   );
 }
 
-export default VendedorPanel;
+export default SellerDashboardPage;
