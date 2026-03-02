@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ThemeContext, type Theme } from "./context";
+import { ThemeContext, type Theme, type ThemePreference } from "./context";
 
 const THEME_STORAGE_KEY = "arenas.theme";
 
@@ -10,45 +10,53 @@ const getSystemTheme = (): Theme => {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 };
 
-const getInitialTheme = (): Theme => {
-  if (typeof window === "undefined") return "light";
+const getInitialPreference = (): ThemePreference => {
+  if (typeof window === "undefined") return "system";
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return getSystemTheme();
+  if (stored === "light" || stored === "dark" || stored === "system") return stored;
+  return "system";
 };
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
+  const [preference, setPreference] = useState<ThemePreference>(() => getInitialPreference());
+  const [systemTheme, setSystemTheme] = useState<Theme>(() => getSystemTheme());
+
+  const effectiveTheme = preference === "system" ? systemTheme : preference;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
+    document.documentElement.dataset.theme = effectiveTheme;
+  }, [effectiveTheme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(THEME_STORAGE_KEY, preference);
+  }, [preference]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const handler = (event: MediaQueryListEvent) => {
-      setTheme((current) => {
-        const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-        if (stored === "light" || stored === "dark") {
-          return current;
-        }
-        return event.matches ? "dark" : "light";
-      });
-    };
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? "dark" : "light");
+    };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
 
   const value = useMemo(
     () => ({
-      theme,
-      setTheme,
-      toggleTheme: () => setTheme((current) => (current === "light" ? "dark" : "light")),
+      preference,
+      effectiveTheme,
+      setPreference,
+      cyclePreference: () => {
+        setPreference((current) => {
+          if (current === "light") return "dark";
+          if (current === "dark") return "system";
+          return "light";
+        });
+      },
     }),
-    [theme]
+    [preference, effectiveTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

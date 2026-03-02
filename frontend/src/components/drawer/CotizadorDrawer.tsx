@@ -2,6 +2,12 @@ import ValidatedNumberField from "../forms/ValidatedNumberField";
 import { formatArea, formatMoney, normalizeStatusLabel, statusToClass } from "../../domain/formatters";
 import type { Lote, QuoteState } from "../../domain/types";
 
+const IconClose = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 type CotizadorDrawerProps = {
   rightOpen: boolean;
   selectedLote: Lote | null;
@@ -35,7 +41,7 @@ function CotizadorDrawer({
         <h3>Cotizador</h3>
         <div className="drawer__header-actions">
           <button className="btn ghost" onClick={onClose}>
-            Cerrar
+            <IconClose /> Cerrar
           </button>
         </div>
       </div>

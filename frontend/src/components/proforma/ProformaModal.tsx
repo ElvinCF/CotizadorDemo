@@ -2,6 +2,24 @@ import ValidatedNumberField from "../forms/ValidatedNumberField";
 import { formatMoney } from "../../domain/formatters";
 import type { ProformaState } from "../../domain/types";
 
+const IconPrinter = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M7 8V4h10v4M7 15h10v6H7v-6Zm12 0h2v-5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v5h2"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const IconClose = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 type ProformaModalProps = {
   proforma: ProformaState;
   proformaInvalidInicial: boolean;
@@ -50,11 +68,11 @@ function ProformaModal({
             </p>
           </div>
           <div className="proforma-actions">
-            <button className="btn ghost" onClick={onPrint}>
-              Imprimir
+            <button className="btn ghost icon-only" onClick={onPrint} aria-label="Imprimir proforma">
+              <IconPrinter />
             </button>
             <button className="btn ghost" onClick={onRequestClose}>
-              Cerrar
+              <IconClose /> Cerrar
             </button>
           </div>
         </div>

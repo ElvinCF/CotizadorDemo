@@ -1,6 +1,32 @@
 import { formatArea, formatMoney, normalizeStatusLabel, statusToClass } from "../../domain/formatters";
 import type { FiltersState, Lote } from "../../domain/types";
 
+const IconFilterOn = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M4 6h16M7 11h10M10 16h4"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M15 19.5 13 17v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const IconFilterOff = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M4 6h16M7 11h10M10 16h4"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M8 20 16 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 type TableViewProps = {
   tableFiltersOpen: boolean;
   onToggleFilters: () => void;
@@ -27,7 +53,7 @@ function TableView({
       <div className="table-filters__header">
         <h4>Filtros</h4>
         <button className="btn ghost" onClick={onToggleFilters}>
-          {tableFiltersOpen ? "Ocultar" : "Mostrar"}
+          {tableFiltersOpen ? <IconFilterOff /> : <IconFilterOn />}Filtro
         </button>
       </div>
       <div className={`table-filters ${tableFiltersOpen ? "open" : "closed"}`}>
@@ -91,16 +117,15 @@ function TableView({
           Limpiar
         </button>
       </div>
+      <div className="table-header">
+        <span>MZ</span>
+        <span>LT</span>
+        <span>AREA (M2)</span>
+        <span>ASESOR</span>
+        <span>PRECIO</span>
+        <span>CONDICION</span>
+      </div>
       <div className="table-scroll">
-        <div className="table-header">
-          <span>MZ</span>
-          <span>LT</span>
-          <span>AREA (M2)</span>
-          <span>ASESOR</span>
-          <span>PRECIO</span>
-          <span>CONDICION</span>
-          <span>VER</span>
-        </div>
         {filteredLotes.map((lote) => (
           <button
             className={`table-row ${selectedId === lote.id ? "selected" : ""}`}
@@ -114,9 +139,6 @@ function TableView({
             <span className="table-cell">{formatMoney(lote.price)}</span>
             <span className={`table-cell status-pill ${statusToClass(lote.condicion)}`}>
               {normalizeStatusLabel(lote.condicion)}
-            </span>
-            <span className="table-cell table-action" aria-hidden="true">
-              🔎
             </span>
           </button>
         ))}

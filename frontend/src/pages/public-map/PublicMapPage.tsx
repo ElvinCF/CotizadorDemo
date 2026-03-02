@@ -1,4 +1,4 @@
-﻿import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import AppShell from "../../app/AppShell";
 import {
   TransformComponent,
@@ -8,7 +8,6 @@ import {
 import ArenasSvg from "../../components/arenas";
 import CotizadorDrawer from "../../components/drawer/CotizadorDrawer";
 import MapHeader from "../../components/map/MapHeader";
-import MapIntro from "../../components/map/MapIntro";
 import TableView from "../../components/map/TableView";
 import ProformaModal from "../../components/proforma/ProformaModal";
 import {
@@ -211,7 +210,7 @@ function PublicMapPage() {
     }
     previousMzRef.current = selectedLote.mz;
     previousLoteRef.current = selectedLote.lote;
-  }, [selectedLote?.id]);
+  }, [selectedLote]);
 
   useEffect(() => {
     const root = svgRef.current;
@@ -289,7 +288,7 @@ function PublicMapPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [proformaDirty, proformaOpen]);
 
   useEffect(() => {
     return () => {
@@ -853,12 +852,10 @@ function PublicMapPage() {
     setProformaOpen(true);
   };
 
-  const drawerCount = rightOpen ? 1 : 0;
+  const mapShellClassName = rightOpen ? "map-shell has-drawer" : "map-shell";
   const MapView = (
     <section className="map-page">
-      <MapIntro />
-
-      <section className={`map-shell drawer-open-${drawerCount}`}>
+      <section className={mapShellClassName}>
         <section className="map-card viewer">
           <MapHeader
             view={view}
@@ -876,113 +873,115 @@ function PublicMapPage() {
             style={mapVars as CSSProperties}
           >
           {view === "mapa" ? (
-            <TransformWrapper
-              ref={transformRef}
-              minScale={0.4}
-              maxScale={6}
-              initialScale={1}
-              limitToBounds={false}
-              centerZoomedOut={false}
-              centerOnInit={false}
-              initialPositionX={0}
-              initialPositionY={0}
-              alignmentAnimation={{ disabled: true }}
-              panning={{ velocityDisabled: true }}
-              wheel={{ step: 0.04, smoothStep: 0.003 }}
-              onTransformed={(_, state) => {
-                mapTransformRef.current = state;
-                if (transformRafRef.current == null) {
-                  transformRafRef.current = requestAnimationFrame(() => {
-                    setMapTransform(mapTransformRef.current);
-                    transformRafRef.current = null;
-                  });
-                }
-                if (isPanningRef.current && panStartRef.current) {
-                  const dx = state.positionX - panStartRef.current.x;
-                  const dy = state.positionY - panStartRef.current.y;
-                  if (Math.hypot(dx, dy) > 2) {
-                    draggedRef.current = true;
+            <Fragment>
+              <TransformWrapper
+                ref={transformRef}
+                minScale={0.4}
+                maxScale={6}
+                initialScale={1}
+                limitToBounds={false}
+                centerZoomedOut={false}
+                centerOnInit={false}
+                initialPositionX={0}
+                initialPositionY={0}
+                alignmentAnimation={{ disabled: true }}
+                panning={{ velocityDisabled: true }}
+                wheel={{ step: 0.04, smoothStep: 0.003 }}
+                onTransformed={(_, state) => {
+                  mapTransformRef.current = state;
+                  if (transformRafRef.current == null) {
+                    transformRafRef.current = requestAnimationFrame(() => {
+                      setMapTransform(mapTransformRef.current);
+                      transformRafRef.current = null;
+                    });
                   }
-                }
-              }}
-              onPanningStart={() => {
-                setIsPanning(true);
-                isPanningRef.current = true;
-                draggedRef.current = false;
-                panStartRef.current = {
-                  x: mapTransformRef.current.positionX,
-                  y: mapTransformRef.current.positionY,
-                };
-              }}
-              onPanningStop={() => {
-                setIsPanning(false);
-                isPanningRef.current = false;
-                panStartRef.current = null;
-              }}
-            >
-              {({ zoomIn, zoomOut, resetTransform, setTransform }) => (
-                <>
-                  <div className="map-controls">
-                    <button className="btn ghost" onClick={() => zoomIn()}>
-                      +
-                    </button>
-                    <button className="btn ghost" onClick={() => zoomOut()}>
-                      -
-                    </button>
-                    <button
-                      className="btn ghost"
-                      onClick={() => {
-                        if (mapContainerRef.current) {
-                          const { width, height } = mapContainerRef.current.getBoundingClientRect();
-                          const nextScale = Math.min(width / MAP_WIDTH, height / MAP_HEIGHT);
-                          const nextX = (width - MAP_WIDTH * nextScale) / 2;
-                          const nextY = (height - MAP_HEIGHT * nextScale) / 2;
-                          setTransform(nextX, nextY, nextScale);
-                          return;
+                  if (isPanningRef.current && panStartRef.current) {
+                    const dx = state.positionX - panStartRef.current.x;
+                    const dy = state.positionY - panStartRef.current.y;
+                    if (Math.hypot(dx, dy) > 2) {
+                      draggedRef.current = true;
+                    }
+                  }
+                }}
+                onPanningStart={() => {
+                  setIsPanning(true);
+                  isPanningRef.current = true;
+                  draggedRef.current = false;
+                  panStartRef.current = {
+                    x: mapTransformRef.current.positionX,
+                    y: mapTransformRef.current.positionY,
+                  };
+                }}
+                onPanningStop={() => {
+                  setIsPanning(false);
+                  isPanningRef.current = false;
+                  panStartRef.current = null;
+                }}
+              >
+                {({ zoomIn, zoomOut, resetTransform, setTransform }) => (
+                  <Fragment>
+                    <div className="map-controls">
+                      <button className="btn ghost" onClick={() => zoomIn()}>
+                        +
+                      </button>
+                      <button className="btn ghost" onClick={() => zoomOut()}>
+                        -
+                      </button>
+                      <button
+                        className="btn ghost"
+                        onClick={() => {
+                          if (mapContainerRef.current) {
+                            const { width, height } = mapContainerRef.current.getBoundingClientRect();
+                            const nextScale = Math.min(width / MAP_WIDTH, height / MAP_HEIGHT);
+                            const nextX = (width - MAP_WIDTH * nextScale) / 2;
+                            const nextY = (height - MAP_HEIGHT * nextScale) / 2;
+                            setTransform(nextX, nextY, nextScale);
+                            return;
+                          }
+                          resetTransform();
+                        }}
+                      >
+                        Reset
+                      </button>
+                      <div className="zoom-indicator">{Math.round(mapTransform.scale * 100)}%</div>
+                      <input
+                        className="zoom-slider"
+                        type="range"
+                        min={0.6}
+                        max={6}
+                        step={0.05}
+                        value={mapTransform.scale}
+                        onChange={(event) =>
+                          setTransform(
+                            mapTransform.positionX,
+                            mapTransform.positionY,
+                            Number(event.target.value)
+                          )
                         }
-                        resetTransform();
-                      }}
-                    >
-                      Reset
-                    </button>
-                    <div className="zoom-indicator">{Math.round(mapTransform.scale * 100)}%</div>
-                    <input
-                      className="zoom-slider"
-                      type="range"
-                      min={0.6}
-                      max={6}
-                      step={0.05}
-                      value={mapTransform.scale}
-                      onChange={(event) =>
-                        setTransform(
-                          mapTransform.positionX,
-                          mapTransform.positionY,
-                          Number(event.target.value)
-                        )
-                      }
-                    />
-                  </div>
-                  <TransformComponent wrapperClass="transform-wrapper">
-                    <div className="map-layer">
-                      <img
-                        src="/assets/plano-fondo-demo.webp"
-                        alt="Plano de fondo"
-                        className="map-background"
-                        draggable={false}
-                      />
-                      <MemoArenasSvg
-                        svgRef={svgRef}
-                        className="lotes-svg"
-                        style={overlayStyleMemo}
-                        onMouseMove={handleSvgPointer}
-                        onClick={handleSvgPointer}
-                        onMouseLeave={handleSvgLeave}
                       />
                     </div>
-                  </TransformComponent>
-                </>
-              )}
-            </TransformWrapper>
+                    <TransformComponent wrapperClass="transform-wrapper">
+                      <div className="map-layer">
+                        <img
+                          src="/assets/plano-fondo-demo.webp"
+                          alt="Plano de fondo"
+                          className="map-background"
+                          draggable={false}
+                        />
+                        <MemoArenasSvg
+                          svgRef={svgRef}
+                          className="lotes-svg"
+                          style={overlayStyleMemo}
+                          onMouseMove={handleSvgPointer}
+                          onClick={handleSvgPointer}
+                          onMouseLeave={handleSvgLeave}
+                        />
+                      </div>
+                    </TransformComponent>
+                  </Fragment>
+                )}
+              </TransformWrapper>
+            </Fragment>
           ) : (
             <TableView
               tableFiltersOpen={tableFiltersOpen}
@@ -1009,10 +1008,8 @@ function PublicMapPage() {
               <span>{hoveredLote.condicion}</span>
             </div>
           )}
-          </div>
-          
-        </section>
-
+        </div>
+      </section>
       <CotizadorDrawer
         rightOpen={rightOpen}
         selectedLote={selectedLote}
@@ -1026,13 +1023,13 @@ function PublicMapPage() {
         onClose={() => setRightOpen(false)}
         onChangeQuote={setQuote}
       />
-    </section>
+      </section>
     </section>
   );
 
   return (
-    <>
-      <AppShell>
+    <Fragment>
+      <AppShell contentClassName="main--map">
         {MapView}
       </AppShell>
 
@@ -1118,8 +1115,13 @@ function PublicMapPage() {
             </div>
           </div>
         )}
-    </>
+    </Fragment>
   );
 }
 
 export default PublicMapPage;
+
+
+
+
+

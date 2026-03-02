@@ -5,14 +5,14 @@ type AppShellProps = {
   children: ReactNode;
   title?: string;
   actions?: ReactNode;
-  showThemeToggle?: boolean;
+  contentClassName?: string;
 };
 
 const AppShell = ({
   children,
   title = "Mapa cotizador de Arenas Malabrigo",
   actions,
-  showThemeToggle = false,
+  contentClassName = "",
 }: AppShellProps) => (
   <div className="app-shell">
     <header className="topbar">
@@ -28,11 +28,11 @@ const AppShell = ({
       </div>
       <div className="topbar__actions">
         {actions}
-        {showThemeToggle ? <ThemeToggle /> : null}
+        <ThemeToggle />
       </div>
     </header>
 
-    <main className="main">{children}</main>
+    <main className={`main ${contentClassName}`.trim()}>{children}</main>
   </div>
 );
 
