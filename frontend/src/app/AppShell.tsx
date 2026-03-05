@@ -10,7 +10,7 @@ type AppShellProps = {
 
 const AppShell = ({
   children,
-  title = "Mapa cotizador de Arenas Malabrigo",
+  title = "Arenas Malabrigo - Mapa cotizador",
   actions,
   contentClassName = "",
 }: AppShellProps) => (

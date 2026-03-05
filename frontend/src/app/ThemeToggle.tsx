@@ -7,13 +7,6 @@ const SunIcon = () => (
   </svg>
 );
 
-const AutoIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <rect x="3" y="4" width="18" height="14" rx="3" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M8 18v2h8v-2M7 9h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
 const MoonIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path
@@ -27,11 +20,10 @@ const MoonIcon = () => (
 );
 
 const ThemeToggle = () => {
-  const { preference, setPreference } = useTheme();
+  const { effectiveTheme, setPreference } = useTheme();
 
   const options = [
     { value: "light", label: "Modo claro", Icon: SunIcon },
-    { value: "system", label: "Usar configuración del sistema", Icon: AutoIcon },
     { value: "dark", label: "Modo oscuro", Icon: MoonIcon },
   ] as const;
 
@@ -41,8 +33,8 @@ const ThemeToggle = () => {
         <button
           key={value}
           type="button"
-          className={preference === value ? "theme-toggle__btn is-active" : "theme-toggle__btn"}
-          aria-pressed={preference === value}
+          className={effectiveTheme === value ? "theme-toggle__btn is-active" : "theme-toggle__btn"}
+          aria-pressed={effectiveTheme === value}
           aria-label={label}
           onClick={() => setPreference(value)}
         >

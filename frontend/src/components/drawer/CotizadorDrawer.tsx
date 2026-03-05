@@ -8,6 +8,24 @@ const IconClose = () => (
   </svg>
 );
 
+const IconPrint = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M7 8V4h10v4M7 15h10v6H7v-6Zm12 0h2v-5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v5h2"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const IconPlus = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 type CotizadorDrawerProps = {
   rightOpen: boolean;
   selectedLote: Lote | null;
@@ -19,6 +37,8 @@ type CotizadorDrawerProps = {
   cuota: number;
   cuotaRapida: (meses: number, inicial: number) => number;
   onClose: () => void;
+  onPrint: () => void;
+  onOpenProforma: () => void;
   onChangeQuote: (next: QuoteState) => void;
 };
 
@@ -33,15 +53,32 @@ function CotizadorDrawer({
   cuota,
   cuotaRapida,
   onClose,
+  onPrint,
+  onOpenProforma,
   onChangeQuote,
 }: CotizadorDrawerProps) {
+  const precioM2 =
+    selectedLote?.price != null &&
+    selectedLote.areaM2 != null &&
+    selectedLote.areaM2 > 0
+      ? selectedLote.price / selectedLote.areaM2
+      : null;
+
   return (
     <aside className={`drawer-panel right ${rightOpen ? "open" : ""}`}>
       <div className="drawer__header">
         <h3>Cotizador</h3>
         <div className="drawer__header-actions">
-          <button className="btn ghost" onClick={onClose}>
-            <IconClose /> Cerrar
+          {selectedLote && selectedLote.condicion !== "VENDIDO" ? (
+            <button className="btn ghost drawer-proforma-btn" onClick={onOpenProforma}>
+              <IconPlus /> <span>Proforma</span>
+            </button>
+          ) : null}
+          <button className="btn ghost" onClick={onPrint}>
+            <IconPrint /> <span className="drawer-print-label">Imprimir</span>
+          </button>
+          <button className="btn ghost drawer-close-btn icon-only" onClick={onClose} aria-label="Cerrar cotizador">
+            <IconClose />
           </button>
         </div>
       </div>
@@ -55,15 +92,6 @@ function CotizadorDrawer({
                 {normalizeStatusLabel(selectedLote.condicion)}
               </span>
             </div>
-            {selectedLote.asesor ? (
-              <div className="drawer-lote-headline">
-                <div>
-                  <span>Asesor</span>
-                  <strong>{selectedLote.asesor}</strong>
-                </div>
-              </div>
-            ) : null}
-
             <div className="drawer-cards">
               <div className="drawer-card area-card">
                 <span>Area total</span>
@@ -72,6 +100,9 @@ function CotizadorDrawer({
               <div className="drawer-card price-card">
                 <span>Precio del lote</span>
                 <strong>{formatMoney(selectedLote.price)}</strong>
+                <small className="price-per-m2">
+                  Precio m2 <b>{precioM2 != null ? formatMoney(precioM2) : "-"}</b>
+                </small>
               </div>
             </div>
 

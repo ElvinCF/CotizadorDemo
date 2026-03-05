@@ -11,17 +11,12 @@ type Props = {
   overlay: OverlayTransform;
   setOverlay: (next: OverlayTransform) => void;
   defaultOverlay: OverlayTransform;
-  mapVars: React.CSSProperties;
   MapSvg: React.ReactNode;
 };
 
-const EditorPanel: FC<Props> = ({ overlay, setOverlay, defaultOverlay, mapVars, MapSvg }) => (
-  <section className="editor-panel">
-    <div className="editor-header">
-      <h3>Editor de overlay</h3>
-      <p className="muted">Ajusta posicion y escala del SVG sobre el PNG fijo.</p>
-    </div>
-    <div className="editor-grid">
+const EditorPanel: FC<Props> = ({ overlay, setOverlay, defaultOverlay, MapSvg }) => (
+  <section className="map-shell editor-shell">
+    <section className="editor-panel">
       <div className="editor-controls">
         <label>
           X ({overlay.x}px)
@@ -90,10 +85,8 @@ const EditorPanel: FC<Props> = ({ overlay, setOverlay, defaultOverlay, mapVars, 
           </code>
         </div>
       </div>
-      <div className="editor-canvas" style={mapVars}>
-        {MapSvg}
-      </div>
-    </div>
+    </section>
+    <section className="map-card viewer editor-map-card">{MapSvg}</section>
   </section>
 );
 
