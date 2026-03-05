@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { formatArea, formatMoney, normalizeStatusLabel, statusToClass } from "../../domain/formatters";
 import type { FiltersState, Lote } from "../../domain/types";
 
@@ -30,6 +31,7 @@ const IconFilterOff = () => (
 type TableViewProps = {
   tableFiltersOpen: boolean;
   onToggleFilters: () => void;
+  allLotes: Lote[];
   filters: FiltersState;
   setFilters: (next: FiltersState) => void;
   onResetFilters: () => void;
@@ -41,6 +43,7 @@ type TableViewProps = {
 function TableView({
   tableFiltersOpen,
   onToggleFilters,
+  allLotes,
   filters,
   setFilters,
   onResetFilters,
@@ -48,12 +51,20 @@ function TableView({
   selectedId,
   onSelectLote,
 }: TableViewProps) {
+  const asesores = useMemo(
+    () =>
+      [...new Set(allLotes.map((lote) => (lote.asesor ?? "").trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "es", { sensitivity: "base" })
+      ),
+    [allLotes]
+  );
+
   return (
     <div className="table-view">
       <div className="table-filters__header">
         <h4>Filtros</h4>
         <button className="btn ghost" onClick={onToggleFilters}>
-          {tableFiltersOpen ? <IconFilterOff /> : <IconFilterOn />}Filtro
+          {tableFiltersOpen ? <IconFilterOff /> : <IconFilterOn />} Filtro
         </button>
       </div>
       <div className={`table-filters ${tableFiltersOpen ? "open" : "closed"}`}>
@@ -75,6 +86,20 @@ function TableView({
             <option value="LIBRE">Libre</option>
             <option value="SEPARADO">Separado</option>
             <option value="VENDIDO">Vendido</option>
+          </select>
+        </label>
+        <label>
+          Asesor
+          <select
+            value={filters.asesor}
+            onChange={(event) => setFilters({ ...filters, asesor: event.target.value })}
+          >
+            <option value="TODOS">Todos</option>
+            {asesores.map((asesor) => (
+              <option key={asesor} value={asesor}>
+                {asesor}
+              </option>
+            ))}
           </select>
         </label>
         <label>
@@ -113,35 +138,39 @@ function TableView({
             placeholder="Max m2"
           />
         </label>
-        <button className="btn ghost" onClick={onResetFilters}>
-          Limpiar
-        </button>
-      </div>
-      <div className="table-header">
-        <span>MZ</span>
-        <span>LT</span>
-        <span>AREA (M2)</span>
-        <span>ASESOR</span>
-        <span>PRECIO</span>
-        <span>CONDICION</span>
+        <div className="table-filters__actions">
+          <button className="btn ghost" onClick={onResetFilters}>
+            Limpiar
+          </button>
+        </div>
       </div>
       <div className="table-scroll">
-        {filteredLotes.map((lote) => (
-          <button
-            className={`table-row ${selectedId === lote.id ? "selected" : ""}`}
-            key={lote.id}
-            onClick={() => onSelectLote(lote.id)}
-          >
-            <span className="table-cell strong">{lote.mz}</span>
-            <span className="table-cell strong">{lote.lote}</span>
-            <span className="table-cell">{formatArea(lote.areaM2)}</span>
-            <span className="table-cell">{lote.asesor ?? "-"}</span>
-            <span className="table-cell">{formatMoney(lote.price)}</span>
-            <span className={`table-cell status-pill ${statusToClass(lote.condicion)}`}>
-              {normalizeStatusLabel(lote.condicion)}
-            </span>
-          </button>
-        ))}
+        <div className="table-grid">
+          <div className="table-header">
+            <span>MZ</span>
+            <span>LT</span>
+            <span>AREA (M2)</span>
+            <span>ASESOR</span>
+            <span>PRECIO</span>
+            <span>CONDICION</span>
+          </div>
+          {filteredLotes.map((lote) => (
+            <button
+              className={`table-row ${selectedId === lote.id ? "selected" : ""}`}
+              key={lote.id}
+              onClick={() => onSelectLote(lote.id)}
+            >
+              <span className="table-cell strong">{lote.mz}</span>
+              <span className="table-cell strong">{lote.lote}</span>
+              <span className="table-cell">{formatArea(lote.areaM2)}</span>
+              <span className="table-cell">{lote.asesor ?? "-"}</span>
+              <span className="table-cell">{formatMoney(lote.price)}</span>
+              <span className={`table-cell status-pill ${statusToClass(lote.condicion)}`}>
+                {normalizeStatusLabel(lote.condicion)}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

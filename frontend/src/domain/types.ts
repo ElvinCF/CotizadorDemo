@@ -39,6 +39,7 @@ export type OverlayTransform = {
 export type FiltersState = {
   mz: string;
   status: string;
+  asesor: string;
   priceMin: string;
   priceMax: string;
   areaMin: string;

@@ -164,6 +164,7 @@ function PublicMapPage() {
   const filteredLotes = useMemo(() => {
     const mz = filters.mz.trim().toUpperCase();
     const status = filters.status.toUpperCase();
+    const asesor = filters.asesor.trim().toUpperCase();
     const priceMin = filters.priceMin ? Number(filters.priceMin) : null;
     const priceMax = filters.priceMax ? Number(filters.priceMax) : null;
     const areaMin = filters.areaMin ? Number(filters.areaMin) : null;
@@ -172,6 +173,7 @@ function PublicMapPage() {
     return lotes.filter((lote) => {
       if (mz && lote.mz !== mz) return false;
       if (status !== "TODOS" && lote.condicion !== status) return false;
+      if (asesor !== "TODOS" && (lote.asesor ?? "").trim().toUpperCase() !== asesor) return false;
       if (priceMin != null && (lote.price ?? 0) < priceMin) return false;
       if (priceMax != null && (lote.price ?? 0) > priceMax) return false;
       if (areaMin != null && (lote.areaM2 ?? 0) < areaMin) return false;
@@ -284,6 +286,7 @@ function PublicMapPage() {
           return;
         }
         setRightOpen(false);
+        setSelectedId(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -369,6 +372,51 @@ function PublicMapPage() {
   const handleSvgLeave = useCallback(() => {
     setHoveredId(null);
   }, []);
+
+  const handleSliderZoom = useCallback(
+    (
+      nextScale: number,
+      setTransformFn: (
+        x: number,
+        y: number,
+        scale: number,
+        animationTime?: number,
+        animationType?: "linear" | "easeOut" | "easeInQuad" | "easeOutQuad" | "easeInOutQuad"
+      ) => void
+    ) => {
+      const container = mapContainerRef.current;
+      const current = mapTransformRef.current;
+      const safeScale = clamp(nextScale, 0.4, 6);
+
+      if (!container) {
+        setTransformFn(current.positionX, current.positionY, safeScale, 90, "easeOut");
+        return;
+      }
+
+      const { width, height } = container.getBoundingClientRect();
+      if (!width || !height) {
+        setTransformFn(current.positionX, current.positionY, safeScale, 90, "easeOut");
+        return;
+      }
+
+      const fitScale = Math.min(width / MAP_WIDTH, height / MAP_HEIGHT);
+      if (safeScale <= fitScale) {
+        const centeredX = (width - MAP_WIDTH * safeScale) / 2;
+        const centeredY = (height - MAP_HEIGHT * safeScale) / 2;
+        setTransformFn(centeredX, centeredY, safeScale, 120, "easeOut");
+        return;
+      }
+
+      // Keep zoom anchored to viewport center for smooth slider behavior.
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const ratio = safeScale / Math.max(current.scale, 0.0001);
+      const nextX = centerX - (centerX - current.positionX) * ratio;
+      const nextY = centerY - (centerY - current.positionY) * ratio;
+      setTransformFn(nextX, nextY, safeScale, 90, "easeOut");
+    },
+    []
+  );
 
   const resetFilters = () => setFilters(defaultFilters);
 
@@ -511,6 +559,267 @@ function PublicMapPage() {
 
   const overlayStyleMemo = useMemo(() => overlayStyle(overlay), [overlay]);
 
+  const loadImageElement = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.decoding = "async";
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error(`No se pudo cargar imagen: ${src}`));
+      image.src = src;
+    });
+
+  const captureCurrentMapView = async () => {
+    if (!mapContainerRef.current) return null;
+
+    const width = Math.max(1, Math.round(mapContainerRef.current.clientWidth));
+    const height = Math.max(1, Math.round(mapContainerRef.current.clientHeight));
+    const exportScale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width * exportScale;
+    canvas.height = height * exportScale;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+
+    context.scale(exportScale, exportScale);
+    context.fillStyle = "#f7f0e4";
+    context.fillRect(0, 0, width, height);
+
+    const backgroundImage = await loadImageElement("/assets/plano-fondo-demo.webp");
+
+    const imageRatio = backgroundImage.naturalWidth / backgroundImage.naturalHeight;
+    const layerRatio = MAP_WIDTH / MAP_HEIGHT;
+    let drawWidth = MAP_WIDTH;
+    let drawHeight = MAP_HEIGHT;
+    let drawX = 0;
+    let drawY = 0;
+
+    if (imageRatio > layerRatio) {
+      drawWidth = MAP_WIDTH;
+      drawHeight = MAP_WIDTH / imageRatio;
+      drawY = (MAP_HEIGHT - drawHeight) / 2;
+    } else {
+      drawHeight = MAP_HEIGHT;
+      drawWidth = MAP_HEIGHT * imageRatio;
+      drawX = (MAP_WIDTH - drawWidth) / 2;
+    }
+
+    context.save();
+    context.translate(mapTransform.positionX, mapTransform.positionY);
+    context.scale(mapTransform.scale, mapTransform.scale);
+    context.drawImage(backgroundImage, drawX, drawY, drawWidth, drawHeight);
+
+    const sourceSvg = svgRef.current;
+    if (sourceSvg) {
+      const svgClone = sourceSvg.cloneNode(true) as SVGSVGElement;
+      svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      svgClone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+
+      sourceSvg.querySelectorAll<SVGElement>("[id]").forEach((node) => {
+        const id = node.getAttribute("id");
+        if (!id) return;
+        const cloneNode = svgClone.querySelector<SVGElement>(`#${CSS.escape(id)}`);
+        if (!cloneNode) return;
+        const style = window.getComputedStyle(node);
+        cloneNode.setAttribute("fill", style.fill);
+        cloneNode.setAttribute("stroke", style.stroke);
+        cloneNode.setAttribute("stroke-width", style.strokeWidth);
+        cloneNode.setAttribute("opacity", style.opacity);
+        cloneNode.setAttribute("stroke-linejoin", style.strokeLinejoin);
+        cloneNode.setAttribute("stroke-linecap", style.strokeLinecap);
+      });
+
+      const serialized = new XMLSerializer().serializeToString(svgClone);
+      const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
+      const svgImage = await loadImageElement(svgDataUrl);
+
+      context.save();
+      context.translate(overlay.x, overlay.y);
+      context.scale(overlay.scale, overlay.scale);
+      context.drawImage(svgImage, 0, 0);
+      context.restore();
+    }
+
+    context.restore();
+    return canvas.toDataURL("image/png");
+  };
+
+  const exportExecutivePdf = async () => {
+    const targetWidth = MAP_WIDTH * 3;
+    const targetHeight = MAP_HEIGHT * 3;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const scale = targetWidth / MAP_WIDTH;
+    context.scale(scale, scale);
+    context.fillStyle = "#f7f0e4";
+    context.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+    const backgroundImage = await loadImageElement("/assets/plano-fondo-demo.webp");
+    const imageRatio = backgroundImage.naturalWidth / backgroundImage.naturalHeight;
+    const layerRatio = MAP_WIDTH / MAP_HEIGHT;
+    let drawWidth = MAP_WIDTH;
+    let drawHeight = MAP_HEIGHT;
+    let drawX = 0;
+    let drawY = 0;
+
+    if (imageRatio > layerRatio) {
+      drawWidth = MAP_WIDTH;
+      drawHeight = MAP_WIDTH / imageRatio;
+      drawY = (MAP_HEIGHT - drawHeight) / 2;
+    } else {
+      drawHeight = MAP_HEIGHT;
+      drawWidth = MAP_HEIGHT * imageRatio;
+      drawX = (MAP_WIDTH - drawWidth) / 2;
+    }
+    context.drawImage(backgroundImage, drawX, drawY, drawWidth, drawHeight);
+
+    const sourceSvg = svgRef.current;
+    if (sourceSvg) {
+      const svgClone = sourceSvg.cloneNode(true) as SVGSVGElement;
+      svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      svgClone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+      svgClone.setAttribute("width", String(MAP_WIDTH));
+      svgClone.setAttribute("height", String(MAP_HEIGHT));
+      svgClone.style.width = `${MAP_WIDTH}px`;
+      svgClone.style.height = `${MAP_HEIGHT}px`;
+      // Avoid double transform: we apply overlay transform in canvas, not inside serialized SVG.
+      svgClone.style.transform = "none";
+      svgClone.style.transformOrigin = "0 0";
+
+      // Force light theme lot colors for consistent export regardless of current theme.
+      const LIGHT_FILL_LIBRE = "rgba(60, 223, 101, 0.322)";
+      const LIGHT_FILL_SEPARADO = "rgba(255, 196, 99, 0.5)";
+      const LIGHT_FILL_VENDIDO = "rgba(255, 133, 149, 0.5)";
+      const LIGHT_STROKE = "rgba(0,0,0,0)";
+
+      sourceSvg.querySelectorAll<SVGElement>("[id]").forEach((node) => {
+        const id = node.getAttribute("id");
+        if (!id) return;
+        const cloneNode = svgClone.querySelector<SVGElement>(`#${CSS.escape(id)}`);
+        if (!cloneNode) return;
+
+        const status = (node.getAttribute("data-status") || "").toUpperCase();
+        if (status === "SEPARADO") {
+          cloneNode.setAttribute("fill", LIGHT_FILL_SEPARADO);
+        } else if (status === "VENDIDO") {
+          cloneNode.setAttribute("fill", LIGHT_FILL_VENDIDO);
+        } else {
+          cloneNode.setAttribute("fill", LIGHT_FILL_LIBRE);
+        }
+        cloneNode.setAttribute("stroke", LIGHT_STROKE);
+        cloneNode.setAttribute("stroke-width", "0");
+        cloneNode.setAttribute("stroke-linejoin", "round");
+        cloneNode.setAttribute("stroke-linecap", "round");
+      });
+
+      const serialized = new XMLSerializer().serializeToString(svgClone);
+      const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
+      const svgImage = await loadImageElement(svgDataUrl);
+
+      context.save();
+      context.translate(overlay.x, overlay.y);
+      context.scale(overlay.scale, overlay.scale);
+      context.drawImage(svgImage, 0, 0, MAP_WIDTH, MAP_HEIGHT);
+      context.restore();
+    }
+
+    const vendidoCount = lotes.filter((lote) => lote.condicion === "VENDIDO").length;
+    const separadoCount = lotes.filter((lote) => lote.condicion === "SEPARADO").length;
+    const disponibleCount = lotes.length - vendidoCount - separadoCount;
+
+    const imageData = canvas.toDataURL("image/png", 1);
+    const { jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({
+      orientation: targetWidth >= targetHeight ? "landscape" : "portrait",
+      unit: "px",
+      format: [MAP_WIDTH, MAP_HEIGHT],
+      compress: true,
+    });
+    pdf.addImage(imageData, "PNG", 0, 0, MAP_WIDTH, MAP_HEIGHT, undefined, "NONE");
+
+    // Overlay information drawn directly in the PDF to keep text crisp/selectable.
+    const panelX = 28;
+    const panelY = 26;
+    const panelW = Math.round(Math.min(330, Math.max(280, MAP_WIDTH * 0.255)));
+    const panelH = 304;
+
+    pdf.setFillColor(248, 245, 232);
+    pdf.setDrawColor(178, 133, 90);
+    pdf.setLineWidth(1);
+    pdf.roundedRect(panelX, panelY, panelW, panelH, 14, 14, "FD");
+
+    try {
+      const logoImage = await loadImageElement("/assets/Logo_Arenas_Malabrigo.svg");
+      const logoCanvas = document.createElement("canvas");
+      logoCanvas.width = 1000;
+      logoCanvas.height = 360;
+      const logoCtx = logoCanvas.getContext("2d");
+      if (logoCtx) {
+        logoCtx.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
+        const ratio = logoImage.naturalWidth / logoImage.naturalHeight;
+        const boxW = panelW - 28;
+        const boxH = 116;
+        const boxX = panelX + 16;
+        const boxY = panelY + 10;
+        let drawW = boxW;
+        let drawH = boxH;
+        let drawX = boxX;
+        let drawY = boxY;
+        if (ratio > boxW / boxH) {
+          drawH = boxW / ratio;
+          drawY += (boxH - drawH) / 2;
+        } else {
+          drawW = boxH * ratio;
+          drawX += (boxW - drawW) / 2;
+        }
+        logoCtx.drawImage(logoImage, 0, 0, logoCanvas.width, logoCanvas.height);
+        const logoData = logoCanvas.toDataURL("image/png", 1);
+        pdf.addImage(logoData, "PNG", drawX, drawY, drawW, drawH, undefined, "FAST");
+      }
+    } catch {
+      // Continue export if logo fails.
+    }
+
+    pdf.setTextColor(58, 46, 37);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(57 / 3); // ~19px equivalent
+    pdf.text("Resumen general", panelX + 20, panelY + 150);
+
+    const drawStatRow = (label: string, value: number, row: number, rgb: [number, number, number]) => {
+      const rowY = panelY + 166 + row * 42;
+      const tint =
+        row === 0
+          ? [255, 238, 238]
+          : row === 1
+            ? [255, 247, 227]
+            : [234, 250, 238];
+      pdf.setFillColor(tint[0], tint[1], tint[2]);
+      pdf.setDrawColor(223, 211, 196);
+      pdf.roundedRect(panelX + 16, rowY, panelW - 32, 32, 16, 16, "FD");
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(54 / 3); // ~18px equivalent
+      pdf.setTextColor(92, 72, 56);
+      pdf.text(label, panelX + 30, rowY + 21);
+      pdf.setTextColor(rgb[0], rgb[1], rgb[2]);
+      const valueText = String(value);
+      pdf.setFontSize(60 / 3); // ~20px equivalent
+      const textWidth = pdf.getTextWidth(valueText);
+      pdf.text(valueText, panelX + panelW - 30 - textWidth, rowY + 21);
+    };
+
+    drawStatRow("Vendidos", vendidoCount, 0, [198, 40, 40]);
+    drawStatRow("Separados", separadoCount, 1, [154, 107, 0]);
+    drawStatRow("Disponibles", disponibleCount, 2, [31, 138, 76]);
+
+    pdf.save(`mapa-ejecutivo-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   const exportPrintable = async () => {
     const standardQuoteHtml = `
       <section class="card">
@@ -590,37 +899,21 @@ function PublicMapPage() {
 
     let mapCaptureHtml = "";
     if (view === "mapa" && mapContainerRef.current) {
-      const { default: html2canvas } = await import("html2canvas");
-      const target = mapContainerRef.current;
-      const canvas = await html2canvas(target, {
-        backgroundColor: "#f7f0e4",
-        useCORS: true,
-        scale: 2,
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: target.clientWidth,
-        windowHeight: target.clientHeight,
-        onclone: (doc) => {
-          doc.querySelectorAll(".map-controls, .hover-tooltip").forEach((el) => {
-            (el as HTMLElement).style.display = "none";
-          });
-          doc.querySelectorAll(".map-container").forEach((el) => {
-            const node = el as HTMLElement;
-            node.style.position = "relative";
-            node.style.top = "0";
-            node.style.left = "0";
-          });
-        },
-      });
-      const dataUrl = canvas.toDataURL("image/png");
-      mapCaptureHtml = `
-        <section class="card">
-          <h3>Vista actual del mapa</h3>
-          <div class="map-box">
-            <img src="${dataUrl}" alt="Mapa capturado" />
-          </div>
-        </section>
-      `;
+      try {
+        const dataUrl = await captureCurrentMapView();
+        if (dataUrl) {
+          mapCaptureHtml = `
+            <section class="card">
+              <h3>Vista actual del mapa</h3>
+              <div class="map-box">
+                <img src="${dataUrl}" alt="Mapa capturado" />
+              </div>
+            </section>
+          `;
+        }
+      } catch (error) {
+        console.error("No se pudo capturar el mapa para imprimir:", error);
+      }
     }
 
     const html = `
@@ -862,9 +1155,7 @@ function PublicMapPage() {
             setView={setView}
             filteredCount={filteredLotes.length}
             totalCount={lotes.length}
-            selectedLote={selectedLote}
-            onOpenProforma={openProforma}
-            onPrint={exportPrintable}
+            onExportExecutivePdf={exportExecutivePdf}
             onExportTable={exportTableCsv}
           />
           <div
@@ -920,6 +1211,11 @@ function PublicMapPage() {
               >
                 {({ zoomIn, zoomOut, resetTransform, setTransform }) => (
                   <Fragment>
+                    <div className="map-overlay-legend" aria-label="Estado de lotes">
+                      <span className="status-pill libre">Disponible</span>
+                      <span className="status-pill separado">Separado</span>
+                      <span className="status-pill vendido">Vendido</span>
+                    </div>
                     <div className="map-controls">
                       <button className="btn ghost" onClick={() => zoomIn()}>
                         +
@@ -951,12 +1247,11 @@ function PublicMapPage() {
                         max={6}
                         step={0.05}
                         value={mapTransform.scale}
+                        onInput={(event) =>
+                          handleSliderZoom(Number((event.target as HTMLInputElement).value), setTransform)
+                        }
                         onChange={(event) =>
-                          setTransform(
-                            mapTransform.positionX,
-                            mapTransform.positionY,
-                            Number(event.target.value)
-                          )
+                          handleSliderZoom(Number((event.target as HTMLInputElement).value), setTransform)
                         }
                       />
                     </div>
@@ -986,6 +1281,7 @@ function PublicMapPage() {
             <TableView
               tableFiltersOpen={tableFiltersOpen}
               onToggleFilters={() => setTableFiltersOpen((prev) => !prev)}
+              allLotes={lotes}
               filters={filters}
               setFilters={setFilters}
               onResetFilters={resetFilters}
@@ -1020,7 +1316,12 @@ function PublicMapPage() {
         quoteInvalidMeses={quoteInvalidMeses}
         cuota={cuota}
         cuotaRapida={cuotaRapida}
-        onClose={() => setRightOpen(false)}
+        onPrint={exportPrintable}
+        onOpenProforma={openProforma}
+        onClose={() => {
+          setRightOpen(false);
+          setSelectedId(null);
+        }}
         onChangeQuote={setQuote}
       />
       </section>

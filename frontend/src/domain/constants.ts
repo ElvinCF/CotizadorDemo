@@ -14,9 +14,9 @@ export const mapVars = {
 } as const;
 
 export const defaultOverlay: OverlayTransform = {
-  x: 131,
-  y: 137,
-  scale: 0.715,
+  x: 44.3,
+  y: 134.5,
+  scale: 0.869,
 };
 
 export const defaultQuote: QuoteState = {
@@ -29,6 +29,7 @@ export const defaultQuote: QuoteState = {
 export const defaultFilters: FiltersState = {
   mz: "",
   status: "TODOS",
+  asesor: "TODOS",
   priceMin: "",
   priceMax: "",
   areaMin: "",
