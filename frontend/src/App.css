@@ -839,8 +839,8 @@
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-  background: color-mix(in srgb, var(--color-panel-alt) 10%, transparent);
-  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-panel-alt) 60%, transparent);
+  padding: 5px 6px;
   border-radius: 14px;
   border: 2px solid var(--color-border);
   box-shadow: var(--shadow-elevated);
@@ -856,7 +856,7 @@
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  background: color-mix(in srgb, var(--color-panel-alt) 10%, transparent);
+  background: color-mix(in srgb, var(--color-panel-alt) 60%, transparent);
   padding: 8px 10px;
   border-radius: 14px;
   border: 2px solid var(--color-border);
@@ -2080,7 +2080,7 @@ input.is-invalid {
     max-width: 380px;
     margin: 0 auto;
     justify-content: flex-start;
-    padding: 8px 12px;
+    padding: 4px 6px;
     border-radius: 20px;
     gap: 8px;
   }
@@ -2181,6 +2181,12 @@ input.is-invalid {
   align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
+  width: 100%;
+}
+
+.seller-page__head-main {
+  width: 100%;
+  min-width: 0;
 }
 
 .seller-page__head h2 {
@@ -2196,7 +2202,7 @@ input.is-invalid {
 }
 
 .seller-pending {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 0.86rem;
   color: var(--color-success-strong);
   font-weight: 600;
@@ -2220,6 +2226,9 @@ input.is-invalid {
   border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
   color: var(--color-primary-strong);
   background: var(--color-panel);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .seller-page__actions .btn.ghost:hover {
@@ -2232,6 +2241,19 @@ input.is-invalid {
   gap: 6px;
   width: min(100%, clamp(420px, 58vw, 820px));
   max-width: 100%;
+}
+
+.seller-search-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.seller-bulk-btn {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .seller-search-block label {
@@ -2286,6 +2308,57 @@ input.is-invalid {
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
   max-height: 72vh;
+}
+
+.seller-bulk-modal {
+  width: min(560px, 96vw);
+  background: var(--color-panel);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-radius: 16px;
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--color-text) 22%, transparent);
+  display: grid;
+  overflow: hidden;
+}
+
+.seller-bulk-modal__header {
+  padding: 14px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.seller-bulk-modal__header h3 {
+  margin: 0;
+  color: var(--color-primary-strong);
+}
+
+.seller-bulk-modal__body {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.seller-bulk-modal__body label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-primary-strong);
+}
+
+.seller-bulk-modal__body input,
+.seller-bulk-modal__body select {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  background: var(--color-surface);
+  padding: 8px 10px;
+}
+
+.seller-bulk-modal__footer {
+  border-top: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px 14px;
 }
 
 .seller-edit-table {
@@ -2367,9 +2440,31 @@ input.is-invalid {
 }
 
 @media (max-width: 760px) {
+  .seller-search-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .seller-search-block {
     max-width: none;
     width: 100%;
+  }
+
+  .seller-bulk-btn {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .seller-refresh-label {
+    display: none;
+  }
+
+  .seller-page__actions .btn.ghost {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
   }
 
   .seller-search-block input {

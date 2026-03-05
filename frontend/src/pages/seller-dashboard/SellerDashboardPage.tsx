@@ -38,6 +38,18 @@ const emptyDraft: EditableFields = {
   comentario: "",
 };
 
+const IconRefresh = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 function SellerDashboardPage() {
   const [rows, setRows] = useState<Lote[]>([]);
   const [drafts, setDrafts] = useState<Record<string, EditableFields>>({});
@@ -46,6 +58,11 @@ function SellerDashboardPage() {
   const [query, setQuery] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string>("");
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkType, setBulkType] = useState<"MONTO" | "PORCENTAJE">("MONTO");
+  const [bulkValue, setBulkValue] = useState("");
 
   const loadRows = async (keepNotice = true) => {
     try {
@@ -131,6 +148,9 @@ function SellerDashboardPage() {
 
   const hasPendingChanges = rows.some((row) => isDirty(row));
 
+  const bulkValueNumber = numberFromInput(bulkValue);
+  const bulkValueValid = bulkValueNumber != null;
+
   const saveRow = async (row: Lote) => {
     const draft = drafts[row.id];
     if (!draft) return;
@@ -168,6 +188,58 @@ function SellerDashboardPage() {
     }
   };
 
+  const applyBulkPriceUpdate = async () => {
+    if (!bulkValueValid) {
+      setError("Ingresa un valor valido para la actualizacion masiva.");
+      return;
+    }
+    setBulkSaving(true);
+    setError(null);
+    setNotice("");
+    try {
+      const response = await fetch("/api/lotes/precios-masivos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipoAjuste: bulkType,
+          valorAjuste: bulkValueNumber,
+        }),
+      });
+      const rawBody = await response.text();
+      let payload: {
+        updatedCount?: number;
+        error?: string;
+        detail?: string;
+      } = {};
+
+      try {
+        payload = rawBody ? (JSON.parse(rawBody) as typeof payload) : {};
+      } catch {
+        payload = {
+          error: "Respuesta no valida del servidor",
+          detail: rawBody?.slice(0, 180) || "Sin detalle",
+        };
+      }
+
+      if (!response.ok) {
+        const serverMessage = [payload.error, payload.detail].filter(Boolean).join(" | ");
+        throw new Error(serverMessage || `HTTP ${response.status}`);
+      }
+      await loadRows(true);
+      setNotice(`Actualizacion masiva aplicada. Lotes actualizados: ${payload.updatedCount ?? 0}.`);
+      setBulkConfirmOpen(false);
+      setBulkModalOpen(false);
+      setBulkValue("");
+      setBulkType("MONTO");
+    } catch (bulkError) {
+      const detail = bulkError instanceof Error ? bulkError.message : "Error desconocido";
+      setError(`No se pudo aplicar la actualizacion masiva de precios. ${detail}`);
+      console.error(bulkError);
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const actions = (
     <nav className="topbar-nav">
       <Link className="btn ghost" to="/">
@@ -183,27 +255,32 @@ function SellerDashboardPage() {
     <AppShell title="Panel de vendedores" actions={actions}>
       <section className="seller-page">
         <div className="seller-page__head">
-        <div>
+        <div className="seller-page__head-main">
           <div className="seller-page__title-row">
-            <h2>Pagina de vendedores</h2>
+            <p className={hasPendingChanges ? "seller-pending warn" : "seller-pending"}>
+              {hasPendingChanges ? "Hay cambios sin guardar en la tabla." : "No hay cambios pendientes."}
+            </p>
             <div className="seller-page__actions">
               <button className="btn ghost" onClick={() => loadRows(false)}>
-                Refrescar
+                <IconRefresh />
+                <span className="seller-refresh-label">Refrescar</span>
               </button>
             </div>
           </div>
-          <p className={hasPendingChanges ? "seller-pending warn" : "seller-pending"}>
-            {hasPendingChanges ? "Hay cambios sin guardar en la tabla." : "No hay cambios pendientes."}
-          </p>
-          <div className="seller-search-block">
-            <label htmlFor="seller-search">Buscar en la tabla</label>
-            <input
-              id="seller-search"
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar por lote, asesor, cliente o comentario"
-            />
+          <div className="seller-search-row">
+            <div className="seller-search-block">
+              <label htmlFor="seller-search">Buscar en la tabla</label>
+              <input
+                id="seller-search"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar por lote, asesor, cliente o comentario"
+              />
+            </div>
+            <button className="btn ghost seller-bulk-btn" onClick={() => setBulkModalOpen(true)}>
+              Actualizar Precio Masivamente
+            </button>
           </div>
         </div>
       </div>
@@ -307,6 +384,67 @@ function SellerDashboardPage() {
         </table>
       </div>
     </section>
+
+    {bulkModalOpen ? (
+      <div className="modal-backdrop" onClick={() => setBulkModalOpen(false)}>
+        <div className="seller-bulk-modal" onClick={(event) => event.stopPropagation()}>
+          <header className="seller-bulk-modal__header">
+            <h3>Actualizar Precio Masivamente</h3>
+          </header>
+          <div className="seller-bulk-modal__body">
+            <label>
+              Tipo de ajuste
+              <select value={bulkType} onChange={(event) => setBulkType(event.target.value as "MONTO" | "PORCENTAJE")}>
+                <option value="MONTO">Por monto (S/)</option>
+                <option value="PORCENTAJE">Por porcentaje (%)</option>
+              </select>
+            </label>
+            <label>
+              {bulkType === "MONTO" ? "Monto (S/)" : "Porcentaje (%)"}
+              <input
+                type="number"
+                step="0.01"
+                value={bulkValue}
+                onChange={(event) => setBulkValue(event.target.value)}
+                placeholder={bulkType === "MONTO" ? "Ej: 250 o -250" : "Ej: 5 o -5"}
+              />
+            </label>
+            <p className="muted">Solo se actualizan lotes en estado disponible.</p>
+          </div>
+          <footer className="seller-bulk-modal__footer">
+            <button className="btn ghost" onClick={() => setBulkModalOpen(false)} disabled={bulkSaving}>
+              Cancelar
+            </button>
+            <button
+              className="btn"
+              disabled={!bulkValueValid || bulkSaving}
+              onClick={() => setBulkConfirmOpen(true)}
+            >
+              Guardar
+            </button>
+          </footer>
+        </div>
+      </div>
+    ) : null}
+
+    {bulkConfirmOpen ? (
+      <div className="modal-backdrop" onClick={() => (bulkSaving ? null : setBulkConfirmOpen(false))}>
+        <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+          <h4>Desea confirmar los cambios?</h4>
+          <p className="muted">
+            Se aplicara un ajuste por {bulkType === "MONTO" ? "monto" : "porcentaje"} a lotes disponibles.
+          </p>
+          <div className="confirm-actions">
+            <button className="btn ghost" onClick={() => setBulkConfirmOpen(false)} disabled={bulkSaving}>
+              Cancelar
+            </button>
+            <button className="btn" onClick={applyBulkPriceUpdate} disabled={bulkSaving}>
+              {bulkSaving ? "Aplicando..." : "Confirmar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     </AppShell>
   );
 }
