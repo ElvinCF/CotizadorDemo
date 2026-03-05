@@ -1,5 +1,10 @@
 import express from "express";
-import { getSupabaseAdminClient, listLotes, updateLoteById } from "./lib/lotesService.mjs";
+import {
+  getSupabaseAdminClient,
+  listLotes,
+  updateAvailablePricesMassive,
+  updateLoteById,
+} from "./lib/lotesService.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
 
@@ -31,6 +36,21 @@ app.put("/api/lotes/:id", async (req, res) => {
   } catch (error) {
     console.error("Error updating lote in Supabase:", error);
     res.status(500).json({ error: "No se pudo actualizar lote en Supabase" });
+  }
+});
+
+app.post("/api/lotes/precios-masivos", async (req, res) => {
+  try {
+    const supabase = getSupabaseAdminClient();
+    const updatedCount = await updateAvailablePricesMassive(supabase, req.body ?? {});
+    res.json({ updatedCount, savedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error bulk updating prices in Supabase:", error);
+    const detail = error instanceof Error ? error.message : "Error desconocido";
+    res.status(500).json({
+      error: "No se pudo actualizar precios masivamente en Supabase",
+      detail,
+    });
   }
 });
 

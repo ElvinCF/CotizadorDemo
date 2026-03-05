@@ -155,7 +155,7 @@
   background: var(--color-accent);
   color: var(--color-accent-contrast);
   font-weight: 600;
-  padding: 8px 16px;
+  padding: 6px 12px;
   border-radius: 999px;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
