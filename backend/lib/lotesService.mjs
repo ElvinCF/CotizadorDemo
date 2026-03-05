@@ -93,3 +93,30 @@ export const updateLoteById = async (supabase, loteId, payload) => {
   return mapDbRowToLote(data);
 };
 
+export const updateAvailablePricesMassive = async (supabase, payload) => {
+  const tipoAjuste = String(payload?.tipoAjuste || "").trim().toUpperCase();
+  const valorAjuste = cleanNumber(payload?.valorAjuste);
+
+  if (tipoAjuste !== "MONTO" && tipoAjuste !== "PORCENTAJE") {
+    throw new Error("tipoAjuste invalido. Usa MONTO o PORCENTAJE.");
+  }
+  if (valorAjuste === null) {
+    throw new Error("valorAjuste invalido.");
+  }
+
+  const { data, error } = await supabase.rpc("sp_actualizar_precios_disponibles", {
+    p_tipo_ajuste: tipoAjuste,
+    p_valor_ajuste: valorAjuste,
+  });
+
+  if (error) throw error;
+
+  if (typeof data === "number") {
+    return data;
+  }
+  if (Array.isArray(data) && data.length > 0 && typeof data[0]?.updated_count === "number") {
+    return data[0].updated_count;
+  }
+  return 0;
+};
+
