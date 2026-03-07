@@ -2,6 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const ALLOWED_STATUS = new Set(["LIBRE", "SEPARADO", "VENDIDO"]);
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const DEFAULT_SUPABASE_SCHEMA = "public";
+
+const resolveSupabaseSchema = () => {
+  const configured = String(process.env.SUPABASE_DB_SCHEMA ?? "").trim();
+  return configured || DEFAULT_SUPABASE_SCHEMA;
+};
 
 const cleanNumber = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -33,6 +39,7 @@ export const toLoteId = (mz, lote) => `${String(mz).trim().toUpperCase()}-${Stri
 export const getSupabaseAdminClient = () => {
   const url = process.env.SUPABASE_URL;
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const schema = resolveSupabaseSchema();
   if (!url || !serviceRole) {
     throw new Error("Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY");
   }
@@ -40,6 +47,9 @@ export const getSupabaseAdminClient = () => {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+    },
+    db: {
+      schema,
     },
   });
 };
