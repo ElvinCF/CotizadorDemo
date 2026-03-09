@@ -2,11 +2,17 @@ import { createClient } from "@supabase/supabase-js";
 
 const ALLOWED_STATUS = new Set(["LIBRE", "SEPARADO", "VENDIDO"]);
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-const DEFAULT_SUPABASE_SCHEMA = "public";
+const ALLOWED_SCHEMAS = new Set(["public", "dev"]);
 
 const resolveSupabaseSchema = () => {
-  const configured = String(process.env.SUPABASE_DB_SCHEMA ?? "").trim();
-  return configured || DEFAULT_SUPABASE_SCHEMA;
+  const configured = String(process.env.SUPABASE_DB_SCHEMA ?? "").trim().toLowerCase();
+  if (!configured) {
+    throw new Error("Falta SUPABASE_DB_SCHEMA (valores permitidos: public|dev).");
+  }
+  if (!ALLOWED_SCHEMAS.has(configured)) {
+    throw new Error(`SUPABASE_DB_SCHEMA invalido: '${configured}'. Usa public o dev.`);
+  }
+  return configured;
 };
 
 const cleanNumber = (value) => {

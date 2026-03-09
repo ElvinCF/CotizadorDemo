@@ -1,11 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../app/AuthContext";
 import styles from "./LoginPage.module.css";
 
 export default function LoginPage() {
     const { isAuthenticated, login, role } = useAuth();
-    const navigate = useNavigate();
     const location = useLocation();
 
     const [username, setUsername] = useState("");

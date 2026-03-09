@@ -11,18 +11,6 @@ export type Lote = {
   ultimaModificacion?: string;
 };
 
-export type CsvRow = {
-  MZ?: string;
-  LOTE?: string;
-  AREA?: string;
-  PRECIO?: string;
-  CONDICION?: string;
-  ASESOR?: string;
-  CLIENTE?: string;
-  COMENTARIO?: string;
-  ULTIMA_MODIFICACION?: string;
-};
-
 export type QuoteState = {
   precio: number;
   inicialMonto: number;
