@@ -10,7 +10,7 @@ import AppShell from "../../app/AppShell";
 import { MAP_HEIGHT, MAP_WIDTH, defaultOverlay, mapVars } from "../../domain/constants";
 import { overlayStyle } from "../../domain/finance";
 import type { Lote, OverlayTransform } from "../../domain/types";
-import { loadLotesFromApi, loadLotesFromCsvFallback } from "../../services/lotes";
+import { loadLotesFromApi } from "../../services/lotes";
 import EditorPanel from "./EditorPanel";
 
 const MemoArenasSvg = memo(ArenasSvg);
@@ -26,16 +26,23 @@ const OverlayEditorPage = () => {
   const overlayStyleMemo = useMemo(() => overlayStyle(overlay), [overlay]);
   const [mapTransform, setMapTransform] = useState({ scale: 1, positionX: 0, positionY: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     const syncLotes = async () => {
       try {
         const items = await loadLotesFromApi();
-        if (active) setLotes(items);
-      } catch {
-        const fallback = await loadLotesFromCsvFallback();
-        if (active) setLotes(fallback);
+        if (!active) return;
+        setLotes(items);
+        setLoadError(null);
+      } catch (error) {
+        console.error(error);
+        if (!active) return;
+        setLotes([]);
+        setLoadError(
+          "No se pudo cargar lotes desde Supabase/API. Verifica SUPABASE_DB_SCHEMA y variables del backend."
+        );
       }
     };
     syncLotes();
@@ -94,6 +101,20 @@ const OverlayEditorPage = () => {
         </nav>
       }
     >
+      {loadError && (
+        <div className="modal-backdrop" onClick={() => setLoadError(null)}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h4>Error de carga</h4>
+            <p className="muted">{loadError}</p>
+            <div className="confirm-actions">
+              <button className="btn" onClick={() => setLoadError(null)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <EditorPanel
         overlay={overlay}
         setOverlay={setOverlay}

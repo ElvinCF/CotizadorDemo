@@ -1,6 +1,4 @@
-﻿import Papa from "papaparse";
-import { cleanNumber, toLoteId } from "../domain/formatters";
-import type { CsvRow, Lote } from "../domain/types";
+import type { Lote } from "../domain/types";
 
 export const loadLotesFromApi = async (): Promise<Lote[]> => {
   const response = await fetch("/api/lotes", { cache: "no-store" });
@@ -9,39 +7,4 @@ export const loadLotesFromApi = async (): Promise<Lote[]> => {
   }
   const payload = (await response.json()) as { items?: Lote[] };
   return Array.isArray(payload.items) ? payload.items : [];
-};
-
-export const loadLotesFromCsvFallback = async (): Promise<Lote[]> => {
-  const response = await fetch("/assets/lotes.csv", { cache: "no-store" });
-  const text = await response.text();
-  const parsed = Papa.parse<CsvRow>(text, {
-    header: true,
-    skipEmptyLines: true,
-  });
-  return (parsed.data || []).flatMap((row: CsvRow): Lote[] => {
-    const mz = (row.MZ || "").trim().toUpperCase();
-    const lote = Number.parseInt((row.LOTE || "").trim(), 10);
-    if (!mz || Number.isNaN(lote)) return [];
-    const areaM2 = cleanNumber(row.AREA);
-    const price = cleanNumber(row.PRECIO);
-    const condicion = (row.CONDICION || "LIBRE").trim().toUpperCase();
-    const asesor = (row.ASESOR || "").trim();
-    const cliente = (row.CLIENTE || "").trim();
-    const comentario = (row.COMENTARIO || "").trim();
-    const ultimaModificacion = (row.ULTIMA_MODIFICACION || "").trim();
-    return [
-      {
-        id: toLoteId(mz, lote),
-        mz,
-        lote,
-        areaM2,
-        price,
-        condicion: condicion || "LIBRE",
-        asesor: asesor || undefined,
-        cliente: cliente || undefined,
-        comentario: comentario || undefined,
-        ultimaModificacion: ultimaModificacion || undefined,
-      },
-    ];
-  });
 };

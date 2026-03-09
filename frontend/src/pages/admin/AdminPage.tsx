@@ -32,7 +32,7 @@ import {
 import { buildIdSet, overlayStyle, quoteMonthly } from "../../domain/finance";
 import type { FiltersState, Lote, OverlayTransform, ProformaState, QuoteState } from "../../domain/types";
 import { projectInfo } from "../../data/projectInfo";
-import { loadLotesFromApi, loadLotesFromCsvFallback } from "../../services/lotes";
+import { loadLotesFromApi } from "../../services/lotes";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
@@ -93,24 +93,23 @@ function AdminPage() {
   const hoverRafRef = useRef<number | null>(null);
   const lastPriceEditedRef = useRef<"soles" | "pct" | "promo" | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   useEffect(() => {
     let active = true;
     const syncLotes = async () => {
       try {
         const items = await loadLotesFromApi();
-        if (active) {
-          setRawLotes(items);
-        }
+        if (!active) return;
+        setRawLotes(items);
+        setLoadError(null);
       } catch (error) {
         console.error(error);
-        try {
-          const fallbackItems = await loadLotesFromCsvFallback();
-          if (active) {
-            setRawLotes(fallbackItems);
-          }
-        } catch (fallbackError) {
-          console.error(fallbackError);
-        }
+        if (!active) return;
+        setRawLotes([]);
+        setLoadError(
+          "No se pudo cargar lotes desde Supabase/API. Verifica SUPABASE_DB_SCHEMA y variables del backend."
+        );
       }
     };
 
@@ -1397,6 +1396,20 @@ function AdminPage() {
                 }}
               >
                 Descartar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loadError && (
+        <div className="modal-backdrop" onClick={() => setLoadError(null)}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h4>Error de carga</h4>
+            <p className="muted">{loadError}</p>
+            <div className="confirm-actions">
+              <button className="btn" onClick={() => setLoadError(null)}>
+                Cerrar
               </button>
             </div>
           </div>
