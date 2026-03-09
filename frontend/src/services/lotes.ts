@@ -1,14 +1,6 @@
-import Papa from "papaparse";
+﻿import Papa from "papaparse";
 import { cleanNumber, toLoteId } from "../domain/formatters";
 import type { CsvRow, Lote } from "../domain/types";
-
-const enforceFixedStatuses = (items: Lote[]): Lote[] =>
-  items.map((item) => {
-    if (item.mz === "B" && (item.lote === 17 || item.lote === 18)) {
-      return { ...item, condicion: "SEPARADO" };
-    }
-    return item;
-  });
 
 export const loadLotesFromApi = async (): Promise<Lote[]> => {
   const response = await fetch("/api/lotes", { cache: "no-store" });
@@ -16,7 +8,7 @@ export const loadLotesFromApi = async (): Promise<Lote[]> => {
     throw new Error(`No se pudo cargar lotes: ${response.status}`);
   }
   const payload = (await response.json()) as { items?: Lote[] };
-  return enforceFixedStatuses(Array.isArray(payload.items) ? payload.items : []);
+  return Array.isArray(payload.items) ? payload.items : [];
 };
 
 export const loadLotesFromCsvFallback = async (): Promise<Lote[]> => {
@@ -26,7 +18,7 @@ export const loadLotesFromCsvFallback = async (): Promise<Lote[]> => {
     header: true,
     skipEmptyLines: true,
   });
-  const rows = (parsed.data || []).flatMap((row: CsvRow): Lote[] => {
+  return (parsed.data || []).flatMap((row: CsvRow): Lote[] => {
     const mz = (row.MZ || "").trim().toUpperCase();
     const lote = Number.parseInt((row.LOTE || "").trim(), 10);
     if (!mz || Number.isNaN(lote)) return [];
@@ -52,5 +44,4 @@ export const loadLotesFromCsvFallback = async (): Promise<Lote[]> => {
       },
     ];
   });
-  return enforceFixedStatuses(rows);
 };
