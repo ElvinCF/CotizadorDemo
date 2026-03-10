@@ -137,7 +137,7 @@ Crear primero estos enums dentro del esquema `dev`.
 Valores:
 - `ADMIN`
 - `ASESOR`
-- `CAJA`
+- `CLIENTE`
 - `SUPERVISOR`
 
 ### `estado_general_enum`
