@@ -227,9 +227,7 @@ Tabla maestra base para toda persona física registrada en el sistema.
 - `tipo_documento`
 - `numero_documento`
 - `nombres`
-- `apellido_paterno`
-- `apellido_materno`
-- `nombre_completo`
+- `apellidos`
 - `fecha_nacimiento`
 - `celular`
 - `correo`

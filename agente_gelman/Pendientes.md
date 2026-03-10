@@ -5,16 +5,3 @@ Ayudame a planificar mejor el backend a nivel de reglas, rutas, funciones, logic
 Planifica el frontend faltante, (En pendiendtes hay una idea pequeña flujos, modales, o selcts, inputs. Selects, colores, themas. rutas, opciones, (componentes estilo atómic design, si es posible reahz todo pero qeu quede componentizado) funciones, enpoidnts. Aplica buenas prácticas.(plasamalo en un .md)
 
 
-# Pendientes en Frontend:
-## Formulario de Proforma al modificar estado de un lote para poder guardar.
-- Tablas nuevas para nuevas entidades en Base de Datos.
-- Modal que se abre apartir de click en boton "Modificar" al final de la fila
-    - Boton de "Guardar" cambiar por boton que abre 
-- Componente Formulario
-    - Detalle de nueva base de datos en archivo base.md
-    - Definir componentes botones e inputs y validaciones.
-    - Datos calculados de Fechas y cuotas de pago e 
-## Privar funciones para usuarios autenticados.
-- Reglas en botones y rutas segun auth
-- Función de gestión de usuarios (Solo Admin)
-    - Componente Tabla
