@@ -32,8 +32,9 @@ Control de acceso:
 ## 4) Flujos UX a alinear con nueva BD
 
 ## A) Flujo vendedor (tabla de lotes)
-- Acción "Modificar" abre modal transaccional (no edición libre de todo en fila).
-- Campos editables definidos por estado y rol.
+- Acción "Modificar" abre modal transaccional
+- Llenar proformas
+- Crud clientes o solo personas.  
 - Guardado con validación backend y mensajes por campo.
 
 ## B) Flujo comercial / proforma
