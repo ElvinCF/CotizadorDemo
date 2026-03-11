@@ -1,49 +1,49 @@
-# Plan Frontend Dev - PreparaciÛn para nueva BD (sin implementaciÛn a˙n)
+# Plan Frontend Dev - Preparaci√≥n para nueva BD (sin implementaci√≥n a√≥n)
 
 ## 1) Objetivo
-Dejar definido cÛmo evolucionar· frontend para consumir el nuevo modelo de datos sin rehacer todo de golpe, manteniendo operaciÛn del mapa actual.
+Dejar definido c√≥mo evolucionar√≥ frontend para consumir el nuevo modelo de datos sin rehacer todo de golpe, manteniendo operaci√≥n del mapa actual.
 
-> Esta etapa es solo de planificaciÛn funcional/arquitectÛnica.
+> Esta etapa es solo de planificaci√≥n funcional/arquitect√≥nica.
 
 ---
 
-## 2) Estrategia de evoluciÛn
-Enfoque: **incremental por mÛdulos**.
+## 2) Estrategia de evoluci√≥n
+Enfoque: **incremental por m√≥dulos**.
 - Mantener vistas operativas actuales.
-- Introducir capa de adaptaciÛn de datos (DTO -> ViewModel).
+- Introducir capa de adaptaci√≥n de datos (DTO -> ViewModel).
 - Extraer componentes reutilizables (Atomic Design) en paralelo.
 
 ---
 
 ## 3) Rutas y acceso (objetivo)
-- `/` p˙blico: mapa/tabla de consulta.
-- `/login` autenticaciÛn.
+- `/` p√≥blico: mapa/tabla de consulta.
+- `/login` autenticaci√≥n.
 - `/vendedor` privado: operaciones comerciales.
-- `/admin` privado: gestiÛn avanzada.
+- `/admin` privado: gesti√≥n avanzada.
 - `/editor` privado: overlay SVG.
 - `/dashboard` (nuevo, privado): KPIs de lotes/ventas/pagos.
 
 Control de acceso:
 - `ProtectedRoute` por rol.
-- `ProtectedAction` para botones sensibles dentro de p·ginas p˙blicas.
+- `ProtectedAction` para botones sensibles dentro de p√°ginas p√∫blicas y privadas.
 
 ---
 
 ## 4) Flujos UX a alinear con nueva BD
 
 ## A) Flujo vendedor (tabla de lotes)
-- AcciÛn "Modificar" abre modal transaccional (no ediciÛn libre de todo en fila).
+- Acci√≥n "Modificar" abre modal transaccional (no edici√≥n libre de todo en fila).
 - Campos editables definidos por estado y rol.
-- Guardado con validaciÛn backend y mensajes por campo.
+- Guardado con validaci√≥n backend y mensajes por campo.
 
 ## B) Flujo comercial / proforma
 - Vincular proforma con entidad `venta` (cuando corresponda).
 - Capturar cliente titular y opcionales relacionados.
-- Visualizar c·lculo de montos desde datos de venta/pagos.
+- Visualizar c√≥lculo de montos desde datos de venta/pagos.
 
 ## C) Flujo admin
-- GestiÛn de usuarios (crear/editar/activar/desactivar).
-- Acciones sensibles con autorizaciÛn admin y motivo.
+- Gesti√≥n de usuarios (crear/editar/activar/desactivar).
+- Acciones sensibles con autorizaci√≥n admin y motivo.
 - Historial de autorizaciones en vista administrativa.
 
 ## D) Dashboard
@@ -53,7 +53,7 @@ Control de acceso:
 
 ---
 
-## 5) ComponentizaciÛn (Atomic Design objetivo)
+## 5) Componentizaci√≥n (Atomic Design objetivo)
 
 ## Atoms
 - `Button`, `IconButton`, `InputText`, `InputMoney`, `Select`, `BadgeEstado`, `AlertInline`.
@@ -73,23 +73,23 @@ Control de acceso:
 ---
 
 ## 6) Contratos frontend-backend (a respetar)
-- Lotes: lectura + actualizaciÛn por ID + ajuste masivo.
+- Lotes: lectura + actualizaci√≥n por ID + ajuste masivo.
 - Ventas: alta, cambio de etapa, vinculaciones persona/venta.
-- Pagos: alta/ediciÛn/listado por venta.
-- Usuarios: listado/alta/ediciÛn de estado y rol.
+- Pagos: alta/edici√≥n/listado por venta.
+- Usuarios: listado/alta/edici√≥n de estado y rol.
 - Auth: login/me/logout.
 
 Regla:
-- frontend no inferir· reglas crÌticas; backend devuelve errores de negocio explÌcitos.
+- frontend no inferir√≥ reglas cr√≥ticas; backend devuelve errores de negocio expl√≥citos.
 
 ---
 
 ## 7) Estados de UI y manejo de errores
-Est·ndar por operaciÛn:
+Est√≥ndar por operaci√≥n:
 - `idle`
 - `loading`
 - `success`
-- `error` (mensaje legible + detalle tÈcnico opcional)
+- `error` (mensaje legible + detalle t√≥cnico opcional)
 - `forbidden` (sin permisos)
 
 Requisito:
@@ -97,26 +97,26 @@ Requisito:
 
 ---
 
-## 8) Plan de migraciÛn frontend por etapas
+## 8) Plan de migraci√≥n frontend por etapas
 1. Introducir adaptadores de datos (`adapters/`) para convivir con contrato actual y nuevo.
-2. Separar componentes atÛmicos reutilizados por mapa, vendedor y admin.
-3. Incorporar mÛdulos de ventas/pagos sin tocar overlay.
-4. Activar dashboard y gestiÛn usuarios.
+2. Separar componentes at√≥micos reutilizados por mapa, vendedor y admin.
+3. Incorporar m√≥dulos de ventas/pagos sin tocar overlay.
+4. Activar dashboard y gesti√≥n usuarios.
 5. Limpiar componentes legacy duplicados.
 
 ---
 
-## 9) Criterios de aceptaciÛn frontend
-- [ ] Mapa p˙blico sigue operativo.
+## 9) Criterios de aceptaci√≥n frontend
+- [ ] Mapa p√≥blico sigue operativo.
 - [ ] Vendedor puede modificar lote sin inconsistencias.
 - [ ] Admin puede gestionar usuarios y acciones sensibles.
-- [ ] Dashboard muestra KPIs b·sicos correctos.
-- [ ] Componentes reutilizables sustituyen duplicaciÛn de UI.
-- [ ] Sin regresiÛn de permisos por rol.
+- [ ] Dashboard muestra KPIs b√≥sicos correctos.
+- [ ] Componentes reutilizables sustituyen duplicaci√≥n de UI.
+- [ ] Sin regresi√≥n de permisos por rol.
 
 ---
 
-## 10) Dependencias de esta planificaciÛn
+## 10) Dependencias de esta planificaci√≥n
 - Cierre de modelo SQL definitivo en `dev`.
-- DefiniciÛn final de endpoints y shape de respuestas.
-- DefiniciÛn de polÌtica de PIN para entorno `dev`.
+- Definici√≥n final de endpoints y shape de respuestas.
+- Definici√≥n de pol√≥tica de PIN para entorno `dev`.

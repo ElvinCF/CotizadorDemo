@@ -1,19 +1,19 @@
--- Full cascade seed for the commercial model in {{SCHEMA}}.
--- Loads all lots from public.lotes adapted to {{SCHEMA}}.lotes.
+-- Full cascade seed for the commercial model in dev.
+-- Loads all lots from public.lotes adapted to dev.lotes.
 
 truncate table
-  {{SCHEMA}}.autorizaciones_admin,
-  {{SCHEMA}}.pagos,
-  {{SCHEMA}}.ventas_clientes,
-  {{SCHEMA}}.ventas,
-  {{SCHEMA}}.lotes,
-  {{SCHEMA}}.proyectos,
-  {{SCHEMA}}.empresas,
-  {{SCHEMA}}.usuarios,
-  {{SCHEMA}}.personas
+  dev.autorizaciones_admin,
+  dev.pagos,
+  dev.ventas_clientes,
+  dev.ventas,
+  dev.lotes,
+  dev.proyectos,
+  dev.empresas,
+  dev.usuarios,
+  dev.personas
 restart identity cascade;
 
-insert into {{SCHEMA}}.empresas (
+insert into dev.empresas (
   id,
   razon_social,
   nombre_comercial,
@@ -34,7 +34,7 @@ values (
   'ACTIVO'
 );
 
-insert into {{SCHEMA}}.proyectos (
+insert into dev.proyectos (
   id,
   empresa_id,
   nombre,
@@ -63,7 +63,7 @@ values (
   current_date - interval '60 day'
 );
 
-insert into {{SCHEMA}}.personas (
+insert into dev.personas (
   id,
   tipo_documento,
   numero_documento,
@@ -86,7 +86,7 @@ values
   ('30000000-0000-0000-0000-000000000005', 'DNI', '70000005', 'Luis', 'Torres', '999111005', 'luis@demo.pe', 'Tecnico', 'Av. Peru 320', 'La Libertad', 'Trujillo', 'La Esperanza', 'ACTIVO'),
   ('30000000-0000-0000-0000-000000000006', 'DNI', '70000006', 'Ana', 'Guzman', '999111006', 'ana@demo.pe', 'Comerciante', 'Jr. Bolivar 410', 'La Libertad', 'Trujillo', 'El Porvenir', 'ACTIVO');
 
-insert into {{SCHEMA}}.usuarios (
+insert into dev.usuarios (
   id,
   persona_id,
   username,
@@ -114,7 +114,7 @@ begin
     select 1
     from public.lotes
   ) then
-    raise exception 'public.lotes no tiene datos. No se puede poblar {{SCHEMA}}.lotes.';
+    raise exception 'public.lotes no tiene datos. No se puede poblar dev.lotes.';
   end if;
 end
 $$;
@@ -127,12 +127,12 @@ with source_lotes as (
     l.area::numeric(10,2) as area_m2,
     coalesce(l.precio, 0)::numeric(12,2) as precio,
     case
-      when upper(coalesce(l.condicion, 'LIBRE')) in ('LIBRE', 'DISPONIBLE') then 'LIBRE'::{{SCHEMA}}.estado_lote_enum
-      when upper(coalesce(l.condicion, 'LIBRE')) = 'SEPARADO' then 'SEPARADO'::{{SCHEMA}}.estado_lote_enum
-      when upper(coalesce(l.condicion, 'LIBRE')) = 'VENDIDO' then 'VENDIDO'::{{SCHEMA}}.estado_lote_enum
-      when upper(coalesce(l.condicion, 'LIBRE')) = 'BLOQUEADO' then 'BLOQUEADO'::{{SCHEMA}}.estado_lote_enum
-      when upper(coalesce(l.condicion, 'LIBRE')) = 'INACTIVO' then 'INACTIVO'::{{SCHEMA}}.estado_lote_enum
-      else 'LIBRE'::{{SCHEMA}}.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) in ('LIBRE', 'DISPONIBLE') then 'LIBRE'::dev.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) = 'SEPARADO' then 'SEPARADO'::dev.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) = 'VENDIDO' then 'VENDIDO'::dev.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) = 'BLOQUEADO' then 'BLOQUEADO'::dev.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) = 'INACTIVO' then 'INACTIVO'::dev.estado_lote_enum
+      else 'LIBRE'::dev.estado_lote_enum
     end as estado_comercial,
     nullif(trim(l.comentario), '') as observaciones,
     row_number() over (
@@ -171,7 +171,7 @@ with source_lotes as (
   where rn_by_id = 1
     and rn_by_slot = 1
 )
-insert into {{SCHEMA}}.lotes (
+insert into dev.lotes (
   id,
   proyecto_id,
   codigo,
@@ -205,7 +205,7 @@ do $$
 declare
   v_lotes integer;
 begin
-  select count(*) into v_lotes from {{SCHEMA}}.lotes;
+  select count(*) into v_lotes from dev.lotes;
   if v_lotes < 3 then
     raise exception 'Se requieren al menos 3 lotes para seed transaccional; encontrados: %', v_lotes;
   end if;
@@ -218,7 +218,7 @@ with ranked_lotes as (
     l.proyecto_id,
     coalesce(l.precio_referencial, l.precio_lista, 0)::numeric(12,2) as precio,
     row_number() over (order by l.manzana nulls last, l.numero nulls last, l.codigo) as rn
-  from {{SCHEMA}}.lotes l
+  from dev.lotes l
 ), seed_ventas as (
   select
     1 as rn,
@@ -226,8 +226,8 @@ with ranked_lotes as (
     '30000000-0000-0000-0000-000000000004'::uuid as titular_persona_id,
     '40000000-0000-0000-0000-000000000002'::uuid as asesor_usuario_id,
     'VTA-AM2-0001'::text as codigo_venta,
-    'SEPARADO'::{{SCHEMA}}.etapa_venta_enum as etapa_venta,
-    'ACTIVO'::{{SCHEMA}}.estado_registro_enum as estado_registro,
+    'SEPARADO'::dev.etapa_venta_enum as etapa_venta,
+    'ACTIVO'::dev.estado_registro_enum as estado_registro,
     (current_date - interval '12 day')::date as fecha_venta,
     (current_date - interval '12 day')::date as fecha_separacion,
     null::date as fecha_contrato,
@@ -243,8 +243,8 @@ with ranked_lotes as (
     '30000000-0000-0000-0000-000000000005'::uuid,
     '40000000-0000-0000-0000-000000000003'::uuid,
     'VTA-AM2-0002',
-    'COMPLETADO'::{{SCHEMA}}.etapa_venta_enum,
-    'ACTIVO'::{{SCHEMA}}.estado_registro_enum,
+    'COMPLETADO'::dev.etapa_venta_enum,
+    'ACTIVO'::dev.estado_registro_enum,
     (current_date - interval '65 day')::date,
     (current_date - interval '65 day')::date,
     (current_date - interval '60 day')::date,
@@ -260,8 +260,8 @@ with ranked_lotes as (
     '30000000-0000-0000-0000-000000000006'::uuid,
     '40000000-0000-0000-0000-000000000002'::uuid,
     'VTA-AM2-0003',
-    'ANULADO'::{{SCHEMA}}.etapa_venta_enum,
-    'ANULADO'::{{SCHEMA}}.estado_registro_enum,
+    'ANULADO'::dev.etapa_venta_enum,
+    'ANULADO'::dev.estado_registro_enum,
     (current_date - interval '30 day')::date,
     (current_date - interval '30 day')::date,
     null::date,
@@ -271,7 +271,7 @@ with ranked_lotes as (
     24,
     'Venta anulada para prueba'
 )
-insert into {{SCHEMA}}.ventas (
+insert into dev.ventas (
   id,
   proyecto_id,
   lote_id,
@@ -317,7 +317,7 @@ select
 from seed_ventas sv
 join ranked_lotes rl on rl.rn = sv.rn;
 
-insert into {{SCHEMA}}.ventas_clientes (
+insert into dev.ventas_clientes (
   id,
   venta_id,
   persona_id,
@@ -367,7 +367,7 @@ values
     'Registro de conyuge en venta completada'
   );
 
-insert into {{SCHEMA}}.pagos (
+insert into dev.pagos (
   id,
   venta_id,
   tipo_pago,
@@ -453,7 +453,7 @@ values
     'ACTIVO'
   );
 
-insert into {{SCHEMA}}.autorizaciones_admin (
+insert into dev.autorizaciones_admin (
   id,
   usuario_admin_id,
   usuario_solicitante_id,
@@ -482,12 +482,12 @@ with source_lotes as (
     l.area::numeric(10,2) as area_m2,
     coalesce(l.precio, 0)::numeric(12,2) as precio,
     case
-      when upper(coalesce(l.condicion, 'LIBRE')) in ('LIBRE', 'DISPONIBLE') then 'LIBRE'::{{SCHEMA}}.estado_lote_enum
-      when upper(coalesce(l.condicion, 'LIBRE')) = 'SEPARADO' then 'SEPARADO'::{{SCHEMA}}.estado_lote_enum
-      when upper(coalesce(l.condicion, 'LIBRE')) = 'VENDIDO' then 'VENDIDO'::{{SCHEMA}}.estado_lote_enum
-      when upper(coalesce(l.condicion, 'LIBRE')) = 'BLOQUEADO' then 'BLOQUEADO'::{{SCHEMA}}.estado_lote_enum
-      when upper(coalesce(l.condicion, 'LIBRE')) = 'INACTIVO' then 'INACTIVO'::{{SCHEMA}}.estado_lote_enum
-      else 'LIBRE'::{{SCHEMA}}.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) in ('LIBRE', 'DISPONIBLE') then 'LIBRE'::dev.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) = 'SEPARADO' then 'SEPARADO'::dev.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) = 'VENDIDO' then 'VENDIDO'::dev.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) = 'BLOQUEADO' then 'BLOQUEADO'::dev.estado_lote_enum
+      when upper(coalesce(l.condicion, 'LIBRE')) = 'INACTIVO' then 'INACTIVO'::dev.estado_lote_enum
+      else 'LIBRE'::dev.estado_lote_enum
     end as estado_comercial,
     nullif(trim(l.comentario), '') as observaciones,
     row_number() over (
@@ -498,7 +498,7 @@ with source_lotes as (
   where l.id is not null
     and btrim(l.id) <> ''
 )
-update {{SCHEMA}}.lotes d
+update dev.lotes d
 set
   area_m2 = s.area_m2,
   precio_lista = s.precio,
