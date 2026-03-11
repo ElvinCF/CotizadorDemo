@@ -1,3 +1,3 @@
--- Placeholder test seed for legacy contract.
--- Keep as no-op until new commercial schema is activated.
-select 1 as test_seed_ready;
+-- Optional test extension seed.
+-- Main relational cascade seed is defined in 000_init.sql.
+select 1 as seed_test_ready;
