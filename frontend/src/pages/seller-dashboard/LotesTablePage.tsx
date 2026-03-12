@@ -6,10 +6,7 @@ import type { Lote } from "../../domain/types";
 
 type EditableFields = {
   price: string;
-  asesor: string;
   estado: string;
-  cliente: string;
-  comentario: string;
 };
 
 const formatArea = (value: number | null) => (value == null ? "-" : value.toFixed(2));
@@ -32,10 +29,7 @@ const numberFromInput = (value: string) => {
 
 const emptyDraft: EditableFields = {
   price: "",
-  asesor: "",
   estado: "DISPONIBLE",
-  cliente: "",
-  comentario: "",
 };
 
 const IconRefresh = () => (
@@ -93,10 +87,7 @@ function LotesTablePage() {
         row.mz,
         String(row.lote),
         String(row.price ?? ""),
-        row.asesor || "",
         row.condicion,
-        row.cliente || "",
-        row.comentario || "",
       ]
         .join(" ")
         .toLowerCase();
@@ -108,10 +99,7 @@ function LotesTablePage() {
     const draft = drafts[row.id];
     if (draft) return draft[field];
     if (field === "price") return toPriceInput(row.price);
-    if (field === "estado") return normalizeStatus(row.condicion);
-    if (field === "asesor") return row.asesor ?? "";
-    if (field === "cliente") return row.cliente ?? "";
-    return row.comentario ?? "";
+    return normalizeStatus(row.condicion);
   };
 
   const writeDraft = (row: Lote, field: keyof EditableFields, value: string) => {
@@ -119,10 +107,7 @@ function LotesTablePage() {
       const base = current[row.id] ?? {
         ...emptyDraft,
         price: toPriceInput(row.price),
-        asesor: row.asesor ?? "",
         estado: normalizeStatus(row.condicion),
-        cliente: row.cliente ?? "",
-        comentario: row.comentario ?? "",
       };
       return {
         ...current,
@@ -139,10 +124,7 @@ function LotesTablePage() {
     if (!draft) return false;
     return (
       numberFromInput(draft.price) !== (row.price ?? null) ||
-      draft.asesor !== (row.asesor ?? "") ||
-      draft.estado !== normalizeStatus(row.condicion) ||
-      draft.cliente !== (row.cliente ?? "") ||
-      draft.comentario !== (row.comentario ?? "")
+      draft.estado !== normalizeStatus(row.condicion)
     );
   };
 
@@ -162,10 +144,7 @@ function LotesTablePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           price: numberFromInput(draft.price),
-          asesor: draft.asesor,
           estado: normalizeStatus(draft.estado),
-          cliente: draft.cliente,
-          comentario: draft.comentario,
         }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -275,7 +254,7 @@ function LotesTablePage() {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por lote, asesor, cliente o comentario"
+                placeholder="Buscar por lote o condición"
               />
             </div>
             <button className="btn ghost seller-bulk-btn" onClick={() => setBulkModalOpen(true)}>
@@ -310,10 +289,6 @@ function LotesTablePage() {
               <th>AREA (m²)</th>
               <th>PRECIO</th>
               <th>CONDICION</th>
-              <th>ASESOR</th>
-              <th>CLIENTE</th>
-              <th>COMENTARIO</th>
-              <th>ULTIMA_MODIFICACION</th>
               <th>ACCION</th>
             </tr>
           </thead>
@@ -349,25 +324,6 @@ function LotesTablePage() {
                       <option value="VENDIDO">VENDIDO</option>
                     </select>
                   </td>
-                  <td>
-                    <input
-                      value={readValue(row, "asesor")}
-                      onChange={(event) => writeDraft(row, "asesor", event.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      value={readValue(row, "cliente")}
-                      onChange={(event) => writeDraft(row, "cliente", event.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      value={readValue(row, "comentario")}
-                      onChange={(event) => writeDraft(row, "comentario", event.target.value)}
-                    />
-                  </td>
-                  <td>{row.ultimaModificacion ?? "-"}</td>
                   <td>
                     <button
                       className="btn"

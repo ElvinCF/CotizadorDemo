@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { formatArea, formatMoney, normalizeStatusLabel, statusToClass } from "../../domain/formatters";
 import type { FiltersState, Lote } from "../../domain/types";
 
@@ -43,7 +42,6 @@ type TableViewProps = {
 function TableView({
   tableFiltersOpen,
   onToggleFilters,
-  allLotes,
   filters,
   setFilters,
   onResetFilters,
@@ -51,13 +49,6 @@ function TableView({
   selectedId,
   onSelectLote,
 }: TableViewProps) {
-  const asesores = useMemo(
-    () =>
-      [...new Set(allLotes.map((lote) => (lote.asesor ?? "").trim()).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b, "es", { sensitivity: "base" })
-      ),
-    [allLotes]
-  );
 
   return (
     <div className="table-view">
@@ -86,20 +77,6 @@ function TableView({
             <option value="DISPONIBLE">Disponible</option>
             <option value="SEPARADO">Separado</option>
             <option value="VENDIDO">Vendido</option>
-          </select>
-        </label>
-        <label>
-          Asesor
-          <select
-            value={filters.asesor}
-            onChange={(event) => setFilters({ ...filters, asesor: event.target.value })}
-          >
-            <option value="TODOS">Todos</option>
-            {asesores.map((asesor) => (
-              <option key={asesor} value={asesor}>
-                {asesor}
-              </option>
-            ))}
           </select>
         </label>
         <label>
@@ -150,7 +127,6 @@ function TableView({
             <span>MZ</span>
             <span>LT</span>
             <span>AREA (M2)</span>
-            <span>ASESOR</span>
             <span>PRECIO</span>
             <span>CONDICION</span>
           </div>
@@ -163,7 +139,6 @@ function TableView({
               <span className="table-cell strong">{lote.mz}</span>
               <span className="table-cell strong">{lote.lote}</span>
               <span className="table-cell">{formatArea(lote.areaM2)}</span>
-              <span className="table-cell">{lote.asesor ?? "-"}</span>
               <span className="table-cell">{formatMoney(lote.price)}</span>
               <span className={`table-cell status-pill ${statusToClass(lote.condicion)}`}>
                 {normalizeStatusLabel(lote.condicion)}

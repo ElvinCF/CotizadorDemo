@@ -163,7 +163,6 @@ function SalesMapPage() {
   const filteredLotes = useMemo(() => {
     const mz = filters.mz.trim().toUpperCase();
     const status = filters.status.toUpperCase();
-    const asesor = filters.asesor.trim().toUpperCase();
     const priceMin = filters.priceMin ? Number(filters.priceMin) : null;
     const priceMax = filters.priceMax ? Number(filters.priceMax) : null;
     const areaMin = filters.areaMin ? Number(filters.areaMin) : null;
@@ -172,7 +171,6 @@ function SalesMapPage() {
     return lotes.filter((lote) => {
       if (mz && lote.mz !== mz) return false;
       if (status !== "TODOS" && lote.condicion !== status) return false;
-      if (asesor !== "TODOS" && (lote.asesor ?? "").trim().toUpperCase() !== asesor) return false;
       if (priceMin != null && (lote.price ?? 0) < priceMin) return false;
       if (priceMax != null && (lote.price ?? 0) > priceMax) return false;
       if (areaMin != null && (lote.areaM2 ?? 0) < areaMin) return false;
@@ -532,12 +530,11 @@ function SalesMapPage() {
 
 
   const exportTableCsv = () => {
-    const headers = ["MZ", "LT", "AREA_M2", "ASESOR", "PRECIO", "CONDICION"];
+    const headers = ["MZ", "LT", "AREA_M2", "PRECIO", "CONDICION"];
     const rows = filteredLotes.map((lote) => [
       lote.mz,
       String(lote.lote),
       formatNumber(lote.areaM2),
-      lote.asesor ?? "",
       formatNumber(lote.price),
       lote.condicion,
     ]);
@@ -854,7 +851,6 @@ function SalesMapPage() {
           <div><span>Area</span><strong>${formatArea(selectedLote.areaM2)}</strong></div>
           <div><span>Precio</span><strong>${formatMoney(selectedLote.price)}</strong></div>
           <div><span>Estado</span><strong>${selectedLote.condicion}</strong></div>
-          <div><span>Asesor</span><strong>${selectedLote.asesor ?? "-"}</strong></div>
         </div>
       </section>
     `
@@ -871,7 +867,6 @@ function SalesMapPage() {
               <th>MZ</th>
               <th>LT</th>
               <th>AREA (M2)</th>
-              <th>ASESOR</th>
               <th>PRECIO</th>
               <th>CONDICION</th>
             </tr>
@@ -884,7 +879,6 @@ function SalesMapPage() {
                 <td>${lote.mz}</td>
                 <td>${lote.lote}</td>
                 <td>${formatArea(lote.areaM2)}</td>
-                <td>${lote.asesor ?? "-"}</td>
                 <td>${formatMoney(lote.price)}</td>
                 <td>${lote.condicion}</td>
               </tr>`

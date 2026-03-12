@@ -29,7 +29,6 @@ export const defaultQuote: QuoteState = {
 export const defaultFilters: FiltersState = {
   mz: "",
   status: "TODOS",
-  asesor: "TODOS",
   priceMin: "",
   priceMax: "",
   areaMin: "",

@@ -6,6 +6,8 @@ interface AuthState {
     isAuthenticated: boolean;
     role: Role | null;
     username: string | null;
+    loginUsername: string | null;
+    loginPin: string | null;
 }
 
 interface AuthContextType extends AuthState {
@@ -17,6 +19,8 @@ const defaultState: AuthState = {
     isAuthenticated: false,
     role: null,
     username: null,
+    loginUsername: null,
+    loginPin: null,
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -62,10 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const data = await res.json();
             
             if (data?.success && data?.user) {
-                 const nextAuth = {
+                 const nextAuth: AuthState = {
                      isAuthenticated: true,
                      role: data.user.role as Role,
-                     username: data.user.nombre || data.user.username
+                     username: data.user.nombre || data.user.username,
+                     loginUsername: username,
+                     loginPin: pin,
                  };
                  setAuth(nextAuth);
                  localStorage.setItem("auth_session", JSON.stringify(nextAuth));

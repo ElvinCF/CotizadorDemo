@@ -5,10 +5,6 @@ export type Lote = {
   areaM2: number | null;
   price: number | null;
   condicion: string;
-  asesor?: string;
-  cliente?: string;
-  comentario?: string;
-  ultimaModificacion?: string;
 };
 
 export type QuoteState = {
@@ -27,7 +23,6 @@ export type OverlayTransform = {
 export type FiltersState = {
   mz: string;
   status: string;
-  asesor: string;
   priceMin: string;
   priceMax: string;
   areaMin: string;

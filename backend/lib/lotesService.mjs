@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-const ALLOWED_STATUS = new Set(["DISPONIBLE", "SEPARADO", "VENDIDO", "BLOQUEADO", "INACTIVO"]);
+const ALLOWED_STATUS = new Set(["DISPONIBLE", "SEPARADO", "VENDIDO"]);
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const ALLOWED_SCHEMAS = new Set(["public", "dev", "devsimple"]);
 
@@ -57,10 +57,6 @@ const mapDbRowToLote = (row) => ({
   areaM2: row.area_m2,
   price: row.precio_referencial,
   condicion: normalizeStatus(row.estado_comercial),
-  asesor: undefined,
-  cliente: undefined,
-  comentario: undefined,
-  ultimaModificacion: undefined,
 });
 
 export const listLotes = async (supabase) => {

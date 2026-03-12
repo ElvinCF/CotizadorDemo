@@ -4,6 +4,7 @@ import PublicMapPage from "../pages/public-map/PublicMapPage";
 import LotesTablePage from "../pages/seller-dashboard/LotesTablePage";
 import LoginPage from "../pages/login/LoginPage";
 import SalesMapPage from "../pages/admin/SalesMapPage";
+import AdminPage from "../pages/admin/AdminPage";
 import ProtectedRoute from "./ProtectedRoute";
 
 export const appRouter = createBrowserRouter([
@@ -44,8 +45,7 @@ export const appRouter = createBrowserRouter([
     path: "/admin",
     element: (
       <ProtectedRoute allowedRoles={["admin"]}>
-        {/* Placeholder: To be implemented */}
-        <div>Dashboard General Admin</div>
+        <AdminPage />
       </ProtectedRoute>
     ),
   },

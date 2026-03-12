@@ -11,8 +11,8 @@ if (!["migrations", "seeds"].includes(type)) {
   process.exit(1);
 }
 
-if (!["dev", "public"].includes(schema)) {
-  console.error("Schema invalido. Usa 'dev' o 'public'.");
+if (!["dev", "devsimple", "public"].includes(schema)) {
+  console.error("Schema invalido. Usa 'dev', 'devsimple' o 'public'.");
   process.exit(1);
 }
 

@@ -2680,3 +2680,204 @@ input.is-invalid {
     border-radius: 14px;
   }
 }
+
+/* ── Admin Page ─────────────────────────────────────────────────── */
+.admin-page {
+  width: 100%;
+  background: var(--color-panel);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.admin-page__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-page__summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-badge {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary-strong);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+.admin-badge.warn {
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+}
+
+.admin-error,
+.admin-notice {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.admin-error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-strong);
+  border: 1px solid var(--color-danger-soft);
+}
+
+.admin-notice {
+  background: var(--color-success-soft);
+  color: var(--color-success-strong);
+  border: 1px solid var(--color-success-soft);
+}
+
+.admin-error__close,
+.admin-notice__close {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.admin-form {
+  background: var(--color-panel-contrast);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.admin-form h3 {
+  margin: 0;
+  color: var(--color-primary-strong);
+  font-size: 1.05rem;
+}
+
+.admin-form__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.admin-form__grid label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary-strong);
+}
+
+.admin-form__grid input,
+.admin-form__grid select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  background: var(--color-surface);
+}
+
+.admin-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-table-wrap {
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  max-height: 60vh;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+  background: var(--color-surface);
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(210, 120, 62, 0.14);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-panel-contrast);
+  color: var(--color-primary-strong);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.admin-table tr:nth-child(even) {
+  background: var(--color-panel);
+}
+
+.role-pill,
+.estado-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: inline-flex;
+  letter-spacing: 0.02em;
+}
+
+.role-pill.admin {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary-strong);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.role-pill.asesor {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success-strong);
+  border: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
+}
+
+.estado-pill.activo {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success-strong);
+  border: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
+}
+
+.estado-pill.inactivo {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger-strong);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 25%, transparent);
+}
+
+@media (max-width: 760px) {
+  .admin-form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-table {
+    min-width: 580px;
+  }
+}

@@ -5,7 +5,7 @@ import {
   updateAvailablePricesMassive,
   updateLoteById,
 } from "./lib/lotesService.mjs";
-import { loginAsync } from "./lib/usuariosService.mjs";
+import { loginAsync, createUserAsync, listUsersAsync } from "./lib/usuariosService.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
 
@@ -55,6 +55,41 @@ app.post("/api/lotes/precios-masivos", async (req, res) => {
   }
 });
 
+// ── Usuarios ────────────────────────────────────────────────────
+app.get("/api/usuarios", async (req, res) => {
+  try {
+    const authUser = req.headers["x-admin-user"];
+    const authPin = req.headers["x-admin-pin"];
+    if (!authUser || !authPin) {
+      return res.status(401).json({ error: "Credenciales de admin requeridas." });
+    }
+    const users = await listUsersAsync(authUser, authPin);
+    res.json({ users });
+  } catch (error) {
+    console.error("Error listing users:", error);
+    res.status(403).json({ error: error.message || "Error al listar usuarios." });
+  }
+});
+
+app.post("/api/usuarios", async (req, res) => {
+  try {
+    const { auth, nuevoUsuario } = req.body ?? {};
+    if (!auth?.username || !auth?.pin) {
+      return res.status(401).json({ error: "Credenciales de admin requeridas." });
+    }
+    const user = await createUserAsync(auth.username, auth.pin, nuevoUsuario);
+    res.status(201).json({ success: true, user });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    const status = error.message?.includes("permisos") ? 403
+      : error.message?.includes("administradores") ? 409
+      : error.message?.includes("ya existe") ? 409
+      : 400;
+    res.status(status).json({ error: error.message || "Error al crear usuario." });
+  }
+});
+
+// ── Auth ────────────────────────────────────────────────────────
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, pin } = req.body;
@@ -67,7 +102,6 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(401).json({ error: "Usuario o PIN incorrectos." });
     }
 
-    // Success login mapping
     res.json({
       success: true,
       user: userData
