@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-const ALLOWED_STATUS = new Set(["LIBRE", "SEPARADO", "VENDIDO", "BLOQUEADO", "INACTIVO", "DISPONIBLE"]);
+const ALLOWED_STATUS = new Set(["DISPONIBLE", "SEPARADO", "VENDIDO", "BLOQUEADO", "INACTIVO"]);
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const ALLOWED_SCHEMAS = new Set(["public", "dev", "devsimple"]);
 
@@ -23,8 +23,8 @@ const cleanNumber = (value) => {
 };
 
 const normalizeStatus = (value) => {
-  const normalized = String(value || "LIBRE").trim().toUpperCase();
-  return ALLOWED_STATUS.has(normalized) ? normalized : "LIBRE";
+  const normalized = String(value || "DISPONIBLE").trim().toUpperCase();
+  return ALLOWED_STATUS.has(normalized) ? normalized : "DISPONIBLE";
 };
 
 const normalizeText = (value) => String(value ?? "").trim();
@@ -50,7 +50,8 @@ export const getSupabaseAdminClient = () => {
 };
 
 const mapDbRowToLote = (row) => ({
-  id: row.id,
+  id: row.codigo ?? toLoteId(row.manzana, row.lote),
+  dbId: row.id,
   mz: row.manzana,
   lote: row.lote,
   areaM2: row.area_m2,
@@ -65,7 +66,7 @@ const mapDbRowToLote = (row) => ({
 export const listLotes = async (supabase) => {
   const { data, error } = await supabase
     .from("lotes")
-    .select("id,manzana,lote,area_m2,precio_referencial,estado_comercial")
+    .select("id,manzana,lote,area_m2,precio_referencial,estado_comercial,codigo")
     .order("manzana", { ascending: true })
     .order("lote", { ascending: true });
 
@@ -85,8 +86,8 @@ export const updateLoteById = async (supabase, loteId, payload) => {
   const { data, error } = await supabase
     .from("lotes")
     .update(patch)
-    .eq("id", String(loteId || "").trim())
-    .select("id,manzana,lote,area_m2,precio_referencial,estado_comercial")
+    .eq("codigo", String(loteId || "").trim())
+    .select("id,manzana,lote,area_m2,precio_referencial,estado_comercial,codigo")
     .maybeSingle();
 
   if (error) throw error;

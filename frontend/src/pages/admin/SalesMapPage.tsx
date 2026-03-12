@@ -36,7 +36,7 @@ import { loadLotesFromApi } from "../../services/lotes";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
-function AdminPage() {
+function SalesMapPage() {
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -692,7 +692,7 @@ function AdminPage() {
       svgClone.style.transformOrigin = "0 0";
 
       // Force light theme lot colors for consistent export regardless of current theme.
-      const LIGHT_FILL_LIBRE = "rgba(60, 223, 101, 0.322)";
+      const LIGHT_FILL_DISPONIBLE = "rgba(60, 223, 101, 0.322)";
       const LIGHT_FILL_SEPARADO = "rgba(255, 196, 99, 0.5)";
       const LIGHT_FILL_VENDIDO = "rgba(255, 133, 149, 0.5)";
       const LIGHT_STROKE = "rgba(0,0,0,0)";
@@ -709,7 +709,7 @@ function AdminPage() {
         } else if (status === "VENDIDO") {
           cloneNode.setAttribute("fill", LIGHT_FILL_VENDIDO);
         } else {
-          cloneNode.setAttribute("fill", LIGHT_FILL_LIBRE);
+          cloneNode.setAttribute("fill", LIGHT_FILL_DISPONIBLE);
         }
         cloneNode.setAttribute("stroke", LIGHT_STROKE);
         cloneNode.setAttribute("stroke-width", "0");
@@ -1211,7 +1211,7 @@ function AdminPage() {
                   {({ zoomIn, zoomOut, resetTransform, setTransform }) => (
                     <Fragment>
                       <div className="map-overlay-legend" aria-label="Estado de lotes">
-                        <span className="status-pill libre">Disponible</span>
+                        <span className="status-pill disponible">Disponible</span>
                         <span className="status-pill separado">Separado</span>
                         <span className="status-pill vendido">Vendido</span>
                       </div>
@@ -1433,7 +1433,7 @@ function AdminPage() {
   );
 }
 
-export default AdminPage;
+export default SalesMapPage;
 
 
 

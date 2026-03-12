@@ -1,9 +1,9 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import OverlayEditorPage from "../pages/overlay-editor/OverlayEditorPage";
 import PublicMapPage from "../pages/public-map/PublicMapPage";
-import SellerDashboardPage from "../pages/seller-dashboard/SellerDashboardPage";
+import LotesTablePage from "../pages/seller-dashboard/LotesTablePage";
 import LoginPage from "../pages/login/LoginPage";
-import AdminPage from "../pages/admin/AdminPage";
+import SalesMapPage from "../pages/admin/SalesMapPage";
 import ProtectedRoute from "./ProtectedRoute";
 
 export const appRouter = createBrowserRouter([
@@ -16,10 +16,27 @@ export const appRouter = createBrowserRouter([
     element: <LoginPage />,
   },
   {
-    path: "/vendedor",
+    path: "/cotizador",
     element: (
-      <ProtectedRoute allowedRoles={["vendedor", "admin"]}>
-        <SellerDashboardPage />
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <SalesMapPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/lotes",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <LotesTablePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/asesor",
+    element: (
+      <ProtectedRoute allowedRoles={["asesor"]}>
+        {/* Placeholder: To be implemented */}
+        <div>Dashboard Personal Asesor</div>
       </ProtectedRoute>
     ),
   },
@@ -27,7 +44,8 @@ export const appRouter = createBrowserRouter([
     path: "/admin",
     element: (
       <ProtectedRoute allowedRoles={["admin"]}>
-        <AdminPage />
+        {/* Placeholder: To be implemented */}
+        <div>Dashboard General Admin</div>
       </ProtectedRoute>
     ),
   },
