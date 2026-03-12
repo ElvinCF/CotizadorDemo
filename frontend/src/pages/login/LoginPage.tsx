@@ -27,14 +27,15 @@ export default function LoginPage() {
   const [lastAutoKey, setLastAutoKey] = useState<string | null>(null);
 
   const normalizedUsername = useMemo(() => username.trim(), [username]);
-
-  if (isAuthenticated) {
-    const from = location.state?.from?.pathname;
-    if (from && from !== "/login") {
-      return <Navigate to={from} replace />;
-    }
-    return <Navigate to={role === "admin" ? "/admin" : "/lotes"} replace />;
-  }
+  const from = location.state?.from?.pathname;
+  const redirectTo =
+    isAuthenticated && from && from !== "/login"
+      ? from
+      : isAuthenticated
+        ? role === "admin"
+          ? "/admin"
+          : "/lotes"
+        : null;
 
   const submitLogin = useCallback(async () => {
     if (isSubmitting) return;
@@ -88,6 +89,10 @@ export default function LoginPage() {
       setLastAutoKey(null);
     }
   }, [pin.length]);
+
+  if (redirectTo) {
+    return <Navigate to={redirectTo} replace />;
+  }
 
   const topbarActions = (
     <nav className="nav-links" aria-label="Navegacion principal">
