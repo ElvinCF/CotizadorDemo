@@ -7,14 +7,14 @@ type MenuItem = {
   to: string;
 };
 
-const roleMenuItems = (role: "vendedor" | "admin" | null, isAuthenticated: boolean): MenuItem[] => {
+const roleMenuItems = (role: "asesor" | "admin" | null, isAuthenticated: boolean): MenuItem[] => {
   if (!isAuthenticated || !role) {
     return [{ label: "Iniciar sesion", to: "/login" }];
   }
 
   const base: MenuItem[] = [
     { label: "Mapa", to: "/" },
-    { label: "Editar lotes (vendedor)", to: "/vendedor" },
+    { label: "Editar lotes (vendedor)", to: "/lotes" },
   ];
 
   if (role === "admin") {

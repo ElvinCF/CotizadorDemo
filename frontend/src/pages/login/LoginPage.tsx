@@ -117,9 +117,9 @@ export default function LoginPage() {
             <p>Accede con tu usuario y PIN asignado.</p>
           </header>
 
-          <form onSubmit={handleSubmit} className={styles.form}>
-            <div className={styles.inputGroup}>
-              <label htmlFor="username">Usuario</label>
+          <form onSubmit={handleSubmit} className="auth-form">
+            <label className="auth-field" htmlFor="username">
+              <span>Usuario</span>
               <input
                 id="username"
                 type="text"
@@ -129,7 +129,7 @@ export default function LoginPage() {
                 required
                 autoFocus
               />
-            </div>
+            </label>
 
             <label className="auth-field" htmlFor="pin">
               <span>PIN de seguridad (4 a 6 digitos)</span>
