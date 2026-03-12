@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import ThemeToggle from "./ThemeToggle";
+import UserAvatarMenu from "./UserAvatarMenu";
 
 type AppShellProps = {
   children: ReactNode;
@@ -29,6 +30,7 @@ const AppShell = ({
       <div className="topbar__actions">
         {actions}
         <ThemeToggle />
+        <UserAvatarMenu />
       </div>
     </header>
 
