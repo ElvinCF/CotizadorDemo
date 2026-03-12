@@ -20,7 +20,7 @@ export default function LoginPage() {
         return <Navigate to={role === "admin" ? "/admin" : "/vendedor"} replace />;
     }
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
 
@@ -30,9 +30,9 @@ export default function LoginPage() {
             return;
         }
 
-        const success = login(username, pin);
+        const success = await login(username, pin);
         if (!success) {
-            setError("Usuario o PIN incorrectos.");
+            setError("Usuario o PIN incorrectos. (O cuenta inactiva)");
         } else {
             // Let the re-render handle redirect based on the updated context
         }

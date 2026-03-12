@@ -9,7 +9,7 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-    login: (username: string, pin: string) => boolean;
+    login: (username: string, pin: string) => Promise<boolean>;
     logout: () => void;
 }
 
@@ -41,31 +41,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoaded(true);
     }, []);
 
-    const login = (username: string, pin: string): boolean => {
-        // Hardcoded simple authentication
-        // vendedor: 1234
-        // admin: 123456
-        const userLower = username.trim().toLowerCase();
-
-        // Check if the pin is structurally valid (4-6 digits)
+    const login = async (username: string, pin: string): Promise<boolean> => {
+        // Validacion cliente: 4-6 digitos (backend puede ser más laxo o estricto)
         if (!/^\d{4,6}$/.test(pin)) {
             return false;
         }
 
-        let nextAuth: AuthState | null = null;
-        if (userLower === "vendedor" && pin === "1234") {
-            nextAuth = { isAuthenticated: true, role: "vendedor", username: "Vendedor Test" };
-        } else if (userLower === "admin" && pin === "123456") {
-            nextAuth = { isAuthenticated: true, role: "admin", username: "Admin Principal" };
-        }
+        try {
+            const res = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, pin })
+            });
 
-        if (nextAuth) {
-            setAuth(nextAuth);
-            localStorage.setItem("auth_session", JSON.stringify(nextAuth));
-            return true;
-        }
+            if (!res.ok) {
+                // Return false y el LoginPage capturará el error general para mostrar
+                return false;
+            }
 
-        return false;
+            const data = await res.json();
+            
+            if (data?.success && data?.user) {
+                 const nextAuth = {
+                     isAuthenticated: true,
+                     role: data.user.role as Role,
+                     username: data.user.nombre || data.user.username
+                 };
+                 setAuth(nextAuth);
+                 localStorage.setItem("auth_session", JSON.stringify(nextAuth));
+                 return true;
+            }
+            return false;
+
+        } catch(error) {
+            console.error("Error at Login", error);
+            return false;
+        }
     };
 
     const logout = () => {
