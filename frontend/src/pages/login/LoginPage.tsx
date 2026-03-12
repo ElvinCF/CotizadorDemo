@@ -17,7 +17,7 @@ export default function LoginPage() {
         if (from && from !== "/login") {
             return <Navigate to={from} replace />;
         }
-        return <Navigate to={role === "admin" ? "/admin" : "/vendedor"} replace />;
+        return <Navigate to={role === "admin" ? "/admin" : "/lotes"} replace />;
     }
 
     const handleSubmit = async (e: FormEvent) => {
@@ -65,7 +65,7 @@ export default function LoginPage() {
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="Ej. vendedor o admin"
+                            placeholder="Tu nombre de usuario"
                             required
                             autoFocus
                         />

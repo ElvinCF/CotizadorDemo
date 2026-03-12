@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-export type Role = "vendedor" | "admin";
+export type Role = "asesor" | "admin";
 
 interface AuthState {
     isAuthenticated: boolean;

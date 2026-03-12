@@ -83,7 +83,7 @@ function TableView({
             onChange={(event) => setFilters({ ...filters, status: event.target.value })}
           >
             <option value="TODOS">Todos</option>
-            <option value="LIBRE">Libre</option>
+            <option value="DISPONIBLE">Disponible</option>
             <option value="SEPARADO">Separado</option>
             <option value="VENDIDO">Vendido</option>
           </select>

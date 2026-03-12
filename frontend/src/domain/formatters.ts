@@ -5,7 +5,7 @@ export const statusToClass = (value: string | undefined) => {
     case "VENDIDO":
       return "vendido";
     default:
-      return "libre";
+      return "disponible";
   }
 };
 

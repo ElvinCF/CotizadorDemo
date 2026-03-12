@@ -16,9 +16,9 @@ const formatArea = (value: number | null) => (value == null ? "-" : value.toFixe
 
 
 const normalizeStatus = (value: string | undefined) => {
-  const normalized = String(value || "LIBRE").toUpperCase();
+  const normalized = String(value || "DISPONIBLE").toUpperCase();
   if (normalized === "SEPARADO" || normalized === "VENDIDO") return normalized;
-  return "LIBRE";
+  return "DISPONIBLE";
 };
 
 const toPriceInput = (value: number | null | undefined) =>
@@ -33,7 +33,7 @@ const numberFromInput = (value: string) => {
 const emptyDraft: EditableFields = {
   price: "",
   asesor: "",
-  estado: "LIBRE",
+  estado: "DISPONIBLE",
   cliente: "",
   comentario: "",
 };
@@ -50,7 +50,7 @@ const IconRefresh = () => (
   </svg>
 );
 
-function SellerDashboardPage() {
+function LotesTablePage() {
   const [rows, setRows] = useState<Lote[]>([]);
   const [drafts, setDrafts] = useState<Record<string, EditableFields>>({});
   const [loading, setLoading] = useState(true);
@@ -242,17 +242,17 @@ function SellerDashboardPage() {
 
   const actions = (
     <nav className="topbar-nav">
+      <Link className="btn ghost" to="/cotizador">
+        Cotizador
+      </Link>
       <Link className="btn ghost" to="/">
         Ver mapa
-      </Link>
-      <Link className="btn ghost" to="/editor">
-        Editor overlay
       </Link>
     </nav>
   );
 
   return (
-    <AppShell title="Panel de vendedores" actions={actions}>
+    <AppShell title="Gestión de Lotes" actions={actions}>
       <section className="seller-page">
         <div className="seller-page__head">
         <div className="seller-page__head-main">
@@ -344,7 +344,7 @@ function SellerDashboardPage() {
                       value={currentStatus}
                       onChange={(event) => writeDraft(row, "estado", event.target.value)}
                     >
-                      <option value="LIBRE">LIBRE</option>
+                      <option value="DISPONIBLE">DISPONIBLE</option>
                       <option value="SEPARADO">SEPARADO</option>
                       <option value="VENDIDO">VENDIDO</option>
                     </select>
@@ -449,4 +449,4 @@ function SellerDashboardPage() {
   );
 }
 
-export default SellerDashboardPage;
+export default LotesTablePage;
