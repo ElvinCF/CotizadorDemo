@@ -5,6 +5,7 @@ import {
   updateAvailablePricesMassive,
   updateLoteById,
 } from "./lib/lotesService.mjs";
+import { loginAsync } from "./lib/usuariosService.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
 
@@ -51,6 +52,29 @@ app.post("/api/lotes/precios-masivos", async (req, res) => {
       error: "No se pudo actualizar precios masivamente en Supabase",
       detail,
     });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { username, pin } = req.body;
+    if (!username || !pin) {
+      return res.status(400).json({ error: "Falta usuario o PIN." });
+    }
+
+    const userData = await loginAsync(username, pin);
+    if (!userData) {
+      return res.status(401).json({ error: "Usuario o PIN incorrectos." });
+    }
+
+    // Success login mapping
+    res.json({
+      success: true,
+      user: userData
+    });
+  } catch (error) {
+    console.error("Error during login:", error);
+    res.status(403).json({ error: error.message || "No tienes permisos para acceder." });
   }
 });
 

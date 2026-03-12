@@ -1,16 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 
-const ALLOWED_STATUS = new Set(["LIBRE", "SEPARADO", "VENDIDO"]);
+const ALLOWED_STATUS = new Set(["LIBRE", "SEPARADO", "VENDIDO", "BLOQUEADO", "INACTIVO", "DISPONIBLE"]);
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-const ALLOWED_SCHEMAS = new Set(["public", "dev"]);
+const ALLOWED_SCHEMAS = new Set(["public", "dev", "devsimple"]);
 
 const resolveSupabaseSchema = () => {
   const configured = String(process.env.SUPABASE_DB_SCHEMA ?? "").trim().toLowerCase();
   if (!configured) {
-    throw new Error("Falta SUPABASE_DB_SCHEMA (valores permitidos: public|dev).");
+    throw new Error("Falta SUPABASE_DB_SCHEMA (valores permitidos: public|dev|devsimple).");
   }
   if (!ALLOWED_SCHEMAS.has(configured)) {
-    throw new Error(`SUPABASE_DB_SCHEMA invalido: '${configured}'. Usa public o dev.`);
+    throw new Error(`SUPABASE_DB_SCHEMA invalido: '${configured}'. Usa public, dev o devsimple.`);
   }
   return configured;
 };
@@ -28,17 +28,6 @@ const normalizeStatus = (value) => {
 };
 
 const normalizeText = (value) => String(value ?? "").trim();
-
-const toCurrentTimestamp = () => {
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, "0");
-  const mmm = MONTHS[now.getMonth()];
-  const aa = String(now.getFullYear()).slice(-2);
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mi = String(now.getMinutes()).padStart(2, "0");
-  const ss = String(now.getSeconds()).padStart(2, "0");
-  return `${dd}-${mmm}-${aa} ${hh}:${mi}:${ss}`;
-};
 
 export const toLoteId = (mz, lote) => `${String(mz).trim().toUpperCase()}-${String(lote).padStart(2, "0")}`;
 
@@ -62,22 +51,22 @@ export const getSupabaseAdminClient = () => {
 
 const mapDbRowToLote = (row) => ({
   id: row.id,
-  mz: row.mz,
+  mz: row.manzana,
   lote: row.lote,
-  areaM2: row.area,
-  price: row.precio,
-  condicion: normalizeStatus(row.condicion),
-  asesor: row.asesor || undefined,
-  cliente: row.cliente || undefined,
-  comentario: row.comentario || undefined,
-  ultimaModificacion: row.ultima_modificacion || undefined,
+  areaM2: row.area_m2,
+  price: row.precio_referencial,
+  condicion: normalizeStatus(row.estado_comercial),
+  asesor: undefined,
+  cliente: undefined,
+  comentario: undefined,
+  ultimaModificacion: undefined,
 });
 
 export const listLotes = async (supabase) => {
   const { data, error } = await supabase
     .from("lotes")
-    .select("id,mz,lote,area,precio,condicion,asesor,cliente,comentario,ultima_modificacion")
-    .order("mz", { ascending: true })
+    .select("id,manzana,lote,area_m2,precio_referencial,estado_comercial")
+    .order("manzana", { ascending: true })
     .order("lote", { ascending: true });
 
   if (error) throw error;
@@ -86,22 +75,18 @@ export const listLotes = async (supabase) => {
 
 export const updateLoteById = async (supabase, loteId, payload) => {
   const patch = {
-    condicion: normalizeStatus(payload.estado),
-    asesor: normalizeText(payload.asesor),
-    cliente: normalizeText(payload.cliente),
-    comentario: normalizeText(payload.comentario),
-    ultima_modificacion: toCurrentTimestamp(),
+    estado_comercial: normalizeStatus(payload.estado)
   };
 
   if (payload.price !== undefined) {
-    patch.precio = cleanNumber(payload.price);
+    patch.precio_referencial = cleanNumber(payload.price);
   }
 
   const { data, error } = await supabase
     .from("lotes")
     .update(patch)
-    .eq("id", String(loteId || "").trim().toUpperCase())
-    .select("id,mz,lote,area,precio,condicion,asesor,cliente,comentario,ultima_modificacion")
+    .eq("id", String(loteId || "").trim())
+    .select("id,manzana,lote,area_m2,precio_referencial,estado_comercial")
     .maybeSingle();
 
   if (error) throw error;
