@@ -97,6 +97,73 @@
   flex-shrink: 0;
 }
 
+.user-avatar-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.avatar-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel-contrast);
+  color: var(--color-text);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.avatar-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-elevated);
+  background: var(--color-panel-alt);
+}
+
+.avatar-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: var(--color-panel-contrast);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-elevated);
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  z-index: 20;
+}
+
+.avatar-dropdown__item {
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.avatar-dropdown__item:hover {
+  background: var(--color-accent-soft);
+}
+
+.avatar-dropdown__item--danger {
+  color: var(--color-danger, #b32626);
+}
+
+.avatar-dropdown__sep {
+  height: 1px;
+  background: var(--color-border);
+  margin: 2px 0;
+}
+
 .nav-links {
   display: flex;
   gap: 10px;
@@ -111,6 +178,22 @@
   border: 1px solid var(--color-border);
   background: transparent;
   opacity: 0.8;
+}
+
+.nav-link--with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-link__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-link__label {
+  display: inline;
 }
 
 .nav-link.active {
@@ -207,5 +290,21 @@
 
   .topbar__actions {
     gap: 8px;
+  }
+
+  .avatar-dropdown {
+    min-width: 200px;
+  }
+
+  .nav-link--with-icon {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 12px;
+    justify-content: center;
+  }
+
+  .nav-link__label {
+    display: none;
   }
 }
