@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
-import { NavLink, Navigate, useLocation } from "react-router-dom";
+import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 
@@ -13,6 +13,20 @@ const IconMap = () => (
       strokeLinejoin="round"
     />
     <path d="M9 4v13.5M15 6.5V20" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+const IconLogin = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M10 17 15 12 10 7"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M15 12H4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M20 4v16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
   </svg>
 );
 
@@ -116,6 +130,13 @@ export default function LoginPage() {
       contentClassName="main--auth"
     >
       <section className="auth-layout">
+        <div className="auth-shortcut">
+          <Link className="btn ghost auth-shortcut__button" to="/">
+            <IconMap />
+            <span>Ir al mapa</span>
+          </Link>
+        </div>
+
         <article className="auth-card">
           <header className="auth-card__header">
             <h2>Inicio de sesión</h2>
@@ -159,6 +180,7 @@ export default function LoginPage() {
             {error && <div className="auth-error">{error}</div>}
 
             <button type="submit" className="btn primary auth-submit" disabled={isSubmitting}>
+              <IconLogin />
               {isSubmitting ? "Ingresando..." : "Ingresar"}
             </button>
           </form>

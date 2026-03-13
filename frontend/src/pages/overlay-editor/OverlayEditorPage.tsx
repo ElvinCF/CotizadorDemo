@@ -15,6 +15,26 @@ import EditorPanel from "./EditorPanel";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
+const IconMap = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20V6.5Z"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M9 4v13.5M15 6.5V20" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+const IconTable = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M3 10h18M9 5v14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
 const OverlayEditorPage = () => {
   const svgRef = useRef<SVGSVGElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -92,11 +112,13 @@ const OverlayEditorPage = () => {
       title="Editor de overlay"
       actions={
         <nav className="topbar-nav">
-          <Link className="btn ghost" to="/">
-            Ver mapa
+          <Link className="btn ghost topbar-action" to="/">
+            <IconMap />
+            Mapa
           </Link>
-          <Link className="btn ghost" to="/vendedor">
-            Panel vendedor
+          <Link className="btn ghost topbar-action" to="/lotes">
+            <IconTable />
+            Lotes
           </Link>
         </nav>
       }

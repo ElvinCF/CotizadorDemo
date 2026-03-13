@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { formatArea, formatMoney, normalizeStatusLabel, statusToClass } from "../../domain/formatters";
 import type { FiltersState, Lote } from "../../domain/types";
 
@@ -27,6 +28,13 @@ const IconFilterOff = () => (
   </svg>
 );
 
+const IconSearch = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="m16 16 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 type TableViewProps = {
   tableFiltersOpen: boolean;
   onToggleFilters: () => void;
@@ -49,25 +57,50 @@ function TableView({
   selectedId,
   onSelectLote,
 }: TableViewProps) {
+  const [tableQuery, setTableQuery] = useState("");
+
+  const visibleLotes = useMemo(() => {
+    const term = tableQuery.trim().toLowerCase();
+    if (!term) {
+      return filteredLotes;
+    }
+
+    return filteredLotes.filter((lote) => {
+      const searchable = [
+        lote.id,
+        lote.mz,
+        lote.lote,
+        lote.condicion,
+        normalizeStatusLabel(lote.condicion),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(term);
+    });
+  }, [filteredLotes, tableQuery]);
 
   return (
     <div className="table-view">
-      <div className="table-filters__header">
-        <h4>Filtros</h4>
-        <button className="btn ghost" onClick={onToggleFilters}>
-          {tableFiltersOpen ? <IconFilterOff /> : <IconFilterOn />} Filtro
+      <div className="table-filters__toolbar">
+        <label className="table-filters__search" aria-label="Buscar lote">
+          <span className="table-filters__search-icon">
+            <IconSearch />
+          </span>
+          <input
+            type="search"
+            value={tableQuery}
+            onChange={(event) => setTableQuery(event.target.value)}
+            placeholder="Buscar lote o estado"
+          />
+        </label>
+        <button className="btn ghost table-filters__toggle" onClick={onToggleFilters} type="button">
+          {tableFiltersOpen ? <IconFilterOff /> : <IconFilterOn />}
+          <span>{tableFiltersOpen ? "Ocultar" : "Filtro"}</span>
         </button>
       </div>
       <div className={`table-filters ${tableFiltersOpen ? "open" : "closed"}`}>
-        <label>
-          MZ
-          <input
-            value={filters.mz}
-            onChange={(event) => setFilters({ ...filters, mz: event.target.value })}
-            placeholder="A o B"
-          />
-        </label>
-        <label>
+        <label className="table-filters__field table-filters__field--status">
           Estado
           <select
             value={filters.status}
@@ -79,25 +112,25 @@ function TableView({
             <option value="VENDIDO">Vendido</option>
           </select>
         </label>
-        <label>
+        <label className="table-filters__field table-filters__field--price-min">
           Precio min
           <input
             type="number"
             value={filters.priceMin}
             onChange={(event) => setFilters({ ...filters, priceMin: event.target.value })}
-            placeholder="Desde S/ ..."
+            placeholder="Desde S/"
           />
         </label>
-        <label>
+        <label className="table-filters__field table-filters__field--price-max">
           Precio max
           <input
             type="number"
             value={filters.priceMax}
             onChange={(event) => setFilters({ ...filters, priceMax: event.target.value })}
-            placeholder="Hasta S/ ..."
+            placeholder="Hasta S/"
           />
         </label>
-        <label>
+        <label className="table-filters__field table-filters__field--area-min">
           Area min
           <input
             type="number"
@@ -106,7 +139,7 @@ function TableView({
             placeholder="Min m2"
           />
         </label>
-        <label>
+        <label className="table-filters__field table-filters__field--area-max">
           Area max
           <input
             type="number"
@@ -116,7 +149,7 @@ function TableView({
           />
         </label>
         <div className="table-filters__actions">
-          <button className="btn ghost" onClick={onResetFilters}>
+          <button className="btn ghost" onClick={onResetFilters} type="button">
             Limpiar
           </button>
         </div>
@@ -130,7 +163,7 @@ function TableView({
             <span>PRECIO</span>
             <span>CONDICION</span>
           </div>
-          {filteredLotes.map((lote) => (
+          {visibleLotes.map((lote) => (
             <button
               className={`table-row ${selectedId === lote.id ? "selected" : ""}`}
               key={lote.id}

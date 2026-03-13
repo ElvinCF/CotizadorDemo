@@ -1,5 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import AppShell from "../../app/AppShell";
+import { useAuth } from "../../app/AuthContext";
 import {
   TransformComponent,
   TransformWrapper,
@@ -36,7 +37,12 @@ import { loadLotesFromApi } from "../../services/lotes";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
-function SalesMapPage() {
+type SalesMapPageProps = {
+  publicView?: boolean;
+};
+
+function SalesMapPage({ publicView = false }: SalesMapPageProps) {
+  const { isAuthenticated } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -94,6 +100,7 @@ function SalesMapPage() {
   const lastPriceEditedRef = useRef<"soles" | "pct" | "promo" | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
+  const hidePublicRestrictedActions = publicView && !isAuthenticated;
 
   useEffect(() => {
     let active = true;
@@ -1126,6 +1133,9 @@ function SalesMapPage() {
   };
 
   const openProforma = () => {
+    if (hidePublicRestrictedActions) {
+      return;
+    }
     if (!selectedLote) {
       setProformaAlert("Selecciona un lote para crear la proforma.");
       return;
@@ -1150,6 +1160,7 @@ function SalesMapPage() {
             totalCount={lotes.length}
             onExportExecutivePdf={exportExecutivePdf}
             onExportTable={exportTableCsv}
+            hideExecutiveExport={hidePublicRestrictedActions}
           />
           <div
             ref={mapContainerRef}
@@ -1316,6 +1327,7 @@ function SalesMapPage() {
             setSelectedId(null);
           }}
           onChangeQuote={setQuote}
+          hideProformaButton={hidePublicRestrictedActions}
         />
       </section>
     </section>
@@ -1327,7 +1339,7 @@ function SalesMapPage() {
         {MapView}
       </AppShell>
 
-      {proformaOpen && (
+      {!hidePublicRestrictedActions && proformaOpen && (
         <ProformaModal
           proforma={proforma}
           proformaInvalidInicial={proformaInvalidInicial}
@@ -1372,7 +1384,7 @@ function SalesMapPage() {
         />
       )}
 
-      {proformaConfirmClose && (
+      {!hidePublicRestrictedActions && proformaConfirmClose && (
         <div className="modal-backdrop" onClick={() => setProformaConfirmClose(false)}>
           <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
             <h4>Descartar cambios?</h4>
@@ -1410,7 +1422,7 @@ function SalesMapPage() {
         </div>
       )}
 
-      {proformaAlert && (
+      {!hidePublicRestrictedActions && proformaAlert && (
         <div className="modal-backdrop" onClick={() => setProformaAlert(null)}>
           <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
             <h4>Proforma</h4>

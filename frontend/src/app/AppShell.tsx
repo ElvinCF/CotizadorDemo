@@ -28,8 +28,10 @@ const AppShell = ({
         </div>
       </div>
       <div className="topbar__actions">
-        {actions}
-        <ThemeToggle />
+        {actions ? <div className="topbar__context-actions">{actions}</div> : null}
+        <div className="topbar__theme">
+          <ThemeToggle />
+        </div>
         <UserAvatarMenu />
       </div>
     </header>

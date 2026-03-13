@@ -1,108 +1,125 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
-
-type Usuario = {
-  id: string;
-  username: string;
-  rol: string;
-  estado: string;
-  nombres: string;
-  apellidos: string;
-  telefono: string;
-  created_at: string;
-};
+import AdminUserModal from "../../components/admin/AdminUserModal";
+import AdminUsersTable from "../../components/admin/AdminUsersTable";
+import type { AdminUser, AdminUserCatalogs, AdminUserPayload } from "../../domain/adminUsers";
+import { createAdminUser, listAdminUsers, updateAdminUser } from "../../services/adminUsers";
 
 const MAX_ADMINS = 3;
 
+const IconMap = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20V6.5Z"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M9 4v13.5M15 6.5V20" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+const IconTable = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M3 10h18M9 5v14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+const IconDashboard = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <rect x="3" y="3" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.6" />
+    <rect x="13" y="3" width="8" height="5" rx="2" stroke="currentColor" strokeWidth="1.6" />
+    <rect x="13" y="10" width="8" height="11" rx="2" stroke="currentColor" strokeWidth="1.6" />
+    <rect x="3" y="13" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
 function AdminPage() {
   const { loginUsername, loginPin } = useAuth();
-  const [users, setUsers] = useState<Usuario[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [catalogs, setCatalogs] = useState<AdminUserCatalogs>({
+    roles: ["ADMIN", "ASESOR"],
+    statuses: ["ACTIVO", "INACTIVO"],
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-
-  // Form state
-  const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    username: "",
-    pin: "",
-    rol: "ASESOR" as "ADMIN" | "ASESOR",
-    nombres: "",
-    apellidos: "",
-    telefono: "",
-  });
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
-  const adminCount = users.filter((u) => u.rol === "ADMIN" && u.estado === "ACTIVO").length;
+  const adminCount = users.filter((user) => user.rol === "ADMIN" && user.estado === "ACTIVO").length;
+  const asesorTotal = users.filter((user) => user.rol === "ASESOR").length;
+  const asesorCount = users.filter((user) => user.rol === "ASESOR" && user.estado === "ACTIVO").length;
   const canCreateAdmin = adminCount < MAX_ADMINS;
 
-  const loadUsers = async () => {
+  const credentials = useMemo(
+    () => ({
+      username: loginUsername,
+      pin: loginPin,
+    }),
+    [loginPin, loginUsername]
+  );
+
+  const loadUsers = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch("/api/usuarios", {
-        headers: {
-          "x-admin-user": loginUsername ?? "",
-          "x-admin-pin": loginPin ?? "",
-        },
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setUsers(Array.isArray(data.users) ? data.users : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar usuarios.");
+      const data = await listAdminUsers(credentials);
+      setUsers(data.users);
+      setCatalogs(data.catalogs);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Error al cargar usuarios.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [credentials]);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    void loadUsers();
+  }, [loadUsers]);
 
-  const resetForm = () => {
-    setForm({ username: "", pin: "", rol: "ASESOR", nombres: "", apellidos: "", telefono: "" });
+  const openCreateModal = () => {
+    setEditingUser(null);
+    setModalError(null);
+    setModalOpen(true);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.username || !form.pin || !form.nombres) {
-      setError("Completa username, PIN y nombres.");
-      return;
-    }
-    if (!/^\d{4,6}$/.test(form.pin)) {
-      setError("El PIN debe ser de 4 a 6 dígitos.");
-      return;
-    }
-    if (form.rol === "ADMIN" && !canCreateAdmin) {
-      setError(`Ya hay ${MAX_ADMINS} administradores activos.`);
-      return;
-    }
+  const openEditModal = (user: AdminUser) => {
+    setEditingUser(user);
+    setModalError(null);
+    setModalOpen(true);
+  };
 
+  const closeModal = () => {
+    if (saving) return;
+    setModalOpen(false);
+    setEditingUser(null);
+    setModalError(null);
+  };
+
+  const handleSaveUser = async (payload: AdminUserPayload) => {
     setSaving(true);
-    setError(null);
+    setModalError(null);
     setNotice("");
+
     try {
-      const res = await fetch("/api/usuarios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          auth: { username: loginUsername, pin: loginPin },
-          nuevoUsuario: form,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setNotice(`Usuario '${form.username}' creado exitosamente.`);
-      resetForm();
-      setFormOpen(false);
+      if (editingUser) {
+        await updateAdminUser(credentials, editingUser.id, payload);
+        setNotice(`Usuario '${payload.username}' actualizado.`);
+      } else {
+        await createAdminUser(credentials, payload);
+        setNotice(`Usuario '${payload.username}' creado exitosamente.`);
+      }
+
+      closeModal();
       await loadUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al crear usuario.");
+    } catch (saveError) {
+      setModalError(saveError instanceof Error ? saveError.message : "Error al guardar usuario.");
     } finally {
       setSaving(false);
     }
@@ -110,150 +127,71 @@ function AdminPage() {
 
   const actions = (
     <nav className="topbar-nav">
-      <Link className="btn ghost" to="/cotizador">Cotizador</Link>
-      <Link className="btn ghost" to="/lotes">Lotes</Link>
+      <Link className="btn ghost topbar-action" to="/">
+        <IconMap />
+        Mapa
+      </Link>
+      <Link className="btn ghost topbar-action" to="/lotes">
+        <IconTable />
+        Lotes
+      </Link>
+      <Link className="btn ghost topbar-action" to="/admin">
+        <IconDashboard />
+        Dashboard
+      </Link>
     </nav>
   );
 
   return (
-    <AppShell title="Gestión de Usuarios" actions={actions}>
+    <AppShell title="Gestion de Usuarios" actions={actions} contentClassName="main--admin">
       <section className="admin-page">
         <div className="admin-page__head">
           <div className="admin-page__summary">
-            <span className="admin-badge">{users.length} usuarios</span>
-            <span className={`admin-badge ${canCreateAdmin ? "" : "warn"}`}>
-              {adminCount}/{MAX_ADMINS} admins
+            <span className="admin-badge admin-badge--total">{users.length} usuarios</span>
+            <span className="admin-badge admin-badge--asesor">
+              {asesorCount}/{Math.max(asesorTotal, 1)} asesores activos
+            </span>
+            <span className={`admin-badge admin-badge--admin${canCreateAdmin ? "" : " warn"}`}>
+              {adminCount}/{MAX_ADMINS} admins activos
             </span>
           </div>
-          <button className="btn" onClick={() => setFormOpen(!formOpen)}>
-            {formOpen ? "Cancelar" : "+ Nuevo usuario"}
+          <button className="btn" onClick={openCreateModal}>
+            + Nuevo usuario
           </button>
         </div>
 
-        {error && (
+        {error ? (
           <p className="admin-error">
             {error}
-            <button type="button" className="admin-error__close" onClick={() => setError(null)}>×</button>
+            <button type="button" className="admin-error__close" onClick={() => setError(null)}>
+              x
+            </button>
           </p>
-        )}
-        {notice && (
+        ) : null}
+
+        {notice ? (
           <p className="admin-notice">
             {notice}
-            <button type="button" className="admin-notice__close" onClick={() => setNotice("")}>×</button>
+            <button type="button" className="admin-notice__close" onClick={() => setNotice("")}>
+              x
+            </button>
           </p>
-        )}
+        ) : null}
 
-        {formOpen && (
-          <form className="admin-form" onSubmit={handleCreate}>
-            <h3>Crear nuevo usuario</h3>
-            <div className="admin-form__grid">
-              <label>
-                Username *
-                <input
-                  value={form.username}
-                  onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  placeholder="ej: juan.perez"
-                  autoComplete="off"
-                />
-              </label>
-              <label>
-                PIN (4-6 dígitos) *
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={form.pin}
-                  onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })}
-                  placeholder="••••"
-                  autoComplete="new-password"
-                />
-              </label>
-              <label>
-                Nombres *
-                <input
-                  value={form.nombres}
-                  onChange={(e) => setForm({ ...form, nombres: e.target.value })}
-                  placeholder="Juan Carlos"
-                />
-              </label>
-              <label>
-                Apellidos
-                <input
-                  value={form.apellidos}
-                  onChange={(e) => setForm({ ...form, apellidos: e.target.value })}
-                  placeholder="Pérez García"
-                />
-              </label>
-              <label>
-                Teléfono
-                <input
-                  value={form.telefono}
-                  onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-                  placeholder="987654321"
-                />
-              </label>
-              <label>
-                Rol
-                <select
-                  value={form.rol}
-                  onChange={(e) => setForm({ ...form, rol: e.target.value as "ADMIN" | "ASESOR" })}
-                >
-                  <option value="ASESOR">Asesor</option>
-                  <option value="ADMIN" disabled={!canCreateAdmin}>
-                    Admin {canCreateAdmin ? "" : `(máx ${MAX_ADMINS})`}
-                  </option>
-                </select>
-              </label>
-            </div>
-            <div className="admin-form__actions">
-              <button type="button" className="btn ghost" onClick={() => { resetForm(); setFormOpen(false); }} disabled={saving}>
-                Cancelar
-              </button>
-              <button type="submit" className="btn" disabled={saving}>
-                {saving ? "Guardando..." : "Crear usuario"}
-              </button>
-            </div>
-          </form>
-        )}
-
-        <div className="admin-table-wrap">
-          {loading ? (
-            <p className="muted">Cargando usuarios...</p>
-          ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>USERNAME</th>
-                  <th>NOMBRE</th>
-                  <th>ROL</th>
-                  <th>ESTADO</th>
-                  <th>TELÉFONO</th>
-                  <th>CREADO</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.username}</td>
-                    <td>{`${u.nombres} ${u.apellidos}`.trim()}</td>
-                    <td>
-                      <span className={`role-pill ${u.rol.toLowerCase()}`}>{u.rol}</span>
-                    </td>
-                    <td>
-                      <span className={`estado-pill ${u.estado.toLowerCase()}`}>{u.estado}</span>
-                    </td>
-                    <td>{u.telefono || "-"}</td>
-                    <td>{u.created_at ? new Date(u.created_at).toLocaleDateString("es-PE") : "-"}</td>
-                  </tr>
-                ))}
-                {users.length === 0 && (
-                  <tr><td colSpan={6} className="muted" style={{ textAlign: "center" }}>No hay usuarios registrados.</td></tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <AdminUsersTable users={users} loading={loading} onEdit={openEditModal} />
       </section>
+
+      <AdminUserModal
+        open={modalOpen}
+        mode={editingUser ? "edit" : "create"}
+        user={editingUser}
+        catalogs={catalogs}
+        saving={saving}
+        canCreateAdmin={canCreateAdmin}
+        error={modalError}
+        onClose={closeModal}
+        onSubmit={handleSaveUser}
+      />
     </AppShell>
   );
 }

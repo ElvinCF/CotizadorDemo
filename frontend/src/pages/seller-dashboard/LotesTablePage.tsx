@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "../../app/AppShell";
+import { useAuth } from "../../app/AuthContext";
+import AdminSegmentedControl from "../../components/admin/AdminSegmentedControl";
 import { statusToClass } from "../../domain/formatters";
 import type { Lote } from "../../domain/types";
 
@@ -10,7 +12,6 @@ type EditableFields = {
 };
 
 const formatArea = (value: number | null) => (value == null ? "-" : value.toFixed(2));
-
 
 const normalizeStatus = (value: string | undefined) => {
   const normalized = String(value || "DISPONIBLE").toUpperCase();
@@ -44,7 +45,50 @@ const IconRefresh = () => (
   </svg>
 );
 
+const IconMap = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20V6.5Z"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M9 4v13.5M15 6.5V20" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+const IconSearch = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.6" />
+    <path d="m16 16 4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+const IconBulk = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M5 7h14M5 12h14M5 17h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M8 5v4M12 10v4M16 15v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+const IconAmount = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M7 6h8a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M12 4v16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+const IconPercent = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="m6 18 12-12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.6" />
+    <circle cx="16" cy="16" r="2.5" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
 function LotesTablePage() {
+  const { role } = useAuth();
   const [rows, setRows] = useState<Lote[]>([]);
   const [drafts, setDrafts] = useState<Record<string, EditableFields>>({});
   const [loading, setLoading] = useState(true);
@@ -82,13 +126,7 @@ function LotesTablePage() {
     const term = query.trim().toLowerCase();
     if (!term) return rows;
     return rows.filter((row) => {
-      const raw = [
-        row.id,
-        row.mz,
-        String(row.lote),
-        String(row.price ?? ""),
-        row.condicion,
-      ]
+      const raw = [row.id, row.mz, String(row.lote), String(row.price ?? ""), row.condicion]
         .join(" ")
         .toLowerCase();
       return raw.includes(term);
@@ -129,6 +167,7 @@ function LotesTablePage() {
   };
 
   const hasPendingChanges = rows.some((row) => isDirty(row));
+  const canUseBulkPrices = role === "admin";
 
   const bulkValueNumber = numberFromInput(bulkValue);
   const bulkValueValid = bulkValueNumber != null;
@@ -169,7 +208,7 @@ function LotesTablePage() {
 
   const applyBulkPriceUpdate = async () => {
     if (!bulkValueValid) {
-      setError("Ingresa un valor valido para la actualizacion masiva.");
+      setError("Ingresa un valor valido para el ajuste masivo.");
       return;
     }
     setBulkSaving(true);
@@ -205,14 +244,14 @@ function LotesTablePage() {
         throw new Error(serverMessage || `HTTP ${response.status}`);
       }
       await loadRows(true);
-      setNotice(`Actualizacion masiva aplicada. Lotes actualizados: ${payload.updatedCount ?? 0}.`);
+      setNotice(`Ajuste masivo aplicado. Lotes actualizados: ${payload.updatedCount ?? 0}.`);
       setBulkConfirmOpen(false);
       setBulkModalOpen(false);
       setBulkValue("");
       setBulkType("MONTO");
     } catch (bulkError) {
       const detail = bulkError instanceof Error ? bulkError.message : "Error desconocido";
-      setError(`No se pudo aplicar la actualizacion masiva de precios. ${detail}`);
+      setError(`No se pudo aplicar el ajuste masivo de precios. ${detail}`);
       console.error(bulkError);
     } finally {
       setBulkSaving(false);
@@ -221,186 +260,208 @@ function LotesTablePage() {
 
   const actions = (
     <nav className="topbar-nav">
-      <Link className="btn ghost" to="/cotizador">
-        Cotizador
-      </Link>
-      <Link className="btn ghost" to="/">
-        Ver mapa
+      <Link className="btn ghost topbar-action" to="/">
+        <IconMap />
+        Mapa
       </Link>
     </nav>
   );
 
   return (
-    <AppShell title="Gestión de Lotes" actions={actions}>
+    <AppShell title="Gestion de Lotes" actions={actions} contentClassName="main--seller">
       <section className="seller-page">
         <div className="seller-page__head">
-        <div className="seller-page__head-main">
-          <div className="seller-page__title-row">
-            <p className={hasPendingChanges ? "seller-pending warn" : "seller-pending"}>
-              {hasPendingChanges ? "Hay cambios sin guardar en la tabla." : "No hay cambios pendientes."}
+          <div className="seller-page__head-main">
+            <div className="seller-toolbar">
+              <div className="seller-search-block">
+                <label htmlFor="seller-search">Buscar en la tabla</label>
+                <div className="seller-search-input">
+                  <span className="seller-search-input__icon" aria-hidden="true">
+                    <IconSearch />
+                  </span>
+                  <input
+                    id="seller-search"
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Buscar por lote o condicion"
+                  />
+                </div>
+              </div>
+
+              <div className="seller-toolbar__actions">
+                {canUseBulkPrices ? (
+                  <button className="btn ghost seller-bulk-btn seller-bulk-btn--desktop" onClick={() => setBulkModalOpen(true)}>
+                    <IconBulk />
+                    <span>Ajuste masivo</span>
+                  </button>
+                ) : null}
+                <div className="seller-page__actions">
+                  <button className="btn ghost" onClick={() => loadRows(false)} aria-label="Refrescar tabla">
+                    <IconRefresh />
+                    <span className="seller-refresh-label">Refrescar</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {canUseBulkPrices ? (
+              <div className="seller-toolbar seller-toolbar--mobile-secondary">
+                <button className="btn ghost seller-bulk-btn" onClick={() => setBulkModalOpen(true)}>
+                  <IconBulk />
+                  <span>Ajuste masivo</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {loading ? <p className="muted">Cargando lotes...</p> : null}
+        {error ? <p className="seller-error">{error}</p> : null}
+        {notice ? (
+          <p className="seller-notice">
+            <span>{notice}</span>
+            <button
+              type="button"
+              className="seller-notice__close"
+              onClick={() => setNotice("")}
+              aria-label="Cerrar aviso"
+            >
+              x
+            </button>
+          </p>
+        ) : null}
+        {hasPendingChanges ? (
+          <p className="seller-pending warn">Hay cambios sin guardar en la tabla.</p>
+        ) : null}
+
+        <div className="seller-table-wrap">
+          <table className="seller-edit-table">
+            <thead>
+              <tr>
+                <th>MZ</th>
+                <th>LOTE</th>
+                <th>AREA (m2)</th>
+                <th>PRECIO</th>
+                <th>CONDICION</th>
+                <th>ACCION</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.map((row) => {
+                const currentStatus = readValue(row, "estado");
+                const dirty = isDirty(row);
+                const disabled = savingId === row.id;
+                return (
+                  <tr key={row.id}>
+                    <td>{row.mz}</td>
+                    <td>{row.lote}</td>
+                    <td>{formatArea(row.areaM2)}</td>
+                    <td>
+                      <div className="seller-price-input">
+                        <span>S/</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={readValue(row, "price")}
+                          onChange={(event) => writeDraft(row, "price", event.target.value)}
+                        />
+                      </div>
+                    </td>
+                    <td>
+                      <select
+                        className={`seller-status ${statusToClass(currentStatus)}`}
+                        value={currentStatus}
+                        onChange={(event) => writeDraft(row, "estado", event.target.value)}
+                      >
+                        <option value="DISPONIBLE">DISPONIBLE</option>
+                        <option value="SEPARADO">SEPARADO</option>
+                        <option value="VENDIDO">VENDIDO</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button className="btn" disabled={!dirty || disabled} onClick={() => saveRow(row)}>
+                        {disabled ? "Guardando..." : "Guardar"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {bulkModalOpen ? (
+        <div className="modal-backdrop" onClick={() => setBulkModalOpen(false)}>
+          <div className="seller-bulk-modal" onClick={(event) => event.stopPropagation()}>
+            <header className="seller-bulk-modal__header">
+              <h3>Ajuste masivo de precios</h3>
+            </header>
+            <div className="seller-bulk-modal__body">
+              <label>
+                Tipo de ajuste
+                <AdminSegmentedControl
+                  value={bulkType}
+                  options={[
+                    {
+                      value: "MONTO",
+                      label: "Monto (S/)",
+                      tone: "neutral",
+                      icon: <IconAmount />,
+                    },
+                    {
+                      value: "PORCENTAJE",
+                      label: "Porcentaje (%)",
+                      tone: "neutral",
+                      icon: <IconPercent />,
+                    },
+                  ]}
+                  onChange={(value) => setBulkType(value)}
+                />
+              </label>
+              <label>
+                {bulkType === "MONTO" ? "Monto (S/)" : "Porcentaje (%)"}
+                <input
+                  type="number"
+                  step="0.01"
+                  value={bulkValue}
+                  onChange={(event) => setBulkValue(event.target.value)}
+                  placeholder={bulkType === "MONTO" ? "Ej: 250 o -250" : "Ej: 5 o -5"}
+                />
+              </label>
+              <p className="muted">Solo se actualizan lotes en estado disponible.</p>
+            </div>
+            <footer className="seller-bulk-modal__footer">
+              <button className="btn ghost" onClick={() => setBulkModalOpen(false)} disabled={bulkSaving}>
+                Cancelar
+              </button>
+              <button className="btn" disabled={!bulkValueValid || bulkSaving} onClick={() => setBulkConfirmOpen(true)}>
+                Guardar
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+
+      {bulkConfirmOpen ? (
+        <div className="modal-backdrop" onClick={() => (bulkSaving ? null : setBulkConfirmOpen(false))}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h4>Desea confirmar los cambios?</h4>
+            <p className="muted">
+              Se aplicara un ajuste por {bulkType === "MONTO" ? "monto" : "porcentaje"} a lotes disponibles.
             </p>
-            <div className="seller-page__actions">
-              <button className="btn ghost" onClick={() => loadRows(false)}>
-                <IconRefresh />
-                <span className="seller-refresh-label">Refrescar</span>
+            <div className="confirm-actions">
+              <button className="btn ghost" onClick={() => setBulkConfirmOpen(false)} disabled={bulkSaving}>
+                Cancelar
+              </button>
+              <button className="btn" onClick={applyBulkPriceUpdate} disabled={bulkSaving}>
+                {bulkSaving ? "Aplicando..." : "Confirmar"}
               </button>
             </div>
           </div>
-          <div className="seller-search-row">
-            <div className="seller-search-block">
-              <label htmlFor="seller-search">Buscar en la tabla</label>
-              <input
-                id="seller-search"
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por lote o condición"
-              />
-            </div>
-            <button className="btn ghost seller-bulk-btn" onClick={() => setBulkModalOpen(true)}>
-              Actualizar Precio Masivamente
-            </button>
-          </div>
         </div>
-      </div>
-
-      {loading ? <p className="muted">Cargando lotes...</p> : null}
-      {error ? <p className="seller-error">{error}</p> : null}
-      {notice ? (
-        <p className="seller-notice">
-          <span>{notice}</span>
-          <button
-            type="button"
-            className="seller-notice__close"
-            onClick={() => setNotice("")}
-            aria-label="Cerrar aviso"
-          >
-            ×
-          </button>
-        </p>
       ) : null}
-
-      <div className="seller-table-wrap">
-        <table className="seller-edit-table">
-          <thead>
-            <tr>
-              <th>MZ</th>
-              <th>LOTE</th>
-              <th>AREA (m²)</th>
-              <th>PRECIO</th>
-              <th>CONDICION</th>
-              <th>ACCION</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((row) => {
-              const currentStatus = readValue(row, "estado");
-              const dirty = isDirty(row);
-              const disabled = savingId === row.id;
-              return (
-                <tr key={row.id}>
-                  <td>{row.mz}</td>
-                  <td>{row.lote}</td>
-                  <td>{formatArea(row.areaM2)}</td>
-                  <td>
-                    <div className="seller-price-input">
-                      <span>S/</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={readValue(row, "price")}
-                        onChange={(event) => writeDraft(row, "price", event.target.value)}
-                      />
-                    </div>
-                  </td>
-                  <td>
-                    <select
-                      className={`seller-status ${statusToClass(currentStatus)}`}
-                      value={currentStatus}
-                      onChange={(event) => writeDraft(row, "estado", event.target.value)}
-                    >
-                      <option value="DISPONIBLE">DISPONIBLE</option>
-                      <option value="SEPARADO">SEPARADO</option>
-                      <option value="VENDIDO">VENDIDO</option>
-                    </select>
-                  </td>
-                  <td>
-                    <button
-                      className="btn"
-                      disabled={!dirty || disabled}
-                      onClick={() => saveRow(row)}
-                    >
-                      {disabled ? "Guardando..." : "Guardar"}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    {bulkModalOpen ? (
-      <div className="modal-backdrop" onClick={() => setBulkModalOpen(false)}>
-        <div className="seller-bulk-modal" onClick={(event) => event.stopPropagation()}>
-          <header className="seller-bulk-modal__header">
-            <h3>Actualizar Precio Masivamente</h3>
-          </header>
-          <div className="seller-bulk-modal__body">
-            <label>
-              Tipo de ajuste
-              <select value={bulkType} onChange={(event) => setBulkType(event.target.value as "MONTO" | "PORCENTAJE")}>
-                <option value="MONTO">Por monto (S/)</option>
-                <option value="PORCENTAJE">Por porcentaje (%)</option>
-              </select>
-            </label>
-            <label>
-              {bulkType === "MONTO" ? "Monto (S/)" : "Porcentaje (%)"}
-              <input
-                type="number"
-                step="0.01"
-                value={bulkValue}
-                onChange={(event) => setBulkValue(event.target.value)}
-                placeholder={bulkType === "MONTO" ? "Ej: 250 o -250" : "Ej: 5 o -5"}
-              />
-            </label>
-            <p className="muted">Solo se actualizan lotes en estado disponible.</p>
-          </div>
-          <footer className="seller-bulk-modal__footer">
-            <button className="btn ghost" onClick={() => setBulkModalOpen(false)} disabled={bulkSaving}>
-              Cancelar
-            </button>
-            <button
-              className="btn"
-              disabled={!bulkValueValid || bulkSaving}
-              onClick={() => setBulkConfirmOpen(true)}
-            >
-              Guardar
-            </button>
-          </footer>
-        </div>
-      </div>
-    ) : null}
-
-    {bulkConfirmOpen ? (
-      <div className="modal-backdrop" onClick={() => (bulkSaving ? null : setBulkConfirmOpen(false))}>
-        <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
-          <h4>Desea confirmar los cambios?</h4>
-          <p className="muted">
-            Se aplicara un ajuste por {bulkType === "MONTO" ? "monto" : "porcentaje"} a lotes disponibles.
-          </p>
-          <div className="confirm-actions">
-            <button className="btn ghost" onClick={() => setBulkConfirmOpen(false)} disabled={bulkSaving}>
-              Cancelar
-            </button>
-            <button className="btn" onClick={applyBulkPriceUpdate} disabled={bulkSaving}>
-              {bulkSaving ? "Aplicando..." : "Confirmar"}
-            </button>
-          </div>
-        </div>
-      </div>
-    ) : null}
     </AppShell>
   );
 }

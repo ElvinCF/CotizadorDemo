@@ -4,6 +4,7 @@ import { getSupabaseAdminClient } from "./lotesService.mjs";
 const hashPin = (pin) => createHash("sha256").update(String(pin)).digest("hex");
 
 const VALID_ROLES = new Set(["ADMIN", "ASESOR"]);
+const VALID_STATUS = new Set(["ACTIVO", "INACTIVO"]);
 const MAX_ADMINS = 3;
 
 /**
@@ -167,5 +168,133 @@ export const listUsersAsync = async (adminUsername, adminPin) => {
   if (error) throw new Error("Error al listar usuarios.");
 
   return data || [];
+};
+
+export const getUserCatalogsAsync = async (adminUsername, adminPin) => {
+  await verifyAdminAsync(adminUsername, adminPin);
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("usuarios")
+    .select("rol, estado");
+
+  if (error) throw new Error("Error al cargar catalogos de usuarios.");
+
+  const roles = Array.from(
+    new Set([...(data || []).map((item) => item.rol).filter(Boolean), ...Array.from(VALID_ROLES)])
+  );
+  const statuses = Array.from(
+    new Set([...(data || []).map((item) => item.estado).filter(Boolean), ...Array.from(VALID_STATUS)])
+  );
+
+  return {
+    roles,
+    statuses,
+  };
+};
+
+export const updateUserAsync = async (adminUsername, adminPin, userId, patchInput) => {
+  await verifyAdminAsync(adminUsername, adminPin);
+
+  const supabase = getSupabaseAdminClient();
+  const id = String(userId || "").trim();
+
+  if (!id) {
+    throw new Error("Falta id de usuario.");
+  }
+
+  const { data: existing, error: existingErr } = await supabase
+    .from("usuarios")
+    .select("id, username, rol, estado")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (existingErr) throw new Error("Error al obtener el usuario.");
+  if (!existing) throw new Error("Usuario no encontrado.");
+
+  const patch = patchInput || {};
+  const nextData = {};
+
+  if (patch.username !== undefined) {
+    const username = String(patch.username).trim().toLowerCase();
+    if (!username) throw new Error("El username es obligatorio.");
+
+    const { data: duplicated, error: duplicateErr } = await supabase
+      .from("usuarios")
+      .select("id")
+      .eq("username", username)
+      .neq("id", id)
+      .maybeSingle();
+
+    if (duplicateErr) throw new Error("Error al validar username.");
+    if (duplicated) throw new Error(`El username '${username}' ya existe.`);
+    nextData.username = username;
+  }
+
+  if (patch.rol !== undefined) {
+    const role = String(patch.rol).trim().toUpperCase();
+    if (!VALID_ROLES.has(role)) {
+      throw new Error("Rol invalido. Use ADMIN o ASESOR.");
+    }
+    nextData.rol = role;
+  }
+
+  if (patch.estado !== undefined) {
+    const status = String(patch.estado).trim().toUpperCase();
+    if (!VALID_STATUS.has(status)) {
+      throw new Error("Estado invalido. Use ACTIVO o INACTIVO.");
+    }
+    nextData.estado = status;
+  }
+
+  if (patch.nombres !== undefined) {
+    nextData.nombres = String(patch.nombres).trim();
+  }
+
+  if (patch.apellidos !== undefined) {
+    nextData.apellidos = String(patch.apellidos).trim();
+  }
+
+  if (patch.telefono !== undefined) {
+    nextData.telefono = String(patch.telefono).trim();
+  }
+
+  if (patch.pin !== undefined && String(patch.pin).trim() !== "") {
+    nextData.pin_hash = hashPin(String(patch.pin).trim());
+  }
+
+  const nextRole = String(nextData.rol ?? existing.rol).toUpperCase();
+  const nextStatus = String(nextData.estado ?? existing.estado).toUpperCase();
+
+  if (nextRole === "ADMIN" && nextStatus === "ACTIVO") {
+    const { count, error: countErr } = await supabase
+      .from("usuarios")
+      .select("id", { count: "exact", head: true })
+      .eq("rol", "ADMIN")
+      .eq("estado", "ACTIVO")
+      .neq("id", id);
+
+    if (countErr) throw new Error("Error al verificar limite de administradores.");
+    if ((count ?? 0) >= MAX_ADMINS) {
+      throw new Error(`No se pueden crear mas de ${MAX_ADMINS} administradores activos.`);
+    }
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from("usuarios")
+    .update(nextData)
+    .eq("id", id)
+    .select("id, username, rol, estado, nombres, apellidos, telefono, created_at")
+    .single();
+
+  if (updateErr) {
+    console.error("Error updating user:", updateErr);
+    if (updateErr.message?.includes("administradores")) {
+      throw new Error(`No se pueden crear mas de ${MAX_ADMINS} administradores activos.`);
+    }
+    throw new Error("Error al actualizar el usuario.");
+  }
+
+  return updated;
 };
 

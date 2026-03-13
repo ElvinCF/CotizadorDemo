@@ -19,8 +19,21 @@ const IconTable = () => (
 
 const IconExcel = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <rect x="3" y="3" width="14" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M7 9h6M7 13h6M7 17h4M17 7l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path
+      d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+    <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M8 16h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path
+      d="M10 13h7m0 0-2.5-2.5M17 13l-2.5 2.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
@@ -43,6 +56,7 @@ type MapHeaderProps = {
   totalCount: number;
   onExportExecutivePdf: () => void;
   onExportTable: () => void;
+  hideExecutiveExport?: boolean;
 };
 
 function MapHeader({
@@ -52,6 +66,7 @@ function MapHeader({
   totalCount,
   onExportExecutivePdf,
   onExportTable,
+  hideExecutiveExport = false,
 }: MapHeaderProps) {
   return (
     <div className="map-header">
@@ -72,7 +87,7 @@ function MapHeader({
           </div>
         </div>
         <div className="map-header__right">
-          {view === "mapa" && (
+          {view === "mapa" && !hideExecutiveExport && (
             <button
               className="btn ghost export-download-btn"
               onClick={onExportExecutivePdf}
@@ -85,8 +100,15 @@ function MapHeader({
             </button>
           )}
           {view === "tabla" && (
-            <button className="btn ghost" onClick={onExportTable}>
-              <IconExcel /> Exportar
+            <button
+              className="btn ghost export-download-btn"
+              onClick={onExportTable}
+              aria-label="Exportar tabla a Excel"
+              title="Exportar tabla a Excel"
+            >
+              <IconExcel />
+              <span className="label-desktop">Exportar</span>
+              <span className="label-tablet">Excel</span>
             </button>
           )}
         </div>

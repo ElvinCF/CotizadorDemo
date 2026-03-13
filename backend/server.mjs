@@ -5,7 +5,25 @@ import {
   updateAvailablePricesMassive,
   updateLoteById,
 } from "./lib/lotesService.mjs";
-import { loginAsync, createUserAsync, listUsersAsync } from "./lib/usuariosService.mjs";
+import {
+  createUserAsync,
+  getUserCatalogsAsync,
+  listUsersAsync,
+  loginAsync,
+  updateUserAsync,
+} from "./lib/usuariosService.mjs";
+
+const getAdminCredentials = (req) => {
+  const headerUser = req.headers["x-admin-user"];
+  const headerPin = req.headers["x-admin-pin"];
+  const bodyUser = req.body?.auth?.username;
+  const bodyPin = req.body?.auth?.pin;
+
+  return {
+    username: typeof headerUser === "string" && headerUser.trim() ? headerUser.trim() : bodyUser,
+    pin: typeof headerPin === "string" && headerPin.trim() ? headerPin.trim() : bodyPin,
+  };
+};
 
 const PORT = Number(process.env.PORT || 8787);
 
@@ -58,13 +76,14 @@ app.post("/api/lotes/precios-masivos", async (req, res) => {
 // ── Usuarios ────────────────────────────────────────────────────
 app.get("/api/usuarios", async (req, res) => {
   try {
-    const authUser = req.headers["x-admin-user"];
-    const authPin = req.headers["x-admin-pin"];
+    const { username: authUser, pin: authPin } = getAdminCredentials(req);
     if (!authUser || !authPin) {
-      return res.status(401).json({ error: "Credenciales de admin requeridas." });
+      res.status(401).json({ error: "Credenciales de admin requeridas." });
+      return;
     }
     const users = await listUsersAsync(authUser, authPin);
-    res.json({ users });
+    const catalogs = await getUserCatalogsAsync(authUser, authPin);
+    res.json({ users, catalogs });
   } catch (error) {
     console.error("Error listing users:", error);
     res.status(403).json({ error: error.message || "Error al listar usuarios." });
@@ -73,11 +92,13 @@ app.get("/api/usuarios", async (req, res) => {
 
 app.post("/api/usuarios", async (req, res) => {
   try {
-    const { auth, nuevoUsuario } = req.body ?? {};
-    if (!auth?.username || !auth?.pin) {
-      return res.status(401).json({ error: "Credenciales de admin requeridas." });
+    const { username: authUser, pin: authPin } = getAdminCredentials(req);
+    const { nuevoUsuario } = req.body ?? {};
+    if (!authUser || !authPin) {
+      res.status(401).json({ error: "Credenciales de admin requeridas." });
+      return;
     }
-    const user = await createUserAsync(auth.username, auth.pin, nuevoUsuario);
+    const user = await createUserAsync(authUser, authPin, nuevoUsuario);
     res.status(201).json({ success: true, user });
   } catch (error) {
     console.error("Error creating user:", error);
@@ -86,6 +107,27 @@ app.post("/api/usuarios", async (req, res) => {
       : error.message?.includes("ya existe") ? 409
       : 400;
     res.status(status).json({ error: error.message || "Error al crear usuario." });
+  }
+});
+
+app.put("/api/usuarios", async (req, res) => {
+  try {
+    const { username: authUser, pin: authPin } = getAdminCredentials(req);
+    const { id, patch } = req.body ?? {};
+    if (!authUser || !authPin) {
+      res.status(401).json({ error: "Credenciales de admin requeridas." });
+      return;
+    }
+    const user = await updateUserAsync(authUser, authPin, id, patch);
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    const status = error.message?.includes("permisos") ? 403
+      : error.message?.includes("administradores") ? 409
+      : error.message?.includes("ya existe") ? 409
+      : error.message?.includes("no encontrado") ? 404
+      : 400;
+    res.status(status).json({ error: error.message || "Error al actualizar usuario." });
   }
 });
 

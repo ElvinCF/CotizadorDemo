@@ -40,6 +40,7 @@ type CotizadorDrawerProps = {
   onPrint: () => void;
   onOpenProforma: () => void;
   onChangeQuote: (next: QuoteState) => void;
+  hideProformaButton?: boolean;
 };
 
 function CotizadorDrawer({
@@ -56,6 +57,7 @@ function CotizadorDrawer({
   onPrint,
   onOpenProforma,
   onChangeQuote,
+  hideProformaButton = false,
 }: CotizadorDrawerProps) {
   const precioM2 =
     selectedLote?.price != null &&
@@ -69,7 +71,7 @@ function CotizadorDrawer({
       <div className="drawer__header">
         <h3>Cotizador</h3>
         <div className="drawer__header-actions">
-          {selectedLote && selectedLote.condicion !== "VENDIDO" ? (
+          {selectedLote && selectedLote.condicion !== "VENDIDO" && !hideProformaButton ? (
             <button className="btn ghost drawer-proforma-btn" onClick={onOpenProforma}>
               <IconPlus /> <span>Proforma</span>
             </button>

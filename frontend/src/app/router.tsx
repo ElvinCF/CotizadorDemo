@@ -1,16 +1,16 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import OverlayEditorPage from "../pages/overlay-editor/OverlayEditorPage";
-import PublicMapPage from "../pages/public-map/PublicMapPage";
 import LotesTablePage from "../pages/seller-dashboard/LotesTablePage";
 import LoginPage from "../pages/login/LoginPage";
 import SalesMapPage from "../pages/admin/SalesMapPage";
 import AdminPage from "../pages/admin/AdminPage";
+import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
 import ProtectedRoute from "./ProtectedRoute";
 
 export const appRouter = createBrowserRouter([
   {
     path: "/",
-    element: <PublicMapPage />,
+    element: <SalesMapPage publicView />,
   },
   {
     path: "/login",
@@ -18,11 +18,7 @@ export const appRouter = createBrowserRouter([
   },
   {
     path: "/cotizador",
-    element: (
-      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
-        <SalesMapPage />
-      </ProtectedRoute>
-    ),
+    element: <Navigate to="/" replace />,
   },
   {
     path: "/lotes",
@@ -43,6 +39,14 @@ export const appRouter = createBrowserRouter([
   },
   {
     path: "/admin",
+    element: (
+      <ProtectedRoute allowedRoles={["admin"]}>
+        <AdminDashboardPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/usuarios",
     element: (
       <ProtectedRoute allowedRoles={["admin"]}>
         <AdminPage />
