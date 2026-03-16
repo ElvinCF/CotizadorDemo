@@ -101,6 +101,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const hidePublicRestrictedActions = publicView && !isAuthenticated;
+  const DRAWER_PULSE_MS = 900;
 
   useEffect(() => {
     let active = true;
@@ -208,15 +209,15 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     const prevLote = previousLoteRef.current;
     if (prevMz != null && prevMz !== selectedLote.mz) {
       setPulseMz(true);
-      window.setTimeout(() => setPulseMz(false), 420);
+      window.setTimeout(() => setPulseMz(false), DRAWER_PULSE_MS);
     }
     if (prevLote != null && prevLote !== selectedLote.lote) {
       setPulseLote(true);
-      window.setTimeout(() => setPulseLote(false), 420);
+      window.setTimeout(() => setPulseLote(false), DRAWER_PULSE_MS);
     }
     previousMzRef.current = selectedLote.mz;
     previousLoteRef.current = selectedLote.lote;
-  }, [selectedLote]);
+  }, [selectedLote, DRAWER_PULSE_MS]);
 
   useEffect(() => {
     const root = svgRef.current;

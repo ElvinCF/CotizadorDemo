@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 type ValidatedNumberFieldProps = {
   label: string;
   value: number;
@@ -8,6 +10,8 @@ type ValidatedNumberFieldProps = {
   invalid: boolean;
   errorText: string;
   labelClassName?: string;
+  afterInput?: ReactNode;
+  controlRowClassName?: string;
 };
 
 function ValidatedNumberField({
@@ -20,30 +24,35 @@ function ValidatedNumberField({
   invalid,
   errorText,
   labelClassName,
+  afterInput,
+  controlRowClassName,
 }: ValidatedNumberFieldProps) {
   return (
     <label className={[labelClassName, invalid ? "has-error" : ""].filter(Boolean).join(" ")}>
       {label}
-      <div className="field-control">
-        <input
-          type="number"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          className={invalid ? "is-invalid" : ""}
-          onChange={(event) => onChange(Number(event.target.value || 0))}
-        />
-        {invalid ? (
-          <>
-            <span className="field-alert-icon" aria-hidden="true">
-              !
-            </span>
-            <small className="field-error-bubble" role="alert">
-              {errorText}
-            </small>
-          </>
-        ) : null}
+      <div className={["field-control-row", controlRowClassName].filter(Boolean).join(" ")}>
+        <div className="field-control">
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            className={invalid ? "is-invalid" : ""}
+            onChange={(event) => onChange(Number(event.target.value || 0))}
+          />
+          {invalid ? (
+            <>
+              <span className="field-alert-icon" aria-hidden="true">
+                !
+              </span>
+              <small className="field-error-bubble" role="alert">
+                {errorText}
+              </small>
+            </>
+          ) : null}
+        </div>
+        {afterInput}
       </div>
     </label>
   );
