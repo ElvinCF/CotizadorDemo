@@ -18,7 +18,7 @@ export const appRouter = createBrowserRouter([
   },
   {
     path: "/cotizador",
-    element: <Navigate to="/" replace />,
+    element: <SalesMapPage publicView />,
   },
   {
     path: "/lotes",

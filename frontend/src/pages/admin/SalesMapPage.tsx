@@ -1,4 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import {
@@ -42,6 +43,8 @@ type SalesMapPageProps = {
 };
 
 function SalesMapPage({ publicView = false }: SalesMapPageProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
@@ -101,6 +104,42 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const hidePublicRestrictedActions = publicView && !isAuthenticated;
+  const isCotizadorRoute = publicView && location.pathname === "/cotizador";
+
+  const openQuoteDrawer = useCallback(
+    (loteId?: string | null) => {
+      if (loteId) {
+        setSelectedId(loteId);
+      }
+      setRightOpen(true);
+
+      if (publicView && location.pathname !== "/cotizador") {
+        navigate("/cotizador");
+      }
+    },
+    [location.pathname, navigate, publicView]
+  );
+
+  const closeQuoteDrawer = useCallback(() => {
+    setRightOpen(false);
+    setSelectedId(null);
+
+    if (publicView && location.pathname === "/cotizador") {
+      navigate("/", { replace: true });
+    }
+  }, [location.pathname, navigate, publicView]);
+
+  useEffect(() => {
+    if (!publicView) return;
+
+    if (isCotizadorRoute) {
+      setRightOpen(true);
+      return;
+    }
+
+    setRightOpen(false);
+    setSelectedId(null);
+  }, [isCotizadorRoute, publicView]);
 
   useEffect(() => {
     let active = true;
@@ -295,7 +334,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [proformaDirty, proformaOpen]);
+  }, [closeQuoteDrawer, proformaDirty, proformaOpen]);
 
   useEffect(() => {
     return () => {
@@ -352,15 +391,14 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       }
       return;
     }
-    if (event.type === "click") {
-      if (draggedRef.current) {
-        draggedRef.current = false;
+      if (event.type === "click") {
+        if (draggedRef.current) {
+          draggedRef.current = false;
+          return;
+        }
+        openQuoteDrawer(id);
         return;
       }
-      setSelectedId(id);
-      setRightOpen(true);
-      return;
-    }
     if (hoveredId !== id) {
       setHoveredId(id);
     }
@@ -371,7 +409,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         hoverRafRef.current = null;
       });
     }
-  }, [hoveredId]);
+  }, [hoveredId, openQuoteDrawer]);
 
   const handleSvgLeave = useCallback(() => {
     setHoveredId(null);
@@ -1292,8 +1330,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 filteredLotes={filteredLotes}
                 selectedId={selectedId}
                 onSelectLote={(id) => {
-                  setSelectedId(id);
-                  setRightOpen(true);
+                  openQuoteDrawer(id);
                 }}
               />
             )}
@@ -1322,10 +1359,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           cuotaRapida={cuotaRapida}
           onPrint={exportPrintable}
           onOpenProforma={openProforma}
-          onClose={() => {
-            setRightOpen(false);
-            setSelectedId(null);
-          }}
+          onClose={closeQuoteDrawer}
           onChangeQuote={setQuote}
           hideProformaButton={hidePublicRestrictedActions}
         />
