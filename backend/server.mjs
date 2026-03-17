@@ -12,10 +12,30 @@ import {
   loginAsync,
   updateUserAsync,
 } from "./lib/usuariosService.mjs";
+import {
+  addSalePaymentAsync,
+  createSaleAsync,
+  findClientByDniAsync,
+  getSaleByIdAsync,
+  listSalesAsync,
+  updateSaleAsync,
+} from "./lib/ventasService.mjs";
 
 const getAdminCredentials = (req) => {
   const headerUser = req.headers["x-admin-user"];
   const headerPin = req.headers["x-admin-pin"];
+  const bodyUser = req.body?.auth?.username;
+  const bodyPin = req.body?.auth?.pin;
+
+  return {
+    username: typeof headerUser === "string" && headerUser.trim() ? headerUser.trim() : bodyUser,
+    pin: typeof headerPin === "string" && headerPin.trim() ? headerPin.trim() : bodyPin,
+  };
+};
+
+const getAuthCredentials = (req) => {
+  const headerUser = req.headers["x-auth-user"];
+  const headerPin = req.headers["x-auth-pin"];
   const bodyUser = req.body?.auth?.username;
   const bodyPin = req.body?.auth?.pin;
 
@@ -70,6 +90,112 @@ app.post("/api/lotes/precios-masivos", async (req, res) => {
       error: "No se pudo actualizar precios masivamente en Supabase",
       detail,
     });
+  }
+});
+
+app.get("/api/clientes", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    const dni = req.query?.dni;
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    if (typeof dni !== "string" || !dni.trim()) {
+      res.status(400).json({ error: "Falta dni." });
+      return;
+    }
+
+    const client = await findClientByDniAsync(username, pin, dni);
+    res.json({ client });
+  } catch (error) {
+    console.error("Error finding client by DNI:", error);
+    res.status(400).json({ error: error.message || "No se pudo buscar cliente." });
+  }
+});
+
+app.get("/api/ventas", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await listSalesAsync(username, pin);
+    res.json({ items });
+  } catch (error) {
+    console.error("Error listing sales:", error);
+    res.status(400).json({ error: error.message || "No se pudo listar ventas." });
+  }
+});
+
+app.post("/api/ventas", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const sale = await createSaleAsync(username, pin, req.body ?? {});
+    res.status(201).json({ sale });
+  } catch (error) {
+    console.error("Error creating sale:", error);
+    const message = error.message || "No se pudo crear la venta.";
+    const status = message.includes("no encontrada") ? 404 : message.includes("ya tiene una venta activa") ? 409 : 400;
+    res.status(status).json({ error: message });
+  }
+});
+
+app.get("/api/ventas/:id", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const sale = await getSaleByIdAsync(username, pin, req.params.id);
+    res.json({ sale });
+  } catch (error) {
+    console.error("Error reading sale detail:", error);
+    const message = error.message || "No se pudo obtener la venta.";
+    res.status(message.includes("no encontrada") ? 404 : 400).json({ error: message });
+  }
+});
+
+app.put("/api/ventas/:id", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const sale = await updateSaleAsync(username, pin, req.params.id, req.body ?? {});
+    res.json({ sale });
+  } catch (error) {
+    console.error("Error updating sale:", error);
+    const message = error.message || "No se pudo actualizar la venta.";
+    res.status(message.includes("no encontrada") ? 404 : 400).json({ error: message });
+  }
+});
+
+app.post("/api/ventas/:id/pagos", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const sale = await addSalePaymentAsync(username, pin, req.params.id, req.body ?? {});
+    res.status(201).json({ sale });
+  } catch (error) {
+    console.error("Error adding payment to sale:", error);
+    const message = error.message || "No se pudo registrar el pago.";
+    res.status(message.includes("no encontrada") ? 404 : 400).json({ error: message });
   }
 });
 

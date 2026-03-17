@@ -105,6 +105,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const hidePublicRestrictedActions = publicView && !isAuthenticated;
   const isCotizadorRoute = publicView && location.pathname === "/cotizador";
+  const DRAWER_PULSE_MS = 900;
 
   const openQuoteDrawer = useCallback(
     (loteId?: string | null) => {

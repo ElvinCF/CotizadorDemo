@@ -1,5 +1,6 @@
 export type Lote = {
   id: string;
+  dbId?: string;
   mz: string;
   lote: number;
   areaM2: number | null;

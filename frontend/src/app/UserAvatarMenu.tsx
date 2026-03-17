@@ -66,6 +66,13 @@ const IconUsers = () => (
   </svg>
 );
 
+const IconSales = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M5 19V9M12 19V5M19 19v-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M3 19h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
 const IconLogin = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path d="M10 17 15 12 10 7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -90,6 +97,7 @@ const roleMenuItems = (role: "asesor" | "admin" | null, isAuthenticated: boolean
   const base: MenuItem[] = [
     { label: "Mapa", to: "/", icon: <IconMap /> },
     { label: "Editar lotes", to: "/lotes", icon: <IconTable /> },
+    { label: "Ventas", to: "/ventas", icon: <IconSales /> },
   ];
 
   if (role === "admin") {

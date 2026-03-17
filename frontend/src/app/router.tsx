@@ -5,6 +5,8 @@ import LoginPage from "../pages/login/LoginPage";
 import SalesMapPage from "../pages/admin/SalesMapPage";
 import AdminPage from "../pages/admin/AdminPage";
 import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
+import SalesListPage from "../pages/sales/SalesListPage";
+import SaleFormPage from "../pages/sales/SaleFormPage";
 import ProtectedRoute from "./ProtectedRoute";
 
 export const appRouter = createBrowserRouter([
@@ -25,6 +27,30 @@ export const appRouter = createBrowserRouter([
     element: (
       <ProtectedRoute allowedRoles={["admin", "asesor"]}>
         <LotesTablePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/ventas",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <SalesListPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/ventas/nueva",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <SaleFormPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/ventas/:id",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <SaleFormPage />
       </ProtectedRoute>
     ),
   },

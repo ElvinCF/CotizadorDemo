@@ -4601,3 +4601,318 @@ input.is-invalid {
     padding: 8px 14px;
   }
 }
+
+.seller-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sales-page,
+.sales-form-page {
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  border-radius: 20px;
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+  min-height: 100%;
+  align-content: start;
+  box-shadow: var(--shadow-elevated);
+}
+
+.sales-page__head,
+.sales-form-page__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sales-page__head h2,
+.sales-form-page__head h2 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.sales-page__head p,
+.sales-form-page__head p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+}
+
+.sales-form-page__summary {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sales-table-wrap {
+  overflow: auto;
+}
+
+.sales-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.sales-table th,
+.sales-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 90%, transparent);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.sales-table th {
+  color: var(--color-primary-strong);
+  font-size: 0.78rem;
+}
+
+.sales-table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-panel-alt) 48%, transparent);
+}
+
+.sales-table--compact {
+  min-width: 0;
+}
+
+.sales-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.sales-pill.is-warning {
+  background: color-mix(in srgb, var(--color-warning-soft) 70%, transparent);
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 22%, transparent);
+}
+
+.sales-pill.is-success {
+  background: color-mix(in srgb, var(--color-success-soft) 70%, transparent);
+  color: var(--color-success-strong);
+  border-color: color-mix(in srgb, var(--color-success) 22%, transparent);
+}
+
+.sales-pill.is-danger {
+  background: color-mix(in srgb, var(--color-danger-soft) 75%, transparent);
+  color: var(--color-danger-strong);
+  border-color: color-mix(in srgb, var(--color-danger) 22%, transparent);
+}
+
+.sales-pill.is-info {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary-strong);
+  border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.sales-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sales-form-card {
+  background: var(--color-panel-contrast);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.sales-form-card h3,
+.sales-payments-list h4 {
+  margin: 0;
+  color: var(--color-primary-strong);
+}
+
+.sales-form-card--summary {
+  grid-column: 1 / -1;
+}
+
+.sales-form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sales-form-fields label,
+.sales-payment-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--color-primary-strong);
+}
+
+.sales-form-fields textarea,
+.sales-payment-form textarea,
+.sales-payment-form select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-sizing: border-box;
+  min-height: 38px;
+}
+
+.sales-form-fields textarea:focus,
+.sales-payment-form textarea:focus,
+.sales-payment-form select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-primary) 42%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.sales-form-fields__full {
+  grid-column: 1 / -1;
+}
+
+.sales-form-fields__dni {
+  grid-column: 1 / -1;
+}
+
+.sales-inline-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.sales-form-fields--payments {
+  grid-template-columns: 1fr;
+}
+
+.sales-payment-inline {
+  display: grid;
+  grid-template-columns: 110px 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.sales-payment-inline strong {
+  color: var(--color-text);
+}
+
+.sales-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sales-kpi-grid article {
+  border-radius: 14px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  background: color-mix(in srgb, var(--color-panel) 84%, transparent);
+  display: grid;
+  gap: 4px;
+}
+
+.sales-kpi-grid span {
+  font-size: 0.76rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+}
+
+.sales-kpi-grid strong {
+  font-size: 1.1rem;
+  color: var(--color-text);
+}
+
+.sales-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.sales-payments-card {
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  background: var(--color-panel-contrast);
+  overflow: hidden;
+}
+
+.sales-collapse-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sales-payments-card__body {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 90%, transparent);
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.sales-payment-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sales-payment-form__full,
+.sales-payment-form__actions {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1024px) {
+  .sales-form-grid,
+  .sales-kpi-grid,
+  .sales-payment-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .seller-row-actions {
+    gap: 6px;
+  }
+
+  .seller-row-actions .btn {
+    min-height: 34px;
+    padding: 7px 10px;
+  }
+
+  .sales-page,
+  .sales-form-page {
+    border-radius: 0;
+    padding: 14px;
+  }
+
+  .sales-form-grid,
+  .sales-form-fields,
+  .sales-kpi-grid,
+  .sales-payment-form,
+  .sales-payment-inline {
+    grid-template-columns: 1fr;
+  }
+
+  .sales-inline-action {
+    grid-template-columns: 1fr;
+  }
+
+  .sales-table {
+    min-width: 680px;
+  }
+}

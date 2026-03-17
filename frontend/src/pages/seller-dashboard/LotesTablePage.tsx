@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import AdminSegmentedControl from "../../components/admin/AdminSegmentedControl";
 import { statusToClass } from "../../domain/formatters";
 import type { Lote } from "../../domain/types";
+import { listSales } from "../../services/ventas";
 
 type EditableFields = {
   price: string;
@@ -72,9 +73,18 @@ const IconBulk = () => (
   </svg>
 );
 
+const IconSale = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M5 19V9M12 19V5M19 19v-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M3 19h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
 function LotesTablePage() {
+  const navigate = useNavigate();
   const { role } = useAuth();
   const [rows, setRows] = useState<Lote[]>([]);
+  const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, EditableFields>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +115,26 @@ function LotesTablePage() {
 
   useEffect(() => {
     loadRows();
+  }, []);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const sales = await listSales();
+        const mapping = sales.reduce<Record<string, string>>((acc, sale) => {
+          const code = sale.lote?.codigo;
+          if (code) {
+            acc[code] = sale.id;
+          }
+          return acc;
+        }, {});
+        setSalesByLoteCode(mapping);
+      } catch (loadSalesError) {
+        console.error(loadSalesError);
+      }
+    };
+
+    void run();
   }, []);
 
   const filteredRows = useMemo(() => {
@@ -189,6 +219,20 @@ function LotesTablePage() {
     } finally {
       setSavingId(null);
     }
+  };
+
+  const openSaleFlow = (row: Lote, targetStatus?: "SEPARADO" | "VENDIDO") => {
+    const activeSaleId = salesByLoteCode[row.id];
+    if (activeSaleId) {
+      navigate(`/ventas/${activeSaleId}`);
+      return;
+    }
+
+    const params = new URLSearchParams({ lote: row.id });
+    if (targetStatus) {
+      params.set("target", targetStatus);
+    }
+    navigate(`/ventas/nueva?${params.toString()}`);
   };
 
   const applyBulkPriceUpdate = async () => {
@@ -357,7 +401,18 @@ function LotesTablePage() {
                       <select
                         className={`seller-status ${statusToClass(currentStatus)}`}
                         value={currentStatus}
-                        onChange={(event) => writeDraft(row, "estado", event.target.value)}
+                        onChange={(event) => {
+                          const nextValue = normalizeStatus(event.target.value);
+                          if (
+                            nextValue !== normalizeStatus(row.condicion) &&
+                            (nextValue === "SEPARADO" || nextValue === "VENDIDO")
+                          ) {
+                            openSaleFlow(row, nextValue);
+                            return;
+                          }
+
+                          writeDraft(row, "estado", nextValue);
+                        }}
                       >
                         <option value="DISPONIBLE">DISPONIBLE</option>
                         <option value="SEPARADO">SEPARADO</option>
@@ -365,9 +420,21 @@ function LotesTablePage() {
                       </select>
                     </td>
                     <td>
-                      <button className="btn" disabled={!dirty || disabled} onClick={() => saveRow(row)}>
-                        {disabled ? "Guardando..." : "Guardar"}
-                      </button>
+                      <div className="seller-row-actions">
+                        <button className="btn" disabled={!dirty || disabled} onClick={() => saveRow(row)}>
+                          {disabled ? "Guardando..." : "Guardar"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          disabled={!salesByLoteCode[row.id]}
+                          onClick={() => openSaleFlow(row)}
+                          title={salesByLoteCode[row.id] ? "Abrir venta" : "Este lote aun no tiene venta activa"}
+                        >
+                          <IconSale />
+                          Venta
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
