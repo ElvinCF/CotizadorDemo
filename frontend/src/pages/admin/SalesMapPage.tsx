@@ -247,15 +247,15 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     const prevLote = previousLoteRef.current;
     if (prevMz != null && prevMz !== selectedLote.mz) {
       setPulseMz(true);
-      window.setTimeout(() => setPulseMz(false), 420);
+      window.setTimeout(() => setPulseMz(false), DRAWER_PULSE_MS);
     }
     if (prevLote != null && prevLote !== selectedLote.lote) {
       setPulseLote(true);
-      window.setTimeout(() => setPulseLote(false), 420);
+      window.setTimeout(() => setPulseLote(false), DRAWER_PULSE_MS);
     }
     previousMzRef.current = selectedLote.mz;
     previousLoteRef.current = selectedLote.lote;
-  }, [selectedLote]);
+  }, [selectedLote, DRAWER_PULSE_MS]);
 
   useEffect(() => {
     const root = svgRef.current;
@@ -495,9 +495,11 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   });
 
   const refreshProformaFromLote = (lote: Lote) => {
-    const regular = lote.price ?? 0;
+    const regular = Math.max(quote.precio || lote.price || 0, 0);
     const promo = regular;
-    const inicial = clamp(6000, 6000, promo || 6000);
+    const inicialCotizada = Math.max(Math.round(quote.inicialMonto || 0), 6000);
+    const inicial = clamp(inicialCotizada, 6000, promo || 6000);
+    const meses = clamp(Math.round(quote.cuotas || 0), 1, 36);
     const dias = 3;
     lastPriceEditedRef.current = null;
     setProforma({
@@ -517,7 +519,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       fechaCaducidad: toDateValue(addDays(new Date(), dias)),
       separacion: 0,
       inicial,
-      meses: 24,
+      meses,
       vendedor: proforma.vendedor,
       creadoEn: new Date().toISOString(),
     });

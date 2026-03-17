@@ -59,26 +59,35 @@ function CotizadorDrawer({
   onChangeQuote,
   hideProformaButton = false,
 }: CotizadorDrawerProps) {
+  const precioLote = selectedLote?.price ?? quote.precio ?? 0;
+  const loteStatusClass = statusToClass(selectedLote?.condicion);
   const precioM2 =
     selectedLote?.price != null &&
     selectedLote.areaM2 != null &&
     selectedLote.areaM2 > 0
       ? selectedLote.price / selectedLote.areaM2
       : null;
+  const initialSliderMax = Math.max(6000, Math.ceil(precioLote / 500) * 500);
+
+  const applyMonthsPreset = (meses: number) => {
+    onChangeQuote({ ...quote, cuotas: meses });
+  };
 
   return (
     <aside className={`drawer-panel right ${rightOpen ? "open" : ""}`}>
       <div className="drawer__header">
-        <h3>Cotizador</h3>
-        <div className="drawer__header-actions">
-          {selectedLote && selectedLote.condicion !== "VENDIDO" && !hideProformaButton ? (
-            <button className="btn ghost drawer-proforma-btn" onClick={onOpenProforma}>
-              <IconPlus /> <span>Proforma</span>
-            </button>
+        <div className="drawer__header-main">
+          <div className="drawer__header-copy">
+            <h3>Cotizador</h3>
+          </div>
+          {selectedLote ? (
+            <div className="drawer__header-chips">
+              <span className={`chip chip-emphasis ${pulseMz ? "pulse" : ""}`}>MZ {selectedLote.mz}</span>
+              <span className={`chip chip-emphasis ${pulseLote ? "pulse" : ""}`}>Lote {selectedLote.lote}</span>
+            </div>
           ) : null}
-          <button className="btn ghost" onClick={onPrint}>
-            <IconPrint /> <span className="drawer-print-label">Imprimir</span>
-          </button>
+        </div>
+        <div className="drawer__header-actions">
           <button className="btn ghost drawer-close-btn icon-only" onClick={onClose} aria-label="Cerrar cotizador">
             <IconClose />
           </button>
@@ -87,94 +96,134 @@ function CotizadorDrawer({
       <div className="drawer__body">
         {selectedLote ? (
           <>
-            <div className="drawer-chips">
-              <span className={`chip chip-emphasis ${pulseMz ? "pulse" : ""}`}>MZ {selectedLote.mz}</span>
-              <span className={`chip chip-emphasis ${pulseLote ? "pulse" : ""}`}>Lote {selectedLote.lote}</span>
-              <span className={`chip status-pill ${statusToClass(selectedLote.condicion)}`}>
-                {normalizeStatusLabel(selectedLote.condicion)}
-              </span>
-            </div>
-            <div className="drawer-cards">
-              <div className="drawer-card area-card">
-                <span>Area total</span>
-                <strong>{formatArea(selectedLote.areaM2)}</strong>
+            <div className="drawer-summary-grid">
+              <div className="drawer-summary-stack">
+                <span className={`chip drawer-status-chip status-pill ${statusToClass(selectedLote.condicion)}`}>
+                  {normalizeStatusLabel(selectedLote.condicion)}
+                </span>
+                <div className="drawer-card area-card">
+                  <small className="drawer-card__label">Area total</small>
+                  <strong>{formatArea(selectedLote.areaM2)}</strong>
+                </div>
               </div>
-              <div className="drawer-card price-card">
-                <span>Precio del lote</span>
+              <div
+                className={`drawer-card price-card drawer-card--main price-card--${loteStatusClass} ${pulseMz || pulseLote ? "price-card--pulse" : ""}`}
+              >
+                <small className="drawer-card__label">Precio del lote</small>
                 <strong>{formatMoney(selectedLote.price)}</strong>
-                <small className="price-per-m2">
+                <small className="drawer-card__meta">
                   Precio m2 <b>{precioM2 != null ? formatMoney(precioM2) : "-"}</b>
                 </small>
               </div>
             </div>
 
-            <div className="quick-quotes">
-              <h4>Cuotas rapidas (inicial fija {formatMoney(quote.inicialMonto)})</h4>
-              <div className="quick-list">
-                {[12, 24, 36].map((meses) => (
-                  <div className="quick-row-detail" key={meses}>
-                    <span>{meses} meses</span>
-                    <strong>{formatMoney(cuotaRapida(meses, quote.inicialMonto))}</strong>
+            <div className={`quote-hero quote-hero--${loteStatusClass} ${pulseMz || pulseLote ? "quote-hero--pulse" : ""}`}>
+              <div className="quote-hero__head">
+                <span className="quote-hero__eyebrow">Tu cuota estimada mensual</span>
+              </div>
+              <div className="quote-hero__content">
+                <div className="quote-hero__details">
+                  <div className="quote-hero__detail">
+                    <small>Inicial:</small>
+                    <b>{formatMoney(quote.inicialMonto)}</b>
                   </div>
-                ))}
+                  <div className="quote-hero__detail">
+                    <small>Meses:</small>
+                    <b>{quote.cuotas}</b>
+                  </div>
+                </div>
+                <strong>{formatMoney(cuota)}</strong>
               </div>
             </div>
 
             <div className="quote-box compact">
-              <h4>Cotizacion manual</h4>
-              <div className="quote-grid">
-                <ValidatedNumberField
-                  label="Inicial (S/)"
-                  value={quote.inicialMonto}
-                  min={0}
-                  invalid={quoteInvalidInicial}
-                  errorText="La inicial minima es S/ 6,000."
-                  onChange={(next) => onChangeQuote({ ...quote, inicialMonto: next })}
-                />
-                <ValidatedNumberField
-                  label="Meses (1 a 36)"
-                  value={quote.cuotas}
-                  min={1}
-                  invalid={quoteInvalidMeses}
-                  errorText="El numero de meses debe estar entre 1 y 36."
-                  onChange={(next) => onChangeQuote({ ...quote, cuotas: next })}
-                />
+              <div className="quote-box__head">
+                <h4>Ajusta tu plan</h4>
               </div>
-              <div className="quote-highlight">
-                <span>Cuota mensual estimada</span>
-                <strong>{formatMoney(cuota)}</strong>
-                <small>Formula: (Precio - Inicial) / Meses</small>
+              <div className="quick-quotes quick-quotes--inside">
+                <div className="quick-quotes__head">
+                  <h5>Meses (1-36)</h5>
+                  <small>Elige una cuota rapida o ajusta los valores.</small>
+                </div>
+                <div className="quick-list quick-list--interactive">
+                  {[12, 24, 36].map((meses) => (
+                    <button
+                      type="button"
+                      className={`quick-row-detail quick-row-detail--${loteStatusClass} ${quote.cuotas === meses ? "is-active" : ""}`}
+                      key={meses}
+                      onClick={() => applyMonthsPreset(meses)}
+                    >
+                      <strong>{formatMoney(cuotaRapida(meses, quote.inicialMonto))}</strong>
+                      <span>{meses} meses</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="quote-grid">
+                <div className="quote-field-block">
+                  <ValidatedNumberField
+                    label="Meses"
+                    value={quote.cuotas}
+                    min={1}
+                    invalid={quoteInvalidMeses}
+                    errorText="El numero de meses debe estar entre 1 y 36."
+                    controlRowClassName="quote-control-row"
+                    afterInput={
+                      <input
+                        type="range"
+                        min={1}
+                        max={36}
+                        step={1}
+                        value={Math.min(Math.max(quote.cuotas, 1), 36)}
+                        onChange={(event) =>
+                          onChangeQuote({ ...quote, cuotas: Number(event.target.value) })
+                        }
+                        className="quote-slider"
+                      />
+                    }
+                    onChange={(next) => onChangeQuote({ ...quote, cuotas: next })}
+                  />
+                </div>
+                <div className="quote-field-block">
+                  <ValidatedNumberField
+                    label="Inicial"
+                    value={quote.inicialMonto}
+                    min={0}
+                    invalid={quoteInvalidInicial}
+                    errorText="La inicial minima es S/ 6,000."
+                    controlRowClassName="quote-control-row"
+                    afterInput={
+                      <input
+                        type="range"
+                        min={6000}
+                        max={initialSliderMax}
+                        step={500}
+                        value={Math.min(Math.max(quote.inicialMonto, 6000), initialSliderMax)}
+                        onChange={(event) =>
+                          onChangeQuote({ ...quote, inicialMonto: Number(event.target.value) })
+                        }
+                        className="quote-slider"
+                      />
+                    }
+                    onChange={(next) => onChangeQuote({ ...quote, inicialMonto: next })}
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="drawer-hidden-content" aria-hidden="true">
-              <div className="client-form">
-                <h4>Separar lote</h4>
-                <label>
-                  Nombre completo
-                  <input placeholder="Cliente" />
-                </label>
-                <label>
-                  DNI
-                  <input placeholder="Documento" />
-                </label>
-                <label>
-                  Telefono
-                  <input placeholder="+51 ..." />
-                </label>
-                <label>
-                  Email
-                  <input placeholder="correo@ejemplo.com" />
-                </label>
-                <label>
-                  Comentarios
-                  <textarea placeholder="Detalle adicional" rows={3} />
-                </label>
-                <div className="drawer-actions">
-                  <button className="btn primary">Registrar interes</button>
-                  <button className="btn ghost">Contactar asesor</button>
-                </div>
-              </div>
+            <div className="drawer-footer-actions">
+              {selectedLote.condicion !== "VENDIDO" ? (
+                <button className="btn ghost drawer-footer-btn" onClick={onPrint}>
+                  <IconPrint />
+                  <span>Imprimir cotizacion</span>
+                </button>
+              ) : null}
+              {selectedLote.condicion !== "VENDIDO" && !hideProformaButton ? (
+                <button className="btn drawer-footer-btn drawer-footer-btn--primary" onClick={onOpenProforma}>
+                  <IconPlus />
+                  <span>Generar proforma</span>
+                </button>
+              ) : null}
             </div>
           </>
         ) : (

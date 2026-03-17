@@ -72,21 +72,6 @@ const IconBulk = () => (
   </svg>
 );
 
-const IconAmount = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path d="M7 6h8a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    <path d="M12 4v16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
-
-const IconPercent = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path d="m6 18 12-12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.6" />
-    <circle cx="16" cy="16" r="2.5" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-);
-
 function LotesTablePage() {
   const { role } = useAuth();
   const [rows, setRows] = useState<Lote[]>([]);
@@ -408,13 +393,11 @@ function LotesTablePage() {
                       value: "MONTO",
                       label: "Monto (S/)",
                       tone: "neutral",
-                      icon: <IconAmount />,
                     },
                     {
                       value: "PORCENTAJE",
                       label: "Porcentaje (%)",
                       tone: "neutral",
-                      icon: <IconPercent />,
                     },
                   ]}
                   onChange={(value) => setBulkType(value)}
@@ -430,7 +413,9 @@ function LotesTablePage() {
                   placeholder={bulkType === "MONTO" ? "Ej: 250 o -250" : "Ej: 5 o -5"}
                 />
               </label>
-              <p className="muted">Solo se actualizan lotes en estado disponible.</p>
+              <p className="seller-bulk-modal__notice">
+                Solo se actualizaran lotes en estado <strong>DISPONIBLE</strong>.
+              </p>
             </div>
             <footer className="seller-bulk-modal__footer">
               <button className="btn ghost" onClick={() => setBulkModalOpen(false)} disabled={bulkSaving}>
