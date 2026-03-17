@@ -212,14 +212,16 @@ function CotizadorDrawer({
             </div>
 
             <div className="drawer-footer-actions">
-              <button className="btn ghost drawer-footer-btn" onClick={onPrint}>
-                <IconPrint />
-                <span>Imprimir propuesta</span>
-              </button>
+              {selectedLote.condicion !== "VENDIDO" ? (
+                <button className="btn ghost drawer-footer-btn" onClick={onPrint}>
+                  <IconPrint />
+                  <span>Imprimir cotizacion</span>
+                </button>
+              ) : null}
               {selectedLote.condicion !== "VENDIDO" && !hideProformaButton ? (
                 <button className="btn drawer-footer-btn drawer-footer-btn--primary" onClick={onOpenProforma}>
                   <IconPlus />
-                  <span>Quiero esta propuesta</span>
+                  <span>Generar proforma</span>
                 </button>
               ) : null}
             </div>

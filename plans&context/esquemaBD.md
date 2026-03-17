@@ -1,269 +1,474 @@
-# Esquema BD `dev` (fuente: `003_full_commercial_model.sql`)
+# Diseno Final BD `devsimple`
 
-Este documento resume **exactamente** la estructura creada por la migración:
-`backend/supabase/migrations/003_full_commercial_model.sql`.
+Este documento resume el diseno final acordado para la base de datos del proyecto, trabajando sobre el esquema `devsimple`.
 
-## 1) Punto clave de la migración
-- La migración es **destructiva** en `dev`:
-  - `drop schema if exists dev cascade;`
-  - `create schema dev;`
-- Luego crea todo desde cero: enums, tablas, índices, funciones y triggers.
+No es una migracion SQL. Es la definicion funcional y tecnica aprobable antes de tocar la BD.
 
----
+## 1. Objetivo del modelo
 
-## 2) Enums creados
+El modelo debe cubrir:
 
-1. `dev.rol_usuario_enum`: `ADMIN`, `ASESOR`, `CLIENTE`, `SUPERVISOR`
-2. `dev.estado_general_enum`: `ACTIVO`, `INACTIVO`
-3. `dev.tipo_documento_enum`: `DNI`, `CE`, `PASAPORTE`, `RUC`, `OTRO`
-4. `dev.estado_lote_enum`: `LIBRE`, `SEPARADO`, `VENDIDO`, `BLOQUEADO`, `INACTIVO`
-5. `dev.etapa_venta_enum`: `SEPARADVO`, `CONTRATO`, `PAGANDO`, `COMPLETADO`, `ANULADO`
-6. `dev.estado_registro_enum`: `ACTIVO`, `ANULADO`, `ELIMINADO_LOGICO`
-7. `dev.tipo_pago_enum`: `SEPARACION`, `INICIAL`, `CUOTA`, `ABONO_EXTRAORDINARIO`, `AJUSTE`, `DEVOLUCION`
-8. `dev.forma_pago_enum`: `EFECTIVO`, `TRANSFERENCIA`, `YAPE`, `PLIN`, `DEPOSITO`, `TARJETA`, `OTRO`
-9. `dev.rol_en_venta_enum`: `TITULAR`, `CONYUGE`, `CONVIVIENTE`, `COTITULAR`, `GARANTE`, `FAMILIAR`, `OTRO`
-10. `dev.accion_admin_enum`: `AGREGAR_VINCULACION_VENTA_PERSONA`, `QUITAR_VINCULACION_VENTA_PERSONA`, `LIBERAR_LOTE`, `ANULAR_VENTA`, `EDITAR_PAGO`, `REASIGNAR_VENTA`
+- inventario de lotes visible al publico
+- usuarios internos (`ADMIN` y `ASESOR`)
+- clientes sin duplicidad por DNI
+- ventas con trazabilidad de estado
+- pagos reales con fechas independientes
+- sincronizacion del estado comercial del lote para el mapa publico
 
----
+## 2. Esquema de trabajo
 
-## 3) Tablas y propósito
+- `devsimple`
 
-## `dev.personas`
-Maestro de personas (clientes, usuarios internos, relacionados de venta).
+## 3. Tablas existentes que se mantienen
 
-Campos relevantes:
-- `id` UUID PK
-- `tipo_documento`, `numero_documento` (unique compuesto)
-- `nombres`, `apellidos`
-- datos de contacto/ubicación
-- `estado`, `created_at`, `updated_at`
+### `devsimple.lotes`
 
-Constraints:
-- `personas_documento_unique (tipo_documento, numero_documento)`
+Tabla de inventario comercial visible al publico.
 
-## `dev.usuarios`
-Acceso y rol interno.
+Columnas actuales relevantes:
 
-Campos relevantes:
-- `id` UUID PK
-- `persona_id` FK a `personas`
-- `username` unique
-- `pin_hash` (obligatorio)
-- `rol` enum, `estado`
-- timestamps
+- `id uuid pk`
+- `manzana text`
+- `lote text`
+- `area_m2 numeric`
+- `precio_referencial numeric`
+- `estado_comercial estado_comercial_lote_enum`
+- `codigo text unique`
+- `created_at timestamptz`
+- `updated_at timestamptz`
 
-Constraints:
-- `usuarios_username_unique (username)`
-- `usuarios_persona_unique (persona_id)`
+Indices actuales relevantes:
 
-## `dev.empresas`
-Empresa propietaria/comercial.
+- `lotes_pkey (id)`
+- `lotes_codigo_unique (codigo)`
+- `lotes_manzana_lote_unique (manzana, lote)`
 
-Campos:
-- `id` UUID PK
-- `razon_social`, `nombre_comercial`, `ruc` (unique)
-- contacto, estado, timestamps
+### `devsimple.usuarios`
 
-## `dev.proyectos`
-Proyecto inmobiliario.
+Tabla de usuarios internos.
 
-Campos:
-- `id` UUID PK
-- `empresa_id` FK
-- `nombre`, `codigo`, ubicación, estado, fechas comerciales
+Columnas actuales relevantes:
 
-Constraint:
-- `proyectos_empresa_codigo_unique (empresa_id, codigo)`
+- `id uuid pk`
+- `username text unique`
+- `pin_hash text`
+- `rol rol_usuario_enum`
+- `nombres text`
+- `apellidos text`
+- `telefono text nullable`
+- `estado estado_general_enum`
+- `created_at timestamptz`
+- `updated_at timestamptz`
 
-## `dev.lotes`
-Inventario comercial de lotes.
+Regla de negocio:
 
-Campos:
-- `id` UUID PK
-- `proyecto_id` FK
-- `codigo`
-- `manzana`, `numero`
-- `area_m2`
-- `precio_lista`, `precio_minimo`, `precio_referencial`
-- `estado_comercial`, `moneda`, `observaciones`
-- timestamps
+- los asesores salen de esta tabla con `rol = ASESOR`
+- no se creara una tabla separada de asesores
 
-Constraints:
-- `lotes_proyecto_codigo_unique (proyecto_id, codigo)`
-- `lotes_proyecto_manzana_numero_unique (proyecto_id, manzana, numero)`
+## 4. Estados publicos del lote
 
-## `dev.ventas`
-Operación comercial principal sobre lote.
+La tabla `devsimple.lotes.estado_comercial` debe seguir siendo simple para el mapa publico.
 
-Campos:
-- `id` UUID PK
-- `proyecto_id`, `lote_id` FKs
-- `cliente_titular_persona_id` FK
-- `asesor_usuario_id` FK
-- `codigo_venta` unique
-- `etapa_venta`, `estado_registro`
-- fechas (`fecha_venta`, `fecha_separacion`, `fecha_contrato`)
-- montos pactados y de control (`pagado_total`, `saldo_pendiente`)
-- `moneda`, `observaciones`, timestamps
+Valores:
 
-Checks:
-- `ventas_precio_lote_check (precio_lote >= 0)`
-- `ventas_totales_check (pagado_total >= 0 and saldo_pendiente >= 0)`
+- `DISPONIBLE`
+- `SEPARADO`
+- `VENDIDO`
 
-## `dev.ventas_clientes`
-Tabla puente entre venta y personas relacionadas.
+## 5. Regla de sincronizacion de `lotes.estado_comercial`
 
-Campos:
-- `id` UUID PK
-- `venta_id` FK (cascade delete)
-- `persona_id` FK
-- `rol_en_venta`, `es_titular`
-- datos de autorización (`agregado_por`, `autorizado_por`, `fecha_autorizacion`, `motivo`)
-- timestamps
+El lote visible al publico se sincroniza segun la venta activa:
 
-Constraint:
-- `ventas_clientes_unique (venta_id, persona_id, rol_en_venta)`
+- `SEPARADA` -> `SEPARADO`
+- `INICIAL_PAGADA` -> `VENDIDO`
+- `CONTRATO_FIRMADO` -> `VENDIDO`
+- `PAGANDO` -> `VENDIDO`
+- `COMPLETADA` -> `VENDIDO`
+- `CAIDA` o sin venta activa -> `DISPONIBLE`
 
-## `dev.pagos`
-Movimientos de pago de una venta.
+Nota:
 
-Campos:
-- `id` UUID PK
-- `venta_id` FK (cascade delete)
-- `tipo_pago`, `forma_pago`, `estado_registro`
-- `fecha_pago`, `monto`
-- `registrado_por_usuario_id` FK
-- `numero_operacion`, `observaciones`, timestamps
+- a nivel publico, `VENDIDO` significa "ya no disponible para venta", no necesariamente "pagado al 100%"
 
-Check:
-- `pagos_monto_check (monto >= 0)`
+## 6. Nuevas tablas
 
-## `dev.autorizaciones_admin`
-Auditoría de autorizaciones de acciones sensibles.
+### `devsimple.clientes`
 
-Campos:
-- `id` UUID PK
-- `usuario_admin_id` FK
-- `usuario_solicitante_id` FK
-- `accion`
-- `tabla_objetivo`, `registro_objetivo_id`
-- `motivo`, `fecha_autorizacion`, timestamps
+Objetivo:
 
----
+- registrar clientes sin duplicidad
+- encontrar cliente por DNI antes de crear una venta
 
-## 4) Relaciones (resumen)
+Columnas:
 
-- `usuarios.persona_id -> personas.id`
-- `proyectos.empresa_id -> empresas.id`
-- `lotes.proyecto_id -> proyectos.id`
-- `ventas.proyecto_id -> proyectos.id`
-- `ventas.lote_id -> lotes.id`
-- `ventas.cliente_titular_persona_id -> personas.id`
-- `ventas.asesor_usuario_id -> usuarios.id`
-- `ventas_clientes.venta_id -> ventas.id`
-- `ventas_clientes.persona_id -> personas.id`
-- `pagos.venta_id -> ventas.id`
-- `pagos.registrado_por_usuario_id -> usuarios.id`
-- `autorizaciones_admin.usuario_admin_id -> usuarios.id`
-- `autorizaciones_admin.usuario_solicitante_id -> usuarios.id`
+- `id uuid pk default gen_random_uuid()`
+- `nombre_completo text not null`
+- `dni text not null unique`
+- `celular text null`
+- `direccion text null`
+- `ocupacion text null`
+- `created_at timestamptz not null default now()`
+- `updated_at timestamptz not null default now()`
 
----
+Restricciones sugeridas:
 
-## 5) Índices importantes
+- `char_length(trim(nombre_completo)) >= 2`
+- `dni unique`
 
-Índices de rendimiento:
-- `idx_personas_numero_documento`
-- `usuarios_username_unique_idx` (sobre `lower(username)`)
-- `idx_usuarios_persona_id`
-- `idx_proyectos_empresa_id`
-- `idx_lotes_proyecto_id`
-- `idx_ventas_lote_id`
-- `idx_ventas_cliente_titular_persona_id`
-- `idx_ventas_asesor_usuario_id`
-- `idx_ventas_etapa_venta`
-- `idx_ventas_clientes_venta_id`
-- `idx_ventas_clientes_persona_id`
-- `idx_pagos_venta_id`
-- `idx_pagos_fecha_pago`
-- `idx_pagos_tipo_pago`
+Indices sugeridos:
 
-Regla comercial fuerte (única venta activa por lote):
-- `ventas_lote_activa_unique_idx` parcial:
-  - `estado_registro = ACTIVO`
-  - `etapa_venta in (SEPARADO, CONTRATO, PAGANDO)`
+- `clientes_pkey (id)`
+- `clientes_dni_key (dni unique)`
 
----
+### `devsimple.ventas`
 
-## 6) Funciones y procedimientos
+Objetivo:
 
-## Funciones de timestamps
-- `dev.set_updated_at()`  
-  Actualiza `updated_at` en triggers `before update`.
+- representar la venta principal
+- conectar lote, cliente y asesor
+- guardar el snapshot comercial y financiero consolidado
 
-## Normalización de ventas
-- `dev.normalize_venta_totals()`  
-  Antes de insertar/actualizar una venta:
-  - normaliza `pagado_total`/`saldo_pendiente`
-  - completa fechas por etapa (`fecha_separacion`, `fecha_contrato`)
+Columnas:
 
-## Recalcular totales
-- `dev.recalcular_totales_venta(p_venta_id uuid)`  
-  Suma pagos activos y recalcula:
-  - `ventas.pagado_total`
-  - `ventas.saldo_pendiente`
+- `id uuid pk default gen_random_uuid()`
+- `lote_id uuid not null`
+- `cliente_id uuid not null`
+- `asesor_id uuid not null`
+- `fecha_venta timestamptz not null default now()`
+- `precio_venta numeric not null`
+- `estado_venta venta_estado_enum not null default 'SEPARADA'`
+- `tipo_financiamiento tipo_financiamiento_enum not null`
+- `monto_inicial_total numeric not null`
+- `monto_financiado numeric not null`
+- `cantidad_cuotas integer not null`
+- `monto_cuota numeric not null`
+- `observacion text null`
+- `created_at timestamptz not null default now()`
+- `updated_at timestamptz not null default now()`
 
-## Trigger para pagos
-- `dev.trg_pagos_recalcular_venta()`  
-  En insert/update/delete de `pagos`, invoca `recalcular_totales_venta`.
+Relaciones:
 
-## Sincronizar estado de lote
-- `dev.sincronizar_estado_lote(p_lote_id uuid)`  
-  Regla:
-  - si hay venta activa (`SEPARADO|CONTRATO|PAGANDO`) => lote `SEPARADO`
-  - si no hay activa pero hay `COMPLETADO` => lote `VENDIDO`
-  - si no hay ninguna => lote `LIBRE`
+- `lote_id -> devsimple.lotes(id)`
+- `cliente_id -> devsimple.clientes(id)`
+- `asesor_id -> devsimple.usuarios(id)`
 
-## Trigger para ventas
-- `dev.trg_ventas_sync_lote()`  
-  En insert/update/delete de `ventas`, sincroniza estado del lote.
+Reglas:
 
-## Procedure de precios masivos
-- `dev.sp_actualizar_precios_disponibles(p_tipo_ajuste text, p_valor_ajuste numeric) returns integer`  
-  Ajusta solo lotes `LIBRE`:
-  - por monto o porcentaje
-  - impacta `precio_lista` y `precio_referencial`
-  - retorna cantidad de filas actualizadas
+- `monto_inicial_total` es la suma de pagos tipo `SEPARACION` + `INICIAL`
+- `monto_financiado` se calcula a partir del precio de venta menos el inicial total
+- la venta no se elimina si cae
+- el motivo de una venta caida se guarda en `observacion`
 
----
+Restricciones sugeridas:
 
-## 7) Triggers instalados
+- `precio_venta >= 0`
+- `monto_inicial_total >= 0`
+- `monto_financiado >= 0`
+- `cantidad_cuotas between 1 and 36`
+- `monto_cuota > 0`
 
-- `trg_personas_updated_at`
-- `trg_usuarios_updated_at`
-- `trg_empresas_updated_at`
-- `trg_proyectos_updated_at`
-- `trg_lotes_updated_at`
-- `trg_ventas_updated_at`
-- `trg_ventas_normalize_totals`
-- `trg_ventas_sync_lote`
-- `trg_ventas_clientes_updated_at`
-- `trg_pagos_updated_at`
-- `trg_pagos_recalcular_venta`
-- `trg_autorizaciones_admin_updated_at`
+Indices sugeridos:
 
----
+- `ventas_pkey (id)`
+- `ventas_lote_id_idx`
+- `ventas_cliente_id_idx`
+- `ventas_asesor_id_idx`
+- `ventas_estado_venta_idx`
+- `ventas_fecha_venta_idx`
 
-## 8) Reglas de negocio ya “codificadas” en BD
+Indice unico parcial muy necesario:
 
-1. Una venta activa por lote (índice parcial único).
-2. Totales de venta y saldo se recalculan por pagos.
-3. Estado comercial del lote se sincroniza automáticamente por estado de venta.
-4. Montos negativos no permitidos en `ventas`/`pagos` (checks).
+- no permitir dos ventas activas para el mismo lote
+- criterio sugerido:
+  - unico por `lote_id`
+  - solo cuando `estado_venta <> 'CAIDA'`
 
----
+### `devsimple.pagos`
 
-## 9) Nota de compatibilidad con app actual
+Objetivo:
 
-El modelo `003_full_commercial_model.sql` cambia la estructura de `dev.lotes` y `dev.usuarios` respecto al contrato legacy del frontend/backend actual.  
-Si se aplica esta migración, backend y frontend deben adaptarse a los nuevos campos antes de usar todos los módulos.
+- registrar los pagos reales de cada venta
+- permitir que separacion e inicial tengan fechas distintas
 
+Columnas:
+
+- `id uuid pk default gen_random_uuid()`
+- `venta_id uuid not null`
+- `fecha_pago timestamptz not null default now()`
+- `tipo_pago pago_tipo_enum not null`
+- `monto numeric not null`
+- `nro_cuota integer null`
+- `observacion text null`
+- `created_at timestamptz not null default now()`
+
+Relaciones:
+
+- `venta_id -> devsimple.ventas(id)`
+
+Reglas:
+
+- `SEPARACION` e `INICIAL` son filas reales en pagos
+- `CUOTA` representa pagos de cuotas del financiamiento
+- `OTRO` cubre ajustes u otros movimientos necesarios
+- `nro_cuota` solo aplica cuando `tipo_pago = CUOTA`
+
+Restricciones sugeridas:
+
+- `monto > 0`
+- `nro_cuota >= 1` cuando no sea null
+
+Indices sugeridos:
+
+- `pagos_pkey (id)`
+- `pagos_venta_id_idx`
+- `pagos_fecha_pago_idx`
+- `pagos_tipo_pago_idx`
+- opcional: `pagos_venta_id_nro_cuota_idx`
+
+### `devsimple.venta_estado_historial`
+
+Objetivo:
+
+- trazabilidad maxima de cambios de estado de la venta
+
+Columnas:
+
+- `id uuid pk default gen_random_uuid()`
+- `venta_id uuid not null`
+- `estado_anterior venta_estado_enum null`
+- `estado_nuevo venta_estado_enum not null`
+- `usuario_id uuid not null`
+- `fecha_cambio timestamptz not null default now()`
+
+Relaciones:
+
+- `venta_id -> devsimple.ventas(id)`
+- `usuario_id -> devsimple.usuarios(id)`
+
+Reglas:
+
+- no lleva columna `observacion`
+- es tabla de auditoria, no de narrativa
+
+Indices sugeridos:
+
+- `venta_estado_historial_pkey (id)`
+- `venta_estado_historial_venta_id_idx`
+- `venta_estado_historial_usuario_id_idx`
+- `venta_estado_historial_fecha_cambio_idx`
+
+## 7. Enums nuevos propuestos
+
+### `devsimple.venta_estado_enum`
+
+Valores y orden:
+
+- `SEPARADA`
+- `INICIAL_PAGADA`
+- `CONTRATO_FIRMADO`
+- `PAGANDO`
+- `COMPLETADA`
+- `CAIDA`
+
+### `devsimple.tipo_financiamiento_enum`
+
+Valores:
+
+- `REDUCIR_CUOTA`
+- `REDUCIR_MESES`
+
+### `devsimple.pago_tipo_enum`
+
+Valores:
+
+- `SEPARACION`
+- `INICIAL`
+- `CUOTA`
+- `OTRO`
+
+## 8. Logica financiera cerrada
+
+### 8.1. Regla base
+
+Siempre:
+
+- `monto_inicial_total = suma(pagos tipo SEPARACION + INICIAL)`
+- `monto_financiado = precio_venta - monto_inicial_total`
+
+### 8.2. Si `tipo_financiamiento = REDUCIR_CUOTA`
+
+El usuario define:
+
+- `cantidad_cuotas`
+
+El backend recalcula:
+
+- `monto_cuota = monto_financiado / cantidad_cuotas`
+
+Se guarda en `ventas`:
+
+- `tipo_financiamiento`
+- `cantidad_cuotas`
+- `monto_cuota`
+- `monto_financiado`
+
+### 8.3. Si `tipo_financiamiento = REDUCIR_MESES`
+
+El usuario define:
+
+- `monto_cuota`
+
+El backend recalcula:
+
+- `cantidad_cuotas = ceil(monto_financiado / monto_cuota)`
+
+Se guarda en `ventas`:
+
+- `tipo_financiamiento`
+- `cantidad_cuotas`
+- `monto_cuota`
+- `monto_financiado`
+
+### 8.4. Detalle real de cuotas
+
+El detalle real de cuotas no se guarda como tabla de cronograma en esta etapa.
+
+Se calcula asi:
+
+- cuotas `1..n-1` = `monto_cuota`
+- ultima cuota = `monto_financiado - ((n - 1) * monto_cuota)`
+
+Importante:
+
+- `saldo_final_ultima_cuota` no se guarda en BD
+- solo se calcula cuando se necesite mostrarlo
+
+## 9. Reglas de cambio de estado por pagos
+
+### Estado inicial
+
+Cuando se crea la venta y se registra el pago de separacion:
+
+- `ventas.estado_venta = SEPARADA`
+- `lotes.estado_comercial = SEPARADO`
+
+### Cambio a `INICIAL_PAGADA`
+
+Cuando ya existe pago tipo `INICIAL`:
+
+- `ventas.estado_venta = INICIAL_PAGADA`
+- `lotes.estado_comercial = VENDIDO`
+
+### Cambio a `CONTRATO_FIRMADO`
+
+Cambio manual posterior al pago inicial:
+
+- `INICIAL_PAGADA -> CONTRATO_FIRMADO`
+- `lotes.estado_comercial = VENDIDO`
+
+### Cambio a `PAGANDO`
+
+Cuando existe al menos una cuota registrada:
+
+- `ventas.estado_venta = PAGANDO`
+- `lotes.estado_comercial = VENDIDO`
+
+### Cambio a `COMPLETADA`
+
+Cuando los pagos acumulados cubren el total comprometido:
+
+- `ventas.estado_venta = COMPLETADA`
+- `lotes.estado_comercial = VENDIDO`
+
+### Cambio a `CAIDA`
+
+Solo manual por `ADMIN`:
+
+- `ventas.estado_venta = CAIDA`
+- `lotes.estado_comercial = DISPONIBLE`
+- la venta no se elimina
+- el motivo se registra en `ventas.observacion`
+
+## 10. Flujo frontend/backend para cliente por DNI
+
+### En frontend
+
+En el formulario de separacion:
+
+- primero se busca cliente por `dni`
+- si existe, se autocompleta
+- si no existe, se prepara alta
+
+### En backend
+
+Aun asi, el backend debe volver a validar:
+
+- buscar cliente por `dni`
+- reutilizarlo si existe
+- crearlo si no existe
+
+Esto evita:
+
+- duplicidad por concurrencia
+- inconsistencias entre formularios
+- errores de integridad
+
+## 11. Flujo backend recomendado al guardar venta/separacion
+
+Todo en una sola transaccion:
+
+1. validar lote y disponibilidad comercial
+2. buscar cliente por `dni`
+3. crear cliente si no existe
+4. crear venta
+5. crear pago tipo `SEPARACION`
+6. recalcular `monto_inicial_total`
+7. recalcular `monto_financiado`
+8. recalcular `monto_cuota` o `cantidad_cuotas` segun `tipo_financiamiento`
+9. actualizar `lotes.estado_comercial`
+10. insertar `venta_estado_historial`
+
+## 12. Cosas que no se guardaran
+
+No se guardaran como columnas o tablas separadas en esta etapa:
+
+- `tipo_operacion`
+- `motivo_caida` como columna separada
+- `saldo_final_ultima_cuota`
+- historial de cambios del plan financiero
+- tabla aparte de asesores
+
+## 13. Resumen del modelo final
+
+### Inventario publico
+
+- `lotes`
+
+### Usuarios internos
+
+- `usuarios`
+
+### Personas compradoras
+
+- `clientes`
+
+### Venta principal
+
+- `ventas`
+
+### Movimientos reales de dinero
+
+- `pagos`
+
+### Trazabilidad de estados
+
+- `venta_estado_historial`
+
+## 14. Siguiente paso recomendado
+
+Si este documento queda aprobado, lo siguiente es:
+
+1. redactar la migracion SQL final para `devsimple`
+2. definir constraints e indices parciales exactos
+3. implementar el flujo backend transaccional
+4. adaptar frontend de separacion/proforma a este modelo
