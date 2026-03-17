@@ -1,0 +1,4 @@
+-- Historical note:
+-- `cliente2_id`, `fecha_pago_pactada` and `ventas_cliente2_id_idx`
+-- were merged into `001_devsimple_sales_model.sql` for fresh setups.
+-- This migration is intentionally a no-op to preserve sequence.

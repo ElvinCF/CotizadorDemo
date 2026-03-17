@@ -133,8 +133,10 @@ Columnas:
 - `id uuid pk default gen_random_uuid()`
 - `lote_id uuid not null`
 - `cliente_id uuid not null`
+- `cliente2_id uuid null`
 - `asesor_id uuid not null`
 - `fecha_venta timestamptz not null default now()`
+- `fecha_pago_pactada date null`
 - `precio_venta numeric not null`
 - `estado_venta venta_estado_enum not null default 'SEPARADA'`
 - `tipo_financiamiento tipo_financiamiento_enum not null`
@@ -150,12 +152,16 @@ Relaciones:
 
 - `lote_id -> devsimple.lotes(id)`
 - `cliente_id -> devsimple.clientes(id)`
+- `cliente2_id -> devsimple.clientes(id)`
 - `asesor_id -> devsimple.usuarios(id)`
 
 Reglas:
 
 - `monto_inicial_total` es la suma de pagos tipo `SEPARACION` + `INICIAL`
 - `monto_financiado` se calcula a partir del precio de venta menos el inicial total
+- `cliente2_id` es opcional y representa cotitular o conyuge de la venta
+- `cliente2_id` no puede ser igual a `cliente_id`
+- `fecha_pago_pactada` es la fecha contractual objetivo de pago de cuota y es editable
 - la venta no se elimina si cae
 - el motivo de una venta caida se guarda en `observacion`
 
@@ -172,6 +178,7 @@ Indices sugeridos:
 - `ventas_pkey (id)`
 - `ventas_lote_id_idx`
 - `ventas_cliente_id_idx`
+- `ventas_cliente2_id_idx`
 - `ventas_asesor_id_idx`
 - `ventas_estado_venta_idx`
 - `ventas_fecha_venta_idx`
@@ -398,6 +405,7 @@ En el formulario de separacion:
 - primero se busca cliente por `dni`
 - si existe, se autocompleta
 - si no existe, se prepara alta
+- si existe cliente 2, tambien se busca por `dni`
 
 ### En backend
 
@@ -406,6 +414,8 @@ Aun asi, el backend debe volver a validar:
 - buscar cliente por `dni`
 - reutilizarlo si existe
 - crearlo si no existe
+- buscar cliente 2 por `dni` si fue enviado
+- validar que `cliente2_id <> cliente_id`
 
 Esto evita:
 
@@ -420,13 +430,15 @@ Todo en una sola transaccion:
 1. validar lote y disponibilidad comercial
 2. buscar cliente por `dni`
 3. crear cliente si no existe
-4. crear venta
-5. crear pago tipo `SEPARACION`
-6. recalcular `monto_inicial_total`
-7. recalcular `monto_financiado`
-8. recalcular `monto_cuota` o `cantidad_cuotas` segun `tipo_financiamiento`
-9. actualizar `lotes.estado_comercial`
-10. insertar `venta_estado_historial`
+4. buscar cliente 2 por `dni` si aplica
+5. crear cliente 2 si no existe
+6. crear venta
+7. crear pago tipo `SEPARACION`
+8. recalcular `monto_inicial_total`
+9. recalcular `monto_financiado`
+10. recalcular `monto_cuota` o `cantidad_cuotas` segun `tipo_financiamiento`
+11. actualizar `lotes.estado_comercial`
+12. insertar `venta_estado_historial`
 
 ## 12. Cosas que no se guardaran
 

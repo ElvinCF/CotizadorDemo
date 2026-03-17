@@ -108,6 +108,35 @@ La venta es la entidad principal del negocio.
 No se modela `tipo_operacion`.
 Toda operacion comercial se entiende como venta.
 
+Campos funcionales adicionales:
+
+- `cliente2_id` opcional
+- `fecha_pago_pactada` editable
+
+### 3.4.1. Cliente secundario
+
+Una venta puede tener:
+
+- un titular principal (`cliente_id`)
+- un cotitular opcional (`cliente2_id`)
+
+Reglas:
+
+- `cliente2_id` es opcional
+- `cliente2_id` no puede ser igual a `cliente_id`
+- si la fuente trae dos titulares separados por `/`, el primero se interpreta como cliente principal y el segundo como cliente secundario
+- si ambos comparten una sola direccion en origen, esa direccion puede replicarse en ambos clientes
+
+### 3.4.2. Fecha de pago pactada
+
+`ventas.fecha_pago_pactada` representa la fecha contractual objetivo para el pago de cuotas.
+
+Reglas:
+
+- es editable
+- no reemplaza `pagos.fecha_pago`
+- sirve como referencia contractual del cronograma esperado
+
 ### 3.5. Pago
 
 Representa un movimiento real de dinero asociado a una venta.
@@ -376,6 +405,18 @@ Una venta caida:
 - no se pisa
 - no desaparece del historial
 
+### 9.4. Propiedad de la venta por asesor
+
+Reglas obligatorias:
+
+- un asesor no puede modificar ventas creadas por otro asesor
+- un asesor no puede crear ventas asignandolas a otro asesor
+
+Implicancias:
+
+- en ventas nuevas, `asesor_id` debe salir del usuario autenticado
+- solo `ADMIN` puede intervenir sobre ventas de cualquier asesor
+
 ## 10. Responsabilidades del frontend
 
 ### 10.1. Mapa publico
@@ -402,6 +443,28 @@ Debe:
   - monto de separacion
   - monto inicial si aplica
   - observacion
+  - cliente secundario opcional, si existe
+  - fecha de pago pactada
+
+Campos obligatorios en ventas nuevas creadas desde frontend:
+
+- lote seleccionado
+- cliente principal:
+  - nombre
+  - dni
+- fecha de venta
+- precio de venta
+- tipo de financiamiento
+- fecha de pago pactada
+- y segun el tipo de financiamiento:
+  - `REDUCIR_CUOTA` -> `cantidad_cuotas`
+  - `REDUCIR_MESES` -> `monto_cuota`
+
+Pagos obligatorios en alta:
+
+- al menos un pago inicial valido:
+  - `SEPARACION`
+  - o `INICIAL`
 
 No debe:
 
@@ -426,6 +489,8 @@ Debe permitir:
 - registrar y editar estados operativos segun permisos
 - registrar pagos permitidos
 - no ejecutar acciones reservadas a admin
+- editar solo sus propias ventas
+- no cambiar el asesor titular de una venta
 
 ## 11. Responsabilidades del backend
 
@@ -437,6 +502,7 @@ Debe:
 - validar que el lote tenga disponibilidad comercial
 - validar cliente por DNI
 - crear cliente si no existe
+- crear cliente secundario si no existe
 - crear venta
 - crear pagos
 - recalcular montos consolidados
@@ -444,6 +510,8 @@ Debe:
 - sincronizar `lotes.estado_comercial`
 - insertar historial de estado
 - aplicar reglas de permisos
+- impedir que un asesor toque ventas ajenas
+- impedir que un asesor cree ventas para otro asesor
 
 No debe delegar al frontend:
 
@@ -459,13 +527,14 @@ Estos flujos deben ejecutarse en una sola transaccion:
 ### 12.1. Crear separacion
 
 1. validar lote
-2. buscar/crear cliente
-3. crear venta
-4. crear pago `SEPARACION`
-5. recalcular consolidado financiero
-6. poner estado `SEPARADA`
-7. actualizar lote
+2. buscar/crear cliente principal
+3. buscar/crear cliente secundario si aplica
+4. crear venta
+5. crear pago `SEPARACION` y/o `INICIAL`
+6. recalcular consolidado financiero
+7. poner estado correspondiente
 8. insertar historial
+9. actualizar lote
 
 ### 12.2. Registrar inicial
 
@@ -550,6 +619,8 @@ Sin fijar aun rutas finales, el backend debera cubrir al menos:
 - registrar pagos
 - generar proforma
 - editar informacion permitida del flujo comercial
+- solo sobre sus propias ventas
+- no reasignar ventas a otro asesor
 
 ### Admin
 
@@ -557,6 +628,7 @@ Sin fijar aun rutas finales, el backend debera cubrir al menos:
 - gestionar usuarios
 - marcar ventas como `CAIDA`
 - supervisar dashboard y reportes
+- importar ventas historicas asignando asesor segun la fuente
 
 ## 16. Consideraciones de implementacion
 

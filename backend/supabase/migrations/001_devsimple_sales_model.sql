@@ -74,8 +74,10 @@ create table if not exists devsimple.ventas (
   id uuid primary key default gen_random_uuid(),
   lote_id uuid not null references devsimple.lotes(id),
   cliente_id uuid not null references devsimple.clientes(id),
+  cliente2_id uuid references devsimple.clientes(id),
   asesor_id uuid not null references devsimple.usuarios(id),
   fecha_venta timestamptz not null default now(),
+  fecha_pago_pactada date,
   precio_venta numeric not null,
   estado_venta devsimple.venta_estado_enum not null default 'SEPARADA',
   tipo_financiamiento devsimple.tipo_financiamiento_enum not null,
@@ -90,7 +92,8 @@ create table if not exists devsimple.ventas (
   constraint ventas_monto_inicial_total_check check (monto_inicial_total >= 0),
   constraint ventas_monto_financiado_check check (monto_financiado >= 0),
   constraint ventas_cantidad_cuotas_check check (cantidad_cuotas between 1 and 36),
-  constraint ventas_monto_cuota_check check (monto_cuota > 0)
+  constraint ventas_monto_cuota_check check (monto_cuota > 0),
+  constraint ventas_cliente2_distinto_check check (cliente2_id is null or cliente2_id <> cliente_id)
 );
 
 create table if not exists devsimple.pagos (
@@ -123,6 +126,9 @@ create index if not exists ventas_lote_id_idx
 
 create index if not exists ventas_cliente_id_idx
   on devsimple.ventas (cliente_id);
+
+create index if not exists ventas_cliente2_id_idx
+  on devsimple.ventas (cliente2_id);
 
 create index if not exists ventas_asesor_id_idx
   on devsimple.ventas (asesor_id);
