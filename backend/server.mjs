@@ -1,6 +1,6 @@
 import express from "express";
+import { getErrorStatus } from "./lib/errors.mjs";
 import {
-  getSupabaseAdminClient,
   listLotes,
   updateAvailablePricesMassive,
   updateLoteById,
@@ -52,19 +52,17 @@ app.use(express.json());
 
 app.get("/api/lotes", async (_req, res) => {
   try {
-    const supabase = getSupabaseAdminClient();
-    const items = await listLotes(supabase);
+    const items = await listLotes();
     res.json({ items, updatedAt: new Date().toISOString() });
   } catch (error) {
-    console.error("Error reading lotes from Supabase:", error);
-    res.status(500).json({ error: "No se pudo leer lotes desde Supabase" });
+    console.error("Error reading lotes from database:", error);
+    res.status(500).json({ error: "No se pudo leer lotes desde la base de datos" });
   }
 });
 
 app.put("/api/lotes/:id", async (req, res) => {
   try {
-    const supabase = getSupabaseAdminClient();
-    const item = await updateLoteById(supabase, req.params.id, req.body ?? {});
+    const item = await updateLoteById(req.params.id, req.body ?? {});
 
     if (!item) {
       res.status(404).json({ error: "Lote no encontrado" });
@@ -73,21 +71,20 @@ app.put("/api/lotes/:id", async (req, res) => {
 
     res.json({ item, savedAt: new Date().toISOString() });
   } catch (error) {
-    console.error("Error updating lote in Supabase:", error);
-    res.status(500).json({ error: "No se pudo actualizar lote en Supabase" });
+    console.error("Error updating lote in database:", error);
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar lote en la base de datos" });
   }
 });
 
 app.post("/api/lotes/precios-masivos", async (req, res) => {
   try {
-    const supabase = getSupabaseAdminClient();
-    const updatedCount = await updateAvailablePricesMassive(supabase, req.body ?? {});
+    const updatedCount = await updateAvailablePricesMassive(req.body ?? {});
     res.json({ updatedCount, savedAt: new Date().toISOString() });
   } catch (error) {
-    console.error("Error bulk updating prices in Supabase:", error);
+    console.error("Error bulk updating prices in database:", error);
     const detail = error instanceof Error ? error.message : "Error desconocido";
-    res.status(500).json({
-      error: "No se pudo actualizar precios masivamente en Supabase",
+    res.status(getErrorStatus(error, 500)).json({
+      error: "No se pudo actualizar precios masivamente en la base de datos",
       detail,
     });
   }
@@ -110,7 +107,7 @@ app.get("/api/clientes", async (req, res) => {
     res.json({ client });
   } catch (error) {
     console.error("Error finding client by DNI:", error);
-    res.status(400).json({ error: error.message || "No se pudo buscar cliente." });
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo buscar cliente." });
   }
 });
 
@@ -126,7 +123,7 @@ app.get("/api/ventas", async (req, res) => {
     res.json({ items });
   } catch (error) {
     console.error("Error listing sales:", error);
-    res.status(400).json({ error: error.message || "No se pudo listar ventas." });
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo listar ventas." });
   }
 });
 
@@ -142,9 +139,7 @@ app.post("/api/ventas", async (req, res) => {
     res.status(201).json({ sale });
   } catch (error) {
     console.error("Error creating sale:", error);
-    const message = error.message || "No se pudo crear la venta.";
-    const status = message.includes("no encontrada") ? 404 : message.includes("ya tiene una venta activa") ? 409 : 400;
-    res.status(status).json({ error: message });
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo crear la venta." });
   }
 });
 
@@ -160,8 +155,7 @@ app.get("/api/ventas/:id", async (req, res) => {
     res.json({ sale });
   } catch (error) {
     console.error("Error reading sale detail:", error);
-    const message = error.message || "No se pudo obtener la venta.";
-    res.status(message.includes("no encontrada") ? 404 : 400).json({ error: message });
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener la venta." });
   }
 });
 
@@ -177,8 +171,7 @@ app.put("/api/ventas/:id", async (req, res) => {
     res.json({ sale });
   } catch (error) {
     console.error("Error updating sale:", error);
-    const message = error.message || "No se pudo actualizar la venta.";
-    res.status(message.includes("no encontrada") ? 404 : 400).json({ error: message });
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar la venta." });
   }
 });
 
@@ -194,8 +187,7 @@ app.post("/api/ventas/:id/pagos", async (req, res) => {
     res.status(201).json({ sale });
   } catch (error) {
     console.error("Error adding payment to sale:", error);
-    const message = error.message || "No se pudo registrar el pago.";
-    res.status(message.includes("no encontrada") ? 404 : 400).json({ error: message });
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo registrar el pago." });
   }
 });
 

@@ -1,4 +1,5 @@
 import { createSaleAsync, listSalesAsync } from "../backend/lib/ventasService.mjs";
+import { getErrorStatus } from "../backend/lib/errors.mjs";
 
 const getAuthCredentials = (req) => {
   const headerUser = req.headers["x-auth-user"];
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
       res.status(200).json({ items });
     } catch (error) {
       console.error("Vercel API GET /api/ventas error:", error);
-      res.status(400).json({ error: error.message || "No se pudo listar ventas." });
+      res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo listar ventas." });
     }
     return;
   }
@@ -42,9 +43,7 @@ export default async function handler(req, res) {
       res.status(201).json({ sale });
     } catch (error) {
       console.error("Vercel API POST /api/ventas error:", error);
-      const message = error.message || "No se pudo crear la venta.";
-      const status = message.includes("no encontrada") ? 404 : message.includes("ya tiene una venta activa") ? 409 : 400;
-      res.status(status).json({ error: message });
+      res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo crear la venta." });
     }
     return;
   }

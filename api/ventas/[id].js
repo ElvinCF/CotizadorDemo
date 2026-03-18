@@ -1,4 +1,5 @@
 import { getSaleByIdAsync, updateSaleAsync } from "../../backend/lib/ventasService.mjs";
+import { getErrorStatus } from "../../backend/lib/errors.mjs";
 
 const getAuthCredentials = (req) => {
   const headerUser = req.headers["x-auth-user"];
@@ -25,8 +26,7 @@ export default async function handler(req, res) {
       res.status(200).json({ sale });
     } catch (error) {
       console.error("Vercel API GET /api/ventas/:id error:", error);
-      const message = error.message || "No se pudo obtener la venta.";
-      res.status(message.includes("no encontrada") ? 404 : 400).json({ error: message });
+      res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener la venta." });
     }
     return;
   }
@@ -43,8 +43,7 @@ export default async function handler(req, res) {
       res.status(200).json({ sale });
     } catch (error) {
       console.error("Vercel API PUT /api/ventas/:id error:", error);
-      const message = error.message || "No se pudo actualizar la venta.";
-      res.status(message.includes("no encontrada") ? 404 : 400).json({ error: message });
+      res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar la venta." });
     }
     return;
   }

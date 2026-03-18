@@ -1,4 +1,5 @@
 import { findClientByDniAsync } from "../backend/lib/ventasService.mjs";
+import { getErrorStatus } from "../backend/lib/errors.mjs";
 
 const getAuthCredentials = (req) => {
   const headerUser = req.headers["x-auth-user"];
@@ -37,6 +38,6 @@ export default async function handler(req, res) {
     res.status(200).json({ client });
   } catch (error) {
     console.error("Vercel API GET /api/clientes error:", error);
-    res.status(400).json({ error: error.message || "No se pudo buscar cliente." });
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo buscar cliente." });
   }
 }

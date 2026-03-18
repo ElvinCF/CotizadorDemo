@@ -16,7 +16,6 @@
     "preview": "vite preview --config frontend/vite.config.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.4",
     "express": "^5.1.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",

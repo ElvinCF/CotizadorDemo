@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { getSupabaseAdminClient } from "./lotesService.mjs";
+import { badRequest, conflict, forbidden, notFound } from "./errors.mjs";
+import { resolveDbSchema, withPgClient, withPgTransaction } from "./postgres.mjs";
 
 const hashPin = (pin) => createHash("sha256").update(String(pin)).digest("hex");
 
@@ -7,294 +8,273 @@ const VALID_ROLES = new Set(["ADMIN", "ASESOR"]);
 const VALID_STATUS = new Set(["ACTIVO", "INACTIVO"]);
 const MAX_ADMINS = 3;
 
-/**
- * Verifies that the given credentials belong to an active ADMIN.
- * Returns the admin record or throws.
- */
-const verifyAdminAsync = async (username, pin) => {
-  const supabase = getSupabaseAdminClient();
-  const userLower = String(username || "").trim().toLowerCase();
+const mapUserRow = (row) => ({
+  id: row.id,
+  username: row.username,
+  rol: row.rol,
+  estado: row.estado,
+  nombres: row.nombres,
+  apellidos: row.apellidos,
+  telefono: row.telefono,
+  created_at: row.created_at,
+});
 
-  const { data: admin, error } = await supabase
-    .from("usuarios")
-    .select("id, username, rol, estado")
-    .eq("username", userLower)
-    .maybeSingle();
-
-  if (error) throw new Error("Error interno al verificar credenciales.");
-  if (!admin) throw new Error("Credenciales de administrador inválidas.");
-  if (admin.estado !== "ACTIVO") throw new Error("El administrador se encuentra inactivo.");
-  if (admin.rol !== "ADMIN") throw new Error("No tienes permisos de administrador.");
-
-  const hashed = hashPin(pin);
-  if (admin.pin_hash !== undefined && admin.pin_hash !== hashed) {
-    // pin_hash may not be in the select — re-fetch just pin_hash
+const getUserByUsername = async (client, schema, username, includePin = false) => {
+  const columns = [
+    "id",
+    "username",
+    "rol",
+    "estado",
+    "nombres",
+    "apellidos",
+    "telefono",
+    "created_at",
+  ];
+  if (includePin) {
+    columns.splice(2, 0, "pin_hash");
   }
-  // Re-verify PIN with pin_hash
-  const { data: full, error: pinErr } = await supabase
-    .from("usuarios")
-    .select("pin_hash")
-    .eq("id", admin.id)
-    .single();
 
-  if (pinErr) throw new Error("Error interno al verificar PIN.");
-  if (full.pin_hash !== hashed) throw new Error("Credenciales de administrador inválidas.");
+  const result = await client.query(
+    `select ${columns.join(", ")}
+       from ${schema}.usuarios
+      where username = $1
+      limit 1`,
+    [String(username || "").trim().toLowerCase()]
+  );
 
-  return admin;
+  return result.rows[0] ?? null;
+};
+
+const countActiveAdmins = async (client, schema, excludeId = null) => {
+  const values = ["ADMIN", "ACTIVO"];
+  let query = `select count(*)::int as total
+                 from ${schema}.usuarios
+                where rol = $1
+                  and estado = $2`;
+
+  if (excludeId) {
+    query += ` and id <> $3`;
+    values.push(excludeId);
+  }
+
+  const result = await client.query(query, values);
+  return Number(result.rows[0]?.total ?? 0);
+};
+
+const verifyAdminAsync = async (username, pin) => {
+  const schema = resolveDbSchema();
+  return withPgClient(async (client) => {
+    const admin = await getUserByUsername(client, schema, username, true);
+
+    if (!admin) throw forbidden("Credenciales de administrador invalidas.");
+    if (admin.estado !== "ACTIVO") throw forbidden("El administrador se encuentra inactivo.");
+    if (admin.rol !== "ADMIN") throw forbidden("No tienes permisos de administrador.");
+    if (admin.pin_hash !== hashPin(pin)) throw forbidden("Credenciales de administrador invalidas.");
+
+    return admin;
+  });
 };
 
 export const loginAsync = async (username, pin) => {
-  const supabase = getSupabaseAdminClient();
-  const userLower = String(username || "").trim().toLowerCase();
-  
-  const { data: usuario, error: userError } = await supabase
-    .from("usuarios")
-    .select("id, username, pin_hash, rol, estado, nombres, apellidos, telefono")
-    .eq("username", userLower)
-    .maybeSingle();
+  const schema = resolveDbSchema();
+  return withPgClient(async (client) => {
+    const usuario = await getUserByUsername(client, schema, username, true);
 
-  if (userError) {
-    console.error("Error fetching user:", userError);
-    throw new Error("Error interno al verificar credenciales.");
-  }
+    if (!usuario) return null;
+    if (usuario.estado !== "ACTIVO") {
+      throw forbidden("El usuario se encuentra inactivo.");
+    }
+    if (usuario.pin_hash !== hashPin(pin)) {
+      return null;
+    }
 
-  if (!usuario) return null;
+    let frontendRole = "asesor";
+    if (usuario.rol === "ADMIN") {
+      frontendRole = "admin";
+    } else if (usuario.rol === "ASESOR" || usuario.rol === "VENDEDOR") {
+      frontendRole = "asesor";
+    } else {
+      throw forbidden("No tienes un rol valido (Admin o Asesor) para acceder al sistema.");
+    }
 
-  if (usuario.estado !== "ACTIVO") {
-    throw new Error("El usuario se encuentra inactivo.");
-  }
-
-  const hashedInputPin = hashPin(pin);
-  if (usuario.pin_hash !== hashedInputPin) return null;
-
-  let frontendRole = "asesor"; 
-  if (usuario.rol === "ADMIN") {
-    frontendRole = "admin";
-  } else if (usuario.rol === "ASESOR" || usuario.rol === "VENDEDOR") {
-    frontendRole = "asesor";
-  } else {
-    throw new Error("No tienes un rol válido (Admin o Asesor) para acceder al sistema.");
-  }
-
-  return {
-    id: usuario.id,
-    username: usuario.username,
-    role: frontendRole,
-    nombre: `${usuario.nombres} ${usuario.apellidos}`.trim(),
-    telefono: usuario.telefono || ""
-  };
+    return {
+      id: usuario.id,
+      username: usuario.username,
+      role: frontendRole,
+      nombre: `${usuario.nombres} ${usuario.apellidos}`.trim(),
+      telefono: usuario.telefono || "",
+    };
+  });
 };
 
 export const createUserAsync = async (adminUsername, adminPin, nuevoUsuario) => {
-  // 1. Verify caller is admin
   await verifyAdminAsync(adminUsername, adminPin);
+  const schema = resolveDbSchema();
 
-  const supabase = getSupabaseAdminClient();
-
-  // 2. Validate input
   const { username, pin, rol, nombres, apellidos, telefono } = nuevoUsuario || {};
-
   if (!username || !pin || !rol || !nombres) {
-    throw new Error("Faltan campos obligatorios (username, pin, rol, nombres).");
+    throw badRequest("Faltan campos obligatorios (username, pin, rol, nombres).");
   }
 
-  const rolUpper = String(rol).toUpperCase();
+  const rolUpper = String(rol).trim().toUpperCase();
   if (!VALID_ROLES.has(rolUpper)) {
-    throw new Error("Rol inválido. Use ADMIN o ASESOR.");
+    throw badRequest("Rol invalido. Use ADMIN o ASESOR.");
   }
 
-  // 3. Check max admins
-  if (rolUpper === "ADMIN") {
-    const { count, error: countErr } = await supabase
-      .from("usuarios")
-      .select("id", { count: "exact", head: true })
-      .eq("rol", "ADMIN")
-      .eq("estado", "ACTIVO");
-
-    if (countErr) throw new Error("Error al verificar límite de administradores.");
-    if (count >= MAX_ADMINS) {
-      throw new Error(`No se pueden crear más de ${MAX_ADMINS} administradores activos.`);
+  return withPgTransaction(async (client) => {
+    if (rolUpper === "ADMIN") {
+      const adminCount = await countActiveAdmins(client, schema);
+      if (adminCount >= MAX_ADMINS) {
+        throw conflict(`No se pueden crear mas de ${MAX_ADMINS} administradores activos.`);
+      }
     }
-  }
 
-  // 4. Check username uniqueness
-  const userLower = String(username).trim().toLowerCase();
-  const { data: existing } = await supabase
-    .from("usuarios")
-    .select("id")
-    .eq("username", userLower)
-    .maybeSingle();
-
-  if (existing) {
-    throw new Error(`El username '${userLower}' ya existe.`);
-  }
-
-  // 5. Insert
-  const { data: created, error: insertErr } = await supabase
-    .from("usuarios")
-    .insert({
-      username: userLower,
-      pin_hash: hashPin(pin),
-      rol: rolUpper,
-      nombres: String(nombres).trim(),
-      apellidos: String(apellidos || "").trim(),
-      telefono: String(telefono || "").trim(),
-      estado: "ACTIVO",
-    })
-    .select("id, username, rol, estado, nombres, apellidos, telefono, created_at")
-    .single();
-
-  if (insertErr) {
-    console.error("Error creating user:", insertErr);
-    if (insertErr.message?.includes("administradores")) {
-      throw new Error(`No se pueden crear más de ${MAX_ADMINS} administradores activos.`);
+    const userLower = String(username).trim().toLowerCase();
+    const existing = await getUserByUsername(client, schema, userLower, false);
+    if (existing) {
+      throw conflict(`El username '${userLower}' ya existe.`);
     }
-    throw new Error("Error al crear el usuario.");
-  }
 
-  return created;
+    const result = await client.query(
+      `insert into ${schema}.usuarios (
+         username, pin_hash, rol, nombres, apellidos, telefono, estado
+       ) values ($1, $2, $3, $4, $5, $6, 'ACTIVO')
+       returning id, username, rol, estado, nombres, apellidos, telefono, created_at`,
+      [
+        userLower,
+        hashPin(pin),
+        rolUpper,
+        String(nombres).trim(),
+        String(apellidos || "").trim(),
+        String(telefono || "").trim(),
+      ]
+    );
+
+    return mapUserRow(result.rows[0]);
+  });
 };
 
 export const listUsersAsync = async (adminUsername, adminPin) => {
   await verifyAdminAsync(adminUsername, adminPin);
+  const schema = resolveDbSchema();
 
-  const supabase = getSupabaseAdminClient();
-
-  const { data, error } = await supabase
-    .from("usuarios")
-    .select("id, username, rol, estado, nombres, apellidos, telefono, created_at")
-    .order("created_at", { ascending: true });
-
-  if (error) throw new Error("Error al listar usuarios.");
-
-  return data || [];
+  return withPgClient(async (client) => {
+    const result = await client.query(
+      `select id, username, rol, estado, nombres, apellidos, telefono, created_at
+         from ${schema}.usuarios
+        order by created_at asc`
+    );
+    return result.rows.map(mapUserRow);
+  });
 };
 
 export const getUserCatalogsAsync = async (adminUsername, adminPin) => {
   await verifyAdminAsync(adminUsername, adminPin);
+  const schema = resolveDbSchema();
 
-  const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("usuarios")
-    .select("rol, estado");
-
-  if (error) throw new Error("Error al cargar catalogos de usuarios.");
-
-  const roles = Array.from(
-    new Set([...(data || []).map((item) => item.rol).filter(Boolean), ...Array.from(VALID_ROLES)])
-  );
-  const statuses = Array.from(
-    new Set([...(data || []).map((item) => item.estado).filter(Boolean), ...Array.from(VALID_STATUS)])
-  );
-
-  return {
-    roles,
-    statuses,
-  };
+  return withPgClient(async (client) => {
+    const result = await client.query(`select rol, estado from ${schema}.usuarios`);
+    const roles = Array.from(new Set([...result.rows.map((item) => item.rol).filter(Boolean), ...Array.from(VALID_ROLES)]));
+    const statuses = Array.from(new Set([...result.rows.map((item) => item.estado).filter(Boolean), ...Array.from(VALID_STATUS)]));
+    return { roles, statuses };
+  });
 };
 
 export const updateUserAsync = async (adminUsername, adminPin, userId, patchInput) => {
   await verifyAdminAsync(adminUsername, adminPin);
-
-  const supabase = getSupabaseAdminClient();
+  const schema = resolveDbSchema();
   const id = String(userId || "").trim();
 
   if (!id) {
-    throw new Error("Falta id de usuario.");
+    throw badRequest("Falta id de usuario.");
   }
 
-  const { data: existing, error: existingErr } = await supabase
-    .from("usuarios")
-    .select("id, username, rol, estado")
-    .eq("id", id)
-    .maybeSingle();
+  return withPgTransaction(async (client) => {
+    const result = await client.query(
+      `select id, username, rol, estado
+         from ${schema}.usuarios
+        where id = $1
+        for update`,
+      [id]
+    );
 
-  if (existingErr) throw new Error("Error al obtener el usuario.");
-  if (!existing) throw new Error("Usuario no encontrado.");
-
-  const patch = patchInput || {};
-  const nextData = {};
-
-  if (patch.username !== undefined) {
-    const username = String(patch.username).trim().toLowerCase();
-    if (!username) throw new Error("El username es obligatorio.");
-
-    const { data: duplicated, error: duplicateErr } = await supabase
-      .from("usuarios")
-      .select("id")
-      .eq("username", username)
-      .neq("id", id)
-      .maybeSingle();
-
-    if (duplicateErr) throw new Error("Error al validar username.");
-    if (duplicated) throw new Error(`El username '${username}' ya existe.`);
-    nextData.username = username;
-  }
-
-  if (patch.rol !== undefined) {
-    const role = String(patch.rol).trim().toUpperCase();
-    if (!VALID_ROLES.has(role)) {
-      throw new Error("Rol invalido. Use ADMIN o ASESOR.");
+    const existing = result.rows[0];
+    if (!existing) {
+      throw notFound("Usuario no encontrado.");
     }
-    nextData.rol = role;
-  }
 
-  if (patch.estado !== undefined) {
-    const status = String(patch.estado).trim().toUpperCase();
-    if (!VALID_STATUS.has(status)) {
-      throw new Error("Estado invalido. Use ACTIVO o INACTIVO.");
+    const patch = patchInput || {};
+    const nextData = {};
+
+    if (patch.username !== undefined) {
+      const username = String(patch.username).trim().toLowerCase();
+      if (!username) throw badRequest("El username es obligatorio.");
+
+      const duplicate = await getUserByUsername(client, schema, username, false);
+      if (duplicate && duplicate.id !== id) {
+        throw conflict(`El username '${username}' ya existe.`);
+      }
+      nextData.username = username;
     }
-    nextData.estado = status;
-  }
 
-  if (patch.nombres !== undefined) {
-    nextData.nombres = String(patch.nombres).trim();
-  }
-
-  if (patch.apellidos !== undefined) {
-    nextData.apellidos = String(patch.apellidos).trim();
-  }
-
-  if (patch.telefono !== undefined) {
-    nextData.telefono = String(patch.telefono).trim();
-  }
-
-  if (patch.pin !== undefined && String(patch.pin).trim() !== "") {
-    nextData.pin_hash = hashPin(String(patch.pin).trim());
-  }
-
-  const nextRole = String(nextData.rol ?? existing.rol).toUpperCase();
-  const nextStatus = String(nextData.estado ?? existing.estado).toUpperCase();
-
-  if (nextRole === "ADMIN" && nextStatus === "ACTIVO") {
-    const { count, error: countErr } = await supabase
-      .from("usuarios")
-      .select("id", { count: "exact", head: true })
-      .eq("rol", "ADMIN")
-      .eq("estado", "ACTIVO")
-      .neq("id", id);
-
-    if (countErr) throw new Error("Error al verificar limite de administradores.");
-    if ((count ?? 0) >= MAX_ADMINS) {
-      throw new Error(`No se pueden crear mas de ${MAX_ADMINS} administradores activos.`);
+    if (patch.rol !== undefined) {
+      const role = String(patch.rol).trim().toUpperCase();
+      if (!VALID_ROLES.has(role)) {
+        throw badRequest("Rol invalido. Use ADMIN o ASESOR.");
+      }
+      nextData.rol = role;
     }
-  }
 
-  const { data: updated, error: updateErr } = await supabase
-    .from("usuarios")
-    .update(nextData)
-    .eq("id", id)
-    .select("id, username, rol, estado, nombres, apellidos, telefono, created_at")
-    .single();
-
-  if (updateErr) {
-    console.error("Error updating user:", updateErr);
-    if (updateErr.message?.includes("administradores")) {
-      throw new Error(`No se pueden crear mas de ${MAX_ADMINS} administradores activos.`);
+    if (patch.estado !== undefined) {
+      const status = String(patch.estado).trim().toUpperCase();
+      if (!VALID_STATUS.has(status)) {
+        throw badRequest("Estado invalido. Use ACTIVO o INACTIVO.");
+      }
+      nextData.estado = status;
     }
-    throw new Error("Error al actualizar el usuario.");
-  }
 
-  return updated;
+    if (patch.nombres !== undefined) nextData.nombres = String(patch.nombres).trim();
+    if (patch.apellidos !== undefined) nextData.apellidos = String(patch.apellidos).trim();
+    if (patch.telefono !== undefined) nextData.telefono = String(patch.telefono).trim();
+    if (patch.pin !== undefined && String(patch.pin).trim() !== "") {
+      nextData.pin_hash = hashPin(String(patch.pin).trim());
+    }
+
+    const nextRole = String(nextData.rol ?? existing.rol).toUpperCase();
+    const nextStatus = String(nextData.estado ?? existing.estado).toUpperCase();
+
+    if (nextRole === "ADMIN" && nextStatus === "ACTIVO") {
+      const adminCount = await countActiveAdmins(client, schema, id);
+      if (adminCount >= MAX_ADMINS) {
+        throw conflict(`No se pueden crear mas de ${MAX_ADMINS} administradores activos.`);
+      }
+    }
+
+    const sets = [];
+    const values = [id];
+    for (const [key, value] of Object.entries(nextData)) {
+      sets.push(`${key} = $${values.length + 1}`);
+      values.push(value);
+    }
+
+    if (sets.length === 0) {
+      const unchanged = await client.query(
+        `select id, username, rol, estado, nombres, apellidos, telefono, created_at
+           from ${schema}.usuarios
+          where id = $1`,
+        [id]
+      );
+      return mapUserRow(unchanged.rows[0]);
+    }
+
+    const updated = await client.query(
+      `update ${schema}.usuarios
+          set ${sets.join(", ")}
+        where id = $1
+        returning id, username, rol, estado, nombres, apellidos, telefono, created_at`,
+      values
+    );
+
+    return mapUserRow(updated.rows[0]);
+  });
 };
-

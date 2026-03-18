@@ -1,4 +1,5 @@
-import { getSupabaseAdminClient, updateLoteById } from "../../backend/lib/lotesService.mjs";
+import { getErrorStatus } from "../../backend/lib/errors.mjs";
+import { updateLoteById } from "../../backend/lib/lotesService.mjs";
 
 export default async function handler(req, res) {
   if (req.method !== "PUT") {
@@ -8,8 +9,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const supabase = getSupabaseAdminClient();
-    const item = await updateLoteById(supabase, req.query.id, req.body ?? {});
+    const item = await updateLoteById(req.query.id, req.body ?? {});
 
     if (!item) {
       res.status(404).json({ error: "Lote no encontrado" });
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     res.status(200).json({ item, savedAt: new Date().toISOString() });
   } catch (error) {
     console.error("Vercel API PUT /api/lotes/:id error:", error);
-    res.status(500).json({ error: "No se pudo actualizar lote en Supabase" });
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar lote en la base de datos" });
   }
 }
 

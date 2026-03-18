@@ -1,19 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { badRequest, notFound } from "./errors.mjs";
+import { resolveDbSchema, withPgClient } from "./postgres.mjs";
 
 const ALLOWED_STATUS = new Set(["DISPONIBLE", "SEPARADO", "VENDIDO"]);
-const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-const ALLOWED_SCHEMAS = new Set(["public", "dev", "devsimple"]);
-
-const resolveSupabaseSchema = () => {
-  const configured = String(process.env.SUPABASE_DB_SCHEMA ?? "").trim().toLowerCase();
-  if (!configured) {
-    throw new Error("Falta SUPABASE_DB_SCHEMA (valores permitidos: public|dev|devsimple).");
-  }
-  if (!ALLOWED_SCHEMAS.has(configured)) {
-    throw new Error(`SUPABASE_DB_SCHEMA invalido: '${configured}'. Usa public, dev o devsimple.`);
-  }
-  return configured;
-};
 
 const cleanNumber = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -27,27 +15,7 @@ const normalizeStatus = (value) => {
   return ALLOWED_STATUS.has(normalized) ? normalized : "DISPONIBLE";
 };
 
-const normalizeText = (value) => String(value ?? "").trim();
-
 export const toLoteId = (mz, lote) => `${String(mz).trim().toUpperCase()}-${String(lote).padStart(2, "0")}`;
-
-export const getSupabaseAdminClient = () => {
-  const url = process.env.SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const schema = resolveSupabaseSchema();
-  if (!url || !serviceRole) {
-    throw new Error("Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY");
-  }
-  return createClient(url, serviceRole, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-    db: {
-      schema,
-    },
-  });
-};
 
 const mapDbRowToLote = (row) => ({
   id: row.codigo ?? toLoteId(row.manzana, row.lote),
@@ -55,66 +23,76 @@ const mapDbRowToLote = (row) => ({
   mz: row.manzana,
   lote: row.lote,
   areaM2: row.area_m2,
-  price: row.precio_referencial,
+  price: Number(row.precio_referencial ?? 0),
   condicion: normalizeStatus(row.estado_comercial),
 });
 
-export const listLotes = async (supabase) => {
-  const { data, error } = await supabase
-    .from("lotes")
-    .select("id,manzana,lote,area_m2,precio_referencial,estado_comercial,codigo")
-    .order("manzana", { ascending: true })
-    .order("lote", { ascending: true });
+export const listLotes = async () => {
+  const schema = resolveDbSchema();
+  return withPgClient(async (client) => {
+    const result = await client.query(
+      `select id, manzana, lote, area_m2, precio_referencial, estado_comercial, codigo
+         from ${schema}.lotes
+        order by manzana asc, lote asc`
+    );
 
-  if (error) throw error;
-  return (data || []).map(mapDbRowToLote);
+    return result.rows.map(mapDbRowToLote);
+  });
 };
 
-export const updateLoteById = async (supabase, loteId, payload) => {
-  const patch = {
-    estado_comercial: normalizeStatus(payload.estado)
-  };
-
-  if (payload.price !== undefined) {
-    patch.precio_referencial = cleanNumber(payload.price);
+export const updateLoteById = async (loteId, payload) => {
+  const schema = resolveDbSchema();
+  const code = String(loteId || "").trim();
+  if (!code) {
+    throw badRequest("Falta id de lote.");
   }
 
-  const { data, error } = await supabase
-    .from("lotes")
-    .update(patch)
-    .eq("codigo", String(loteId || "").trim())
-    .select("id,manzana,lote,area_m2,precio_referencial,estado_comercial,codigo")
-    .maybeSingle();
+  const patchStatus = normalizeStatus(payload.estado);
+  const price = payload.price !== undefined ? cleanNumber(payload.price) : undefined;
 
-  if (error) throw error;
-  if (!data) return null;
-  return mapDbRowToLote(data);
+  return withPgClient(async (client) => {
+    const fields = ["estado_comercial = $2"];
+    const values = [code, patchStatus];
+
+    if (price !== undefined) {
+      fields.push(`precio_referencial = $${values.length + 1}`);
+      values.push(price);
+    }
+
+    const result = await client.query(
+      `update ${schema}.lotes
+          set ${fields.join(", ")}
+        where codigo = $1
+        returning id, manzana, lote, area_m2, precio_referencial, estado_comercial, codigo`,
+      values
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    return mapDbRowToLote(row);
+  });
 };
 
-export const updateAvailablePricesMassive = async (supabase, payload) => {
+export const updateAvailablePricesMassive = async (payload) => {
+  const schema = resolveDbSchema();
   const tipoAjuste = String(payload?.tipoAjuste || "").trim().toUpperCase();
   const valorAjuste = cleanNumber(payload?.valorAjuste);
 
   if (tipoAjuste !== "MONTO" && tipoAjuste !== "PORCENTAJE") {
-    throw new Error("tipoAjuste invalido. Usa MONTO o PORCENTAJE.");
+    throw badRequest("tipoAjuste invalido. Usa MONTO o PORCENTAJE.");
   }
   if (valorAjuste === null) {
-    throw new Error("valorAjuste invalido.");
+    throw badRequest("valorAjuste invalido.");
   }
 
-  const { data, error } = await supabase.rpc("sp_actualizar_precios_disponibles", {
-    p_tipo_ajuste: tipoAjuste,
-    p_valor_ajuste: valorAjuste,
+  return withPgClient(async (client) => {
+    const result = await client.query(
+      `select ${schema}.sp_actualizar_precios_disponibles($1, $2) as updated_count`,
+      [tipoAjuste, valorAjuste]
+    );
+
+    return Number(result.rows[0]?.updated_count ?? 0);
   });
-
-  if (error) throw error;
-
-  if (typeof data === "number") {
-    return data;
-  }
-  if (Array.isArray(data) && data.length > 0 && typeof data[0]?.updated_count === "number") {
-    return data[0].updated_count;
-  }
-  return 0;
 };
-

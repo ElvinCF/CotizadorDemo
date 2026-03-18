@@ -52,14 +52,12 @@ npm run build
 ```
 
 ## Datos
-- Fuente unica: API `/api/lotes` conectada a Supabase.
-- Si API/Supabase falla, el frontend muestra error (no usa fallback CSV).
+- Fuente unica: API `/api/lotes` conectada a Postgres/Supavisor.
+- Si API/BD falla, el frontend muestra error (no usa fallback CSV).
 
 ## Migraciones y seeds por esquema
 - Copia `.env.example` a `.env` y completa claves:
-  - `SUPABASE_URL`
-  - `SUPABASE_SERVICE_ROLE_KEY`
-  - `SUPABASE_DB_SCHEMA` (`dev` o `public`)
+  - `SUPABASE_DB_SCHEMA` (`dev`, `devsimple` o `public`)
   - `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_NAME`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`
 - Scripts:
   - `npm run db:migrate:dev`
