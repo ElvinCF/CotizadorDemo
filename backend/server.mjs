@@ -1,5 +1,23 @@
 import express from "express";
 import { getErrorStatus } from "./lib/errors.mjs";
+import { authenticateUserAsync } from "./lib/authService.mjs";
+import {
+  getAdminDashboardActiveSalesAsync,
+  getAdminDashboardAdvisorRankingAsync,
+  getAdminDashboardAdvisorSummaryAsync,
+  getAdminDashboardCancelledSalesAsync,
+  getAdminDashboardCollectionsSeriesAsync,
+  getAdminDashboardInventoryAsync,
+  getAdminDashboardKpisAsync,
+  getAdminDashboardSalesSeriesAsync,
+  getAdvisorDashboardClientsAsync,
+  getAdvisorDashboardCollectionsSeriesAsync,
+  getAdvisorDashboardKpisAsync,
+  getAdvisorDashboardOperationsAsync,
+  getAdvisorDashboardOperationsByStageAsync,
+  getAdvisorDashboardPaymentsAsync,
+  getAdvisorDashboardSalesSeriesAsync,
+} from "./lib/dashboardService.mjs";
 import {
   listLotes,
   updateAvailablePricesMassive,
@@ -9,7 +27,6 @@ import {
   createUserAsync,
   getUserCatalogsAsync,
   listUsersAsync,
-  loginAsync,
   updateUserAsync,
 } from "./lib/usuariosService.mjs";
 import {
@@ -87,6 +104,246 @@ app.post("/api/lotes/precios-masivos", async (req, res) => {
       error: "No se pudo actualizar precios masivamente en la base de datos",
       detail,
     });
+  }
+});
+
+app.get("/api/dashboard/admin/kpis", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const item = await getAdminDashboardKpisAsync(username, pin, req.query ?? {});
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading admin dashboard KPIs:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener KPIs del dashboard." });
+  }
+});
+
+app.get("/api/dashboard/admin/series-ventas", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdminDashboardSalesSeriesAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading admin sales series:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener serie de ventas." });
+  }
+});
+
+app.get("/api/dashboard/admin/series-cobros", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdminDashboardCollectionsSeriesAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading admin collections series:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener serie de cobros." });
+  }
+});
+
+app.get("/api/dashboard/admin/inventario", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdminDashboardInventoryAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading admin inventory summary:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener inventario." });
+  }
+});
+
+app.get("/api/dashboard/admin/resumen-asesores", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdminDashboardAdvisorSummaryAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading admin advisor summary:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener resumen por asesor." });
+  }
+});
+
+app.get("/api/dashboard/admin/ranking-asesores", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdminDashboardAdvisorRankingAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading admin advisor ranking:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener ranking de asesores." });
+  }
+});
+
+app.get("/api/dashboard/admin/ventas-activas", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdminDashboardActiveSalesAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading admin active sales:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener ventas activas." });
+  }
+});
+
+app.get("/api/dashboard/admin/operaciones-anuladas", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdminDashboardCancelledSalesAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading admin cancelled operations:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener operaciones anuladas." });
+  }
+});
+
+app.get("/api/dashboard/asesor/kpis", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const item = await getAdvisorDashboardKpisAsync(username, pin, req.query ?? {});
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading advisor dashboard KPIs:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener KPIs del asesor." });
+  }
+});
+
+app.get("/api/dashboard/asesor/series-ventas", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdvisorDashboardSalesSeriesAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading advisor sales series:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener serie de ventas del asesor." });
+  }
+});
+
+app.get("/api/dashboard/asesor/series-cobros", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdvisorDashboardCollectionsSeriesAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading advisor collections series:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener serie de cobros del asesor." });
+  }
+});
+
+app.get("/api/dashboard/asesor/operaciones-por-etapa", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdvisorDashboardOperationsByStageAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading advisor operations by stage:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener operaciones por etapa." });
+  }
+});
+
+app.get("/api/dashboard/asesor/operaciones", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdvisorDashboardOperationsAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading advisor operations:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener operaciones del asesor." });
+  }
+});
+
+app.get("/api/dashboard/asesor/clientes", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdvisorDashboardClientsAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading advisor clients:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener clientes del asesor." });
+  }
+});
+
+app.get("/api/dashboard/asesor/pagos", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await getAdvisorDashboardPaymentsAsync(username, pin, req.query ?? {});
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading advisor payments:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener pagos del asesor." });
   }
 });
 
@@ -257,7 +514,7 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(400).json({ error: "Falta usuario o PIN." });
     }
 
-    const userData = await loginAsync(username, pin);
+    const userData = await authenticateUserAsync(username, pin);
     if (!userData) {
       return res.status(401).json({ error: "Usuario o PIN incorrectos." });
     }
