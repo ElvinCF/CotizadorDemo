@@ -7,6 +7,9 @@ import AdminDashboardDonutChart from "../../components/admin-dashboard/AdminDash
 import AdminDashboardLineChart from "../../components/admin-dashboard/AdminDashboardLineChart";
 import AdminDashboardRanking from "../../components/admin-dashboard/AdminDashboardRanking";
 import AdminDashboardStatCard from "../../components/admin-dashboard/AdminDashboardStatCard";
+import DashboardFilterField from "../../components/dashboard/DashboardFilterField";
+import DashboardFilterToggle from "../../components/dashboard/DashboardFilterToggle";
+import DashboardFilterToolbar from "../../components/dashboard/DashboardFilterToolbar";
 import type {
   DashboardAdvisorClientItem,
   DashboardAdvisorKpis,
@@ -129,13 +132,6 @@ const IconCalendar = () => (
 const IconFilter = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path d="M4 7h16M7 12h10M10 17h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
-
-const IconFilterOff = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path d="M4 7h16M7 12h10M10 17h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    <path d="M5 5 19 19" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
   </svg>
 );
 
@@ -380,30 +376,21 @@ export default function AdvisorDashboardPage() {
           Ventas
         </Link>
       </nav>
-      <button
-        type="button"
-        className={`btn ghost topbar-action dashboard-filter-toggle${filtersOpen ? " is-active" : ""}`}
-        onClick={() => setFiltersOpen((current) => !current)}
-        aria-expanded={filtersOpen}
-        aria-controls="advisor-dashboard-filters"
-      >
-        {filtersOpen ? <IconFilter /> : <IconFilterOff />}
-        <span className="dashboard-filter-toggle__label">Filtros</span>
-      </button>
+      <DashboardFilterToggle
+        open={filtersOpen}
+        controlsId="advisor-dashboard-filters"
+        onToggle={() => setFiltersOpen((current) => !current)}
+      />
     </div>
   );
 
   const mobileActions = (
-    <button
-      type="button"
-      className={`btn ghost topbar-action dashboard-filter-toggle dashboard-filter-toggle--mobile${filtersOpen ? " is-active" : ""}`}
-      onClick={() => setFiltersOpen((current) => !current)}
-      aria-expanded={filtersOpen}
-      aria-controls="advisor-dashboard-filters"
-      aria-label={filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
-    >
-      {filtersOpen ? <IconFilter /> : <IconFilterOff />}
-    </button>
+    <DashboardFilterToggle
+      open={filtersOpen}
+      controlsId="advisor-dashboard-filters"
+      onToggle={() => setFiltersOpen((current) => !current)}
+      mobile
+    />
   );
 
   const advisorBadge = <span className="dashboard-title-badge">{username || "Asesor"}</span>;
@@ -418,38 +405,22 @@ export default function AdvisorDashboardPage() {
       contentClassName="main--admin-dashboard"
     >
       <section className="admin-dashboard">
-        <div
-          id="advisor-dashboard-filters"
-          className={`admin-dashboard__hero admin-dashboard__hero--toolbar${filtersOpen ? "" : " is-collapsed"}`}
-        >
-          <div className="admin-dashboard__filters admin-dashboard__filters--advisor">
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconCalendar />
-                Desde
-              </span>
+        <DashboardFilterToolbar id="advisor-dashboard-filters" open={filtersOpen} className="admin-dashboard__filters--advisor">
+          <DashboardFilterField label="Desde" icon={<IconCalendar />}>
               <input
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
               />
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconCalendar />
-                Hasta
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Hasta" icon={<IconCalendar />}>
               <input
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
               />
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconFilter />
-                Estado lote
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Estado lote" icon={<IconFilter />}>
               <select
                 value={filters.estadoLote}
                 onChange={(event) =>
@@ -465,12 +436,8 @@ export default function AdvisorDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconFilter />
-                Estado venta
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Estado venta" icon={<IconFilter />}>
               <select
                 value={filters.estadoVenta}
                 onChange={(event) =>
@@ -486,12 +453,8 @@ export default function AdvisorDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconFilter />
-                Agrupar
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Agrupar" icon={<IconFilter />}>
               <select
                 value={filters.groupBy}
                 onChange={(event) =>
@@ -507,12 +470,8 @@ export default function AdvisorDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconMoney />
-                Tipo pago
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Tipo pago" icon={<IconMoney />}>
               <select
                 value={filters.tipoPago}
                 onChange={(event) =>
@@ -528,9 +487,8 @@ export default function AdvisorDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-          </div>
-        </div>
+          </DashboardFilterField>
+        </DashboardFilterToolbar>
 
         {error ? <p className="admin-error">{error}</p> : null}
 

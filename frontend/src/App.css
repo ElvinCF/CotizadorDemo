@@ -3701,6 +3701,28 @@ input.is-invalid {
   gap: 10px;
 }
 
+.admin-dashboard__filters--admin {
+  grid-template-columns:
+    minmax(132px, 144px)
+    minmax(132px, 144px)
+    minmax(148px, 1fr)
+    minmax(148px, 1fr)
+    minmax(148px, 1fr)
+    minmax(124px, 136px)
+    minmax(164px, 188px)
+    minmax(92px, 108px)
+    auto;
+  align-items: end;
+  padding: 10px 12px;
+  border-radius: 14px;
+  gap: 10px;
+}
+
+.admin-dashboard__filters--admin > .btn {
+  align-self: end;
+  min-height: 36px;
+}
+
 .admin-dashboard__filter {
   display: grid;
   gap: 4px;
@@ -4166,6 +4188,10 @@ input.is-invalid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .admin-dashboard__filters--admin {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .admin-dashboard__filters > .btn {
     justify-content: center;
   }
@@ -4193,6 +4219,10 @@ input.is-invalid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .admin-dashboard__filters--admin {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-line-chart svg {
     height: 210px;
   }
@@ -4213,6 +4243,11 @@ input.is-invalid {
   }
 
   .admin-dashboard__filters--advisor {
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+
+  .admin-dashboard__filters--admin {
     grid-template-columns: 1fr;
     padding: 10px;
   }

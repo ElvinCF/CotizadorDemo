@@ -7,6 +7,9 @@ import AdminDashboardDonutChart from "../../components/admin-dashboard/AdminDash
 import AdminDashboardLineChart from "../../components/admin-dashboard/AdminDashboardLineChart";
 import AdminDashboardRanking from "../../components/admin-dashboard/AdminDashboardRanking";
 import AdminDashboardStatCard from "../../components/admin-dashboard/AdminDashboardStatCard";
+import DashboardFilterField from "../../components/dashboard/DashboardFilterField";
+import DashboardFilterToggle from "../../components/dashboard/DashboardFilterToggle";
+import DashboardFilterToolbar from "../../components/dashboard/DashboardFilterToolbar";
 import type {
   DashboardAdminFilters,
   DashboardAdminKpis,
@@ -243,9 +246,12 @@ const inventoryLabel = (state: DashboardInventoryItem["estadoComercial"]) => {
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loginUsername, loginPin } = useAuth();
+  const { loginUsername, loginPin, username } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [filters, setFilters] = useState<DashboardFiltersState>(defaultFilters);
+  const [filtersOpen, setFiltersOpen] = useState(() =>
+    typeof window === "undefined" ? true : window.innerWidth > 640
+  );
   const [kpis, setKpis] = useState<DashboardAdminKpis>(emptyKpis);
   const [salesSeries, setSalesSeries] = useState<DashboardSalesSeriesItem[]>([]);
   const [inventory, setInventory] = useState<DashboardInventoryItem[]>([]);
@@ -427,21 +433,39 @@ export default function AdminDashboardPage() {
   );
 
   const actions = (
-    <nav className="topbar-nav">
-      <Link className="btn ghost topbar-action" to="/">
-        <IconMap />
-        Mapa
-      </Link>
-      <Link className="btn ghost topbar-action" to="/lotes">
-        <IconTable />
-        Lotes
-      </Link>
-      <Link className="btn ghost topbar-action" to="/usuarios">
-        <IconUsers />
-        Usuarios
-      </Link>
-    </nav>
+    <div className="dashboard-topbar-actions">
+      <nav className="topbar-nav dashboard-topbar-nav">
+        <Link className="btn ghost topbar-action" to="/">
+          <IconMap />
+          Mapa
+        </Link>
+        <Link className="btn ghost topbar-action" to="/lotes">
+          <IconTable />
+          Lotes
+        </Link>
+        <Link className="btn ghost topbar-action" to="/usuarios">
+          <IconUsers />
+          Usuarios
+        </Link>
+      </nav>
+      <DashboardFilterToggle
+        open={filtersOpen}
+        controlsId="admin-dashboard-filters"
+        onToggle={() => setFiltersOpen((current) => !current)}
+      />
+    </div>
   );
+
+  const mobileActions = (
+    <DashboardFilterToggle
+      open={filtersOpen}
+      controlsId="admin-dashboard-filters"
+      onToggle={() => setFiltersOpen((current) => !current)}
+      mobile
+    />
+  );
+
+  const adminBadge = <span className="dashboard-title-badge">{username || "Admin"}</span>;
 
   const exportSummary = () => {
     const payload = {
@@ -466,46 +490,31 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <AppShell title="Dashboard Administrativo" actions={actions} contentClassName="main--admin-dashboard">
+    <AppShell
+      title="Dashboard Administrativo"
+      titleMeta={adminBadge}
+      actions={actions}
+      mobileActions={mobileActions}
+      keepThemeVisibleOnMobile
+      contentClassName="main--admin-dashboard"
+    >
       <section className="admin-dashboard">
-        <div className="admin-dashboard__hero">
-          <div>
-            <span className="admin-dashboard__eyebrow">Resumen operativo</span>
-            <h2>Desempeno comercial del proyecto</h2>
-            <p>
-              Dashboard conectado a las funciones analytics del backend. Los filtros usan el contrato real
-              de `devsimple` y reflejan ventas, inventario y asesores sin simulaciones locales.
-            </p>
-          </div>
-
-          <div className="admin-dashboard__filters">
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconCalendar />
-                Desde
-              </span>
+        <DashboardFilterToolbar id="admin-dashboard-filters" open={filtersOpen} className="admin-dashboard__filters--admin">
+          <DashboardFilterField label="Desde" icon={<IconCalendar />}>
               <input
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
               />
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconCalendar />
-                Hasta
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Hasta" icon={<IconCalendar />}>
               <input
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
               />
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconFilter />
-                Estado lote
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Estado lote" icon={<IconFilter />}>
               <select
                 value={filters.estadoLote}
                 onChange={(event) =>
@@ -521,12 +530,8 @@ export default function AdminDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconFilter />
-                Estado venta
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Estado venta" icon={<IconFilter />}>
               <select
                 value={filters.estadoVenta}
                 onChange={(event) =>
@@ -542,12 +547,8 @@ export default function AdminDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconUsers />
-                Asesor
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Asesor" icon={<IconUsers />}>
               <select
                 value={filters.asesorId}
                 onChange={(event) => setFilters((current) => ({ ...current, asesorId: event.target.value }))}
@@ -559,12 +560,8 @@ export default function AdminDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconFilter />
-                Agrupar
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Agrupar" icon={<IconFilter />}>
               <select
                 value={filters.groupBy}
                 onChange={(event) =>
@@ -580,12 +577,8 @@ export default function AdminDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconRate />
-                Ranking
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Ranking" icon={<IconRate />}>
               <select
                 value={filters.metric}
                 onChange={(event) =>
@@ -601,12 +594,8 @@ export default function AdminDashboardPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="admin-dashboard__filter">
-              <span>
-                <IconLots />
-                Top N
-              </span>
+          </DashboardFilterField>
+          <DashboardFilterField label="Top N" icon={<IconLots />}>
               <input
                 type="number"
                 min={1}
@@ -614,13 +603,12 @@ export default function AdminDashboardPage() {
                 value={filters.topN}
                 onChange={(event) => setFilters((current) => ({ ...current, topN: event.target.value }))}
               />
-            </label>
+          </DashboardFilterField>
             <button type="button" className="btn" onClick={exportSummary}>
               <IconExport />
               Exportar resumen
             </button>
-          </div>
-        </div>
+        </DashboardFilterToolbar>
 
         {error ? <p className="admin-error">{error}</p> : null}
 
