@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "../../app/AppShell";
+import { useAuth } from "../../app/AuthContext";
 import AdminDashboardBarChart from "../../components/admin-dashboard/AdminDashboardBarChart";
 import AdminDashboardDonutChart from "../../components/admin-dashboard/AdminDashboardDonutChart";
 import AdminDashboardLineChart from "../../components/admin-dashboard/AdminDashboardLineChart";
@@ -111,8 +112,10 @@ const IconTable = () => (
 
 const IconSales = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path d="M5 19V9M12 19V5M19 19v-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    <path d="M3 19h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <rect x="4" y="10" width="3.4" height="9" rx="1.2" fill="currentColor" />
+    <rect x="10.3" y="5" width="3.4" height="14" rx="1.2" fill="currentColor" />
+    <rect x="16.6" y="12.5" width="3.4" height="6.5" rx="1.2" fill="currentColor" />
+    <path d="M3 19h18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
   </svg>
 );
 
@@ -129,6 +132,13 @@ const IconFilter = () => (
   </svg>
 );
 
+const IconFilterOff = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M4 7h16M7 12h10M10 17h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M5 5 19 19" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
 const IconMoney = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <rect x="3" y="6" width="18" height="12" rx="3" stroke="currentColor" strokeWidth="1.6" />
@@ -139,10 +149,34 @@ const IconMoney = () => (
 
 const IconClients = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path d="M9 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.6" />
-    <path d="M15.5 11a2.5 2.5 0 1 0 0-5" stroke="currentColor" strokeWidth="1.6" />
-    <path d="M4 19a5 5 0 0 1 10 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    <path d="M14 18a4 4 0 0 1 6 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path
+      d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M16.5 12a2.5 2.5 0 1 0 0-5"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M3.5 19.5a5.8 5.8 0 0 1 11 0"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M15 18.5a4.4 4.4 0 0 1 5.5 1"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
@@ -194,7 +228,11 @@ const operationStateLabel = (state: SaleState) => {
 };
 
 export default function AdvisorDashboardPage() {
+  const { username } = useAuth();
   const [filters, setFilters] = useState<AdvisorDashboardFiltersState>(defaultFilters);
+  const [filtersOpen, setFiltersOpen] = useState(() =>
+    typeof window === "undefined" ? true : window.innerWidth > 640
+  );
   const [kpis, setKpis] = useState<DashboardAdvisorKpis>(emptyKpis);
   const [salesSeries, setSalesSeries] = useState<DashboardSalesSeriesItem[]>([]);
   const [collectionsSeries, setCollectionsSeries] = useState<DashboardCollectionsSeriesItem[]>([]);
@@ -327,36 +365,64 @@ export default function AdvisorDashboardPage() {
   );
 
   const actions = (
-    <nav className="topbar-nav">
-      <Link className="btn ghost topbar-action" to="/">
-        <IconMap />
-        Mapa
-      </Link>
-      <Link className="btn ghost topbar-action" to="/lotes">
-        <IconTable />
-        Lotes
-      </Link>
-      <Link className="btn ghost topbar-action" to="/ventas">
-        <IconSales />
-        Ventas
-      </Link>
-    </nav>
+    <div className="dashboard-topbar-actions">
+      <nav className="topbar-nav dashboard-topbar-nav">
+        <Link className="btn ghost topbar-action" to="/">
+          <IconMap />
+          Mapa
+        </Link>
+        <Link className="btn ghost topbar-action" to="/lotes">
+          <IconTable />
+          Lotes
+        </Link>
+        <Link className="btn ghost topbar-action" to="/ventas">
+          <IconSales />
+          Ventas
+        </Link>
+      </nav>
+      <button
+        type="button"
+        className={`btn ghost topbar-action dashboard-filter-toggle${filtersOpen ? " is-active" : ""}`}
+        onClick={() => setFiltersOpen((current) => !current)}
+        aria-expanded={filtersOpen}
+        aria-controls="advisor-dashboard-filters"
+      >
+        {filtersOpen ? <IconFilter /> : <IconFilterOff />}
+        <span className="dashboard-filter-toggle__label">Filtros</span>
+      </button>
+    </div>
   );
 
-  return (
-    <AppShell title="Dashboard de Asesor" actions={actions} contentClassName="main--admin-dashboard">
-      <section className="admin-dashboard">
-        <div className="admin-dashboard__hero">
-          <div>
-            <span className="admin-dashboard__eyebrow">Cartera personal</span>
-            <h2>Seguimiento comercial del asesor</h2>
-            <p>
-              Vista personal conectada a analytics del backend para medir ventas, cobros, cartera activa,
-              clientes y pagos registrados.
-            </p>
-          </div>
+  const mobileActions = (
+    <button
+      type="button"
+      className={`btn ghost topbar-action dashboard-filter-toggle dashboard-filter-toggle--mobile${filtersOpen ? " is-active" : ""}`}
+      onClick={() => setFiltersOpen((current) => !current)}
+      aria-expanded={filtersOpen}
+      aria-controls="advisor-dashboard-filters"
+      aria-label={filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+    >
+      {filtersOpen ? <IconFilter /> : <IconFilterOff />}
+    </button>
+  );
 
-          <div className="admin-dashboard__filters">
+  const advisorBadge = <span className="dashboard-title-badge">{username || "Asesor"}</span>;
+
+  return (
+    <AppShell
+      title="Dashboard de Asesor"
+      titleMeta={advisorBadge}
+      actions={actions}
+      mobileActions={mobileActions}
+      keepThemeVisibleOnMobile
+      contentClassName="main--admin-dashboard"
+    >
+      <section className="admin-dashboard">
+        <div
+          id="advisor-dashboard-filters"
+          className={`admin-dashboard__hero admin-dashboard__hero--toolbar${filtersOpen ? "" : " is-collapsed"}`}
+        >
+          <div className="admin-dashboard__filters admin-dashboard__filters--advisor">
             <label className="admin-dashboard__filter">
               <span>
                 <IconCalendar />

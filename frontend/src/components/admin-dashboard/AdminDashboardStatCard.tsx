@@ -19,11 +19,11 @@ export default function AdminDashboardStatCard({
 }: AdminDashboardStatCardProps) {
   return (
     <article className={`admin-dashboard-stat admin-dashboard-stat--${tone}`}>
+      <span className="admin-dashboard-stat__bg-icon" aria-hidden="true">
+        {icon}
+      </span>
       <div className="admin-dashboard-stat__head">
         <span className="admin-dashboard-stat__label">{label}</span>
-        <span className="admin-dashboard-stat__icon" aria-hidden="true">
-          {icon}
-        </span>
       </div>
       <strong className="admin-dashboard-stat__value">{value}</strong>
       <div className="admin-dashboard-stat__foot">

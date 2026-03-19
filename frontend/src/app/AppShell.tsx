@@ -5,15 +5,21 @@ import UserAvatarMenu from "./UserAvatarMenu";
 type AppShellProps = {
   children: ReactNode;
   title?: string;
+  titleMeta?: ReactNode;
   actions?: ReactNode;
+  mobileActions?: ReactNode;
   contentClassName?: string;
+  keepThemeVisibleOnMobile?: boolean;
 };
 
 const AppShell = ({
   children,
   title = "Arenas Malabrigo - Mapa cotizador",
+  titleMeta,
   actions,
+  mobileActions,
   contentClassName = "",
+  keepThemeVisibleOnMobile = false,
 }: AppShellProps) => (
   <div className="app-shell">
     <header className="topbar">
@@ -23,13 +29,17 @@ const AppShell = ({
             <img src="/assets/Logo_Arenas_Malabrigo.svg" alt="" />
           </span>
           <div className="brand__text">
-            <span className="brand__title">{title}</span>
+            <div className="brand__title-row">
+              <span className="brand__title">{title}</span>
+              {titleMeta ? <div className="brand__title-meta">{titleMeta}</div> : null}
+            </div>
           </div>
         </div>
       </div>
       <div className="topbar__actions">
         {actions ? <div className="topbar__context-actions">{actions}</div> : null}
-        <div className="topbar__theme">
+        {mobileActions ? <div className="topbar__mobile-actions">{mobileActions}</div> : null}
+        <div className={`topbar__theme${keepThemeVisibleOnMobile ? " topbar__theme--mobile-visible" : ""}`}>
           <ThemeToggle />
         </div>
         <UserAvatarMenu />

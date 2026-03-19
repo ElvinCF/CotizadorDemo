@@ -59,6 +59,20 @@
   gap: 4px;
 }
 
+.brand__title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand__title-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .brand__icon {
   width: 100px;
   height: 30px;
@@ -104,6 +118,11 @@
 
 .topbar__theme {
   display: inline-flex;
+  align-items: center;
+}
+
+.topbar__mobile-actions {
+  display: none;
   align-items: center;
 }
 
@@ -412,6 +431,14 @@
     display: none;
   }
 
+  .topbar__theme.topbar__theme--mobile-visible {
+    display: inline-flex;
+  }
+
+  .topbar__mobile-actions {
+    display: inline-flex;
+  }
+
   .avatar-dropdown {
     min-width: 200px;
   }
@@ -439,5 +466,13 @@
 
   .nav-link__label {
     display: none;
+  }
+
+  .brand__title-row {
+    gap: 6px;
+  }
+
+  .brand__title-meta {
+    max-width: 96px;
   }
 }
