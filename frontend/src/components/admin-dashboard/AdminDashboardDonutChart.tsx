@@ -21,7 +21,48 @@ export default function AdminDashboardDonutChart({
 }: AdminDashboardDonutChartProps) {
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
-  const total = segments.reduce((sum, segment) => sum + segment.value, 0) || 1;
+  const normalizedSegments = segments.map((segment) => ({
+    ...segment,
+    value: Number(segment.value) || 0,
+  }));
+  const total = normalizedSegments.reduce((sum, segment) => sum + segment.value, 0) || 1;
+  const drawableSegments = normalizedSegments
+    .filter((segment) => segment.value > 0)
+    .map((segment) => ({
+      ...segment,
+      rawLength: (segment.value / total) * circumference,
+    }));
+  const maxSafeMinLength = drawableSegments.length > 0 ? circumference / drawableSegments.length : 0;
+  const minVisibleLength =
+    drawableSegments.length > 1 ? Math.min(20, maxSafeMinLength * 0.7) : 0;
+  const segmentGap = drawableSegments.length > 1 ? 4 : 0;
+  const boostedLengthTotal = drawableSegments
+    .filter((segment) => segment.rawLength < minVisibleLength)
+    .reduce((sum) => sum + minVisibleLength, 0);
+  const remainingRawLength = drawableSegments
+    .filter((segment) => segment.rawLength >= minVisibleLength)
+    .reduce((sum, segment) => sum + segment.rawLength, 0);
+  const remainingDrawableLength = Math.max(circumference - boostedLengthTotal, 0);
+  const chartSegments = drawableSegments.map((segment) => {
+    if (segment.rawLength < minVisibleLength) {
+      return {
+        ...segment,
+        chartLength: minVisibleLength,
+      };
+    }
+
+    if (remainingRawLength <= 0) {
+      return {
+        ...segment,
+        chartLength: segment.rawLength,
+      };
+    }
+
+    return {
+      ...segment,
+      chartLength: (segment.rawLength / remainingRawLength) * remainingDrawableLength,
+    };
+  });
   let offset = 0;
 
   return (
@@ -37,8 +78,8 @@ export default function AdminDashboardDonutChart({
         <div className="admin-donut__chart">
           <svg viewBox="0 0 160 160" aria-hidden="true">
             <circle cx="80" cy="80" r={radius} className="admin-donut__track" />
-            {segments.map((segment) => {
-              const segmentLength = (segment.value / total) * circumference;
+            {chartSegments.map((segment) => {
+              const segmentLength = Math.max(segment.chartLength - segmentGap, 0);
               const circle = (
                 <circle
                   key={segment.label}
@@ -46,9 +87,9 @@ export default function AdminDashboardDonutChart({
                   cy="80"
                   r={radius}
                   className="admin-donut__segment"
-                  stroke={segment.color}
+                  style={{ stroke: segment.color }}
                   strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
-                  strokeDashoffset={-offset}
+                  strokeDashoffset={offset}
                 />
               );
               offset += segmentLength;
@@ -62,7 +103,7 @@ export default function AdminDashboardDonutChart({
         </div>
 
         <div className="admin-donut__legend">
-          {segments.map((segment) => (
+          {normalizedSegments.map((segment) => (
             <div className="admin-donut__legend-item" key={segment.label}>
               <span className="admin-donut__swatch" style={{ background: segment.color }} />
               <div>

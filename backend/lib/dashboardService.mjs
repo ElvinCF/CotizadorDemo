@@ -22,6 +22,7 @@ const NUMERIC_KEYS = new Set([
   "lotesSeparados",
   "lotesVendidos",
   "ventasActivas",
+  "cantidad",
   "montoVendido",
   "montoCobrado",
   "saldoPendienteGlobal",
