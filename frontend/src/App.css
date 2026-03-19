@@ -3714,7 +3714,7 @@ input.is-invalid {
 
 .admin-dashboard__stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
 }
 
@@ -3923,7 +3923,7 @@ input.is-invalid {
 }
 
 .admin-donut__segment {
-  stroke-linecap: butt;
+  stroke-linecap: round;
 }
 
 .admin-donut__center {

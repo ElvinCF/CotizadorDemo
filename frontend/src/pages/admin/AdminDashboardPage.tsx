@@ -397,12 +397,10 @@ export default function AdminDashboardPage() {
   );
 
   const summaryBars = useMemo(() => {
-    const topItems = [...advisorSummary]
-      .sort((a, b) => b.montoVendido - a.montoVendido)
-      .slice(0, 5);
-    const maxValue = Math.max(...topItems.map((item) => item.montoVendido), 1);
+    const sortedItems = [...advisorSummary].sort((a, b) => b.montoVendido - a.montoVendido);
+    const maxValue = Math.max(...sortedItems.map((item) => item.montoVendido), 1);
 
-    return topItems.map((item) => ({
+    return sortedItems.map((item) => ({
       label: item.asesorNombre || item.asesorUsername || "Asesor",
       helper: `${item.cantidadVentas} ventas · cartera ${item.carteraActiva}`,
       valueLabel: compactMoney(item.montoVendido),
@@ -650,6 +648,14 @@ export default function AdminDashboardPage() {
             icon={<IconMoney />}
           />
           <AdminDashboardStatCard
+            label="Monto cobrado"
+            value={loading ? "..." : formatMoney(kpis.montoCobrado)}
+            helper={loading ? "..." : `Ticket promedio ${formatMoney(kpis.ticketPromedioVenta)}`}
+            trend="Cobranza acumulada"
+            tone="warning"
+            icon={<IconMoney />}
+          />
+          <AdminDashboardStatCard
             label="Saldo pendiente"
             value={loading ? "..." : compactMoney(kpis.saldoPendienteGlobal)}
             helper={`${advisors.length} asesores activos`}
@@ -678,7 +684,7 @@ export default function AdminDashboardPage() {
         <div className="admin-dashboard__bottom">
           <AdminDashboardBarChart
             title="Resumen por asesor"
-            subtitle="Top por monto vendido en el rango y filtros actuales."
+            subtitle="Resumen completo por monto vendido en el rango y filtros actuales."
             items={summaryBars}
           />
           <AdminDashboardRanking
@@ -690,18 +696,6 @@ export default function AdminDashboardPage() {
 
         {!loading && salesSeries.length === 0 && inventory.length === 0 && advisorSummary.length === 0 ? (
           <p className="muted">No hay datos de dashboard para los filtros seleccionados.</p>
-        ) : null}
-
-        {!loading && inventory.length > 0 ? (
-          <p className="muted">
-            Inventario actual: {inventory.map((item) => `${inventoryLabel(item.estadoComercial)} ${item.cantidad}`).join(" · ")}
-          </p>
-        ) : null}
-
-        {!loading ? (
-          <p className="muted">
-            Ticket promedio: {formatMoney(kpis.ticketPromedioVenta)} · Monto cobrado: {formatMoney(kpis.montoCobrado)}
-          </p>
         ) : null}
       </section>
     </AppShell>
