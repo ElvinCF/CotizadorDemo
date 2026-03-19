@@ -48,7 +48,7 @@ export default function LoginPage() {
       : isAuthenticated
         ? role === "admin"
           ? "/admin"
-          : "/lotes"
+          : "/asesor"
         : null;
 
   const submitLogin = useCallback(async () => {

@@ -108,7 +108,7 @@ const roleMenuItems = (role: "asesor" | "admin" | null, isAuthenticated: boolean
     ];
   }
 
-  return base;
+  return [...base, { label: "Dashboard", to: "/asesor", icon: <IconDashboard /> }];
 };
 
 const UserAvatarMenu = () => {

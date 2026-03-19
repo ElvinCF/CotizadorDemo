@@ -7,15 +7,98 @@ import AdminDashboardDonutChart from "../../components/admin-dashboard/AdminDash
 import AdminDashboardLineChart from "../../components/admin-dashboard/AdminDashboardLineChart";
 import AdminDashboardRanking from "../../components/admin-dashboard/AdminDashboardRanking";
 import AdminDashboardStatCard from "../../components/admin-dashboard/AdminDashboardStatCard";
+import type {
+  DashboardAdminFilters,
+  DashboardAdminKpis,
+  DashboardAdvisorSummaryItem,
+  DashboardGroupBy,
+  DashboardInventoryItem,
+  DashboardRankingMetric,
+  DashboardSalesSeriesItem,
+  DashboardLotState,
+} from "../../domain/dashboard";
 import type { AdminUser } from "../../domain/adminUsers";
-import type { Lote } from "../../domain/types";
+import type { SaleState } from "../../domain/ventas";
+import { formatMoney } from "../../domain/formatters";
 import { listAdminUsers } from "../../services/adminUsers";
-import { loadLotesFromApi } from "../../services/lotes";
+import {
+  getAdminDashboardAdvisorRanking,
+  getAdminDashboardAdvisorSummary,
+  getAdminDashboardInventory,
+  getAdminDashboardKpis,
+  getAdminDashboardSalesSeries,
+} from "../../services/dashboard";
 
-type DashboardPeriod = "MES" | "TRIMESTRE" | "SEMESTRE";
+type DashboardFiltersState = {
+  from: string;
+  to: string;
+  estadoLote: "" | DashboardLotState;
+  estadoVenta: "" | SaleState;
+  asesorId: string;
+  groupBy: DashboardGroupBy;
+  metric: DashboardRankingMetric;
+  topN: string;
+};
 
-const PERIOD_OPTIONS: DashboardPeriod[] = ["MES", "TRIMESTRE", "SEMESTRE"];
-const STATUS_OPTIONS = ["TODOS", "DISPONIBLE", "SEPARADO", "VENDIDO"];
+const SALE_STATE_OPTIONS: Array<{ value: "" | SaleState; label: string }> = [
+  { value: "", label: "Todas" },
+  { value: "SEPARADA", label: "Separada" },
+  { value: "INICIAL_PAGADA", label: "Inicial pagada" },
+  { value: "CONTRATO_FIRMADO", label: "Contrato firmado" },
+  { value: "PAGANDO", label: "Pagando" },
+  { value: "COMPLETADA", label: "Completada" },
+  { value: "CAIDA", label: "Caida" },
+];
+
+const LOT_STATE_OPTIONS: Array<{ value: "" | DashboardLotState; label: string }> = [
+  { value: "", label: "Todos" },
+  { value: "DISPONIBLE", label: "Disponible" },
+  { value: "SEPARADO", label: "Separado" },
+  { value: "VENDIDO", label: "Vendido" },
+];
+
+const GROUP_BY_OPTIONS: Array<{ value: DashboardGroupBy; label: string }> = [
+  { value: "day", label: "Dia" },
+  { value: "week", label: "Semana" },
+  { value: "month", label: "Mes" },
+];
+
+const RANKING_METRIC_OPTIONS: Array<{ value: DashboardRankingMetric; label: string }> = [
+  { value: "monto_vendido", label: "Monto vendido" },
+  { value: "monto_cobrado", label: "Monto cobrado" },
+  { value: "ticket_promedio_venta", label: "Ticket promedio" },
+  { value: "saldo_pendiente", label: "Saldo pendiente" },
+  { value: "cantidad_ventas", label: "Cantidad de ventas" },
+  { value: "cartera_activa", label: "Cartera activa" },
+  { value: "mayor_venta", label: "Mayor venta" },
+];
+
+const emptyKpis: DashboardAdminKpis = {
+  inventarioTotal: 0,
+  lotesDisponibles: 0,
+  lotesSeparados: 0,
+  lotesVendidos: 0,
+  ventasActivas: 0,
+  montoVendido: 0,
+  montoCobrado: 0,
+  saldoPendienteGlobal: 0,
+  ticketPromedioVenta: 0,
+  asesorTopId: null,
+  asesorTopUsername: null,
+  asesorTopNombre: null,
+  asesorTopMontoVendido: 0,
+};
+
+const defaultFilters: DashboardFiltersState = {
+  from: "",
+  to: "",
+  estadoLote: "",
+  estadoVenta: "",
+  asesorId: "",
+  groupBy: "month",
+  metric: "monto_vendido",
+  topN: "5",
+};
 
 const IconMap = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
@@ -101,28 +184,17 @@ const compactMoney = (value: number) =>
     maximumFractionDigits: 1,
   }).format(value);
 
-const formatMonthLabel = (date: Date) =>
-  new Intl.DateTimeFormat("es-PE", { month: "short" }).format(date).replace(".", "").toUpperCase();
-
-const normalizeStatus = (value: string | undefined) => String(value ?? "DISPONIBLE").toUpperCase();
-
-const createMonthSeries = (base: number, period: DashboardPeriod) => {
-  const steps = period === "MES" ? 6 : period === "TRIMESTRE" ? 5 : 6;
-  const multipliers =
-    period === "MES"
-      ? [0.62, 0.78, 0.85, 0.74, 0.94, 1.06]
-      : period === "TRIMESTRE"
-        ? [0.7, 0.92, 0.88, 1.02, 1.14]
-        : [0.58, 0.69, 0.76, 0.84, 0.98, 1.12];
-
-  const now = new Date();
-  return Array.from({ length: steps }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - (steps - 1 - index), 1);
-    return {
-      label: formatMonthLabel(date),
-      value: Math.max(1, Math.round(base * multipliers[index])),
-    };
-  });
+const formatBucketLabel = (bucket: string) => {
+  const parsed = new Date(bucket);
+  if (Number.isNaN(parsed.getTime())) {
+    return bucket;
+  }
+  return new Intl.DateTimeFormat("es-PE", {
+    day: "2-digit",
+    month: "short",
+  })
+    .format(parsed)
+    .replace(".", "");
 };
 
 const getInitials = (name: string) => {
@@ -133,15 +205,52 @@ const getInitials = (name: string) => {
   return `${first}${last}`.toUpperCase();
 };
 
+const metricToValue = (item: DashboardAdvisorSummaryItem, metric: DashboardRankingMetric) => {
+  switch (metric) {
+    case "monto_cobrado":
+      return item.montoCobrado;
+    case "ticket_promedio_venta":
+      return item.ticketPromedioVenta;
+    case "saldo_pendiente":
+      return item.saldoPendiente;
+    case "cantidad_ventas":
+      return item.cantidadVentas;
+    case "cartera_activa":
+      return item.carteraActiva;
+    case "mayor_venta":
+      return item.mayorVenta;
+    case "monto_vendido":
+    default:
+      return item.montoVendido;
+  }
+};
+
+const metricToLabel = (metric: DashboardRankingMetric) =>
+  RANKING_METRIC_OPTIONS.find((option) => option.value === metric)?.label ?? "Monto vendido";
+
+const inventoryLabel = (state: DashboardInventoryItem["estadoComercial"]) => {
+  switch (state) {
+    case "SEPARADO":
+      return "Separados";
+    case "VENDIDO":
+      return "Vendidos";
+    case "DISPONIBLE":
+    default:
+      return "Disponibles";
+  }
+};
+
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { loginUsername, loginPin } = useAuth();
-  const [lotes, setLotes] = useState<Lote[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [period, setPeriod] = useState<DashboardPeriod>("TRIMESTRE");
-  const [status, setStatus] = useState("TODOS");
-  const [zone, setZone] = useState("TODAS");
+  const [filters, setFilters] = useState<DashboardFiltersState>(defaultFilters);
+  const [kpis, setKpis] = useState<DashboardAdminKpis>(emptyKpis);
+  const [salesSeries, setSalesSeries] = useState<DashboardSalesSeriesItem[]>([]);
+  const [inventory, setInventory] = useState<DashboardInventoryItem[]>([]);
+  const [advisorSummary, setAdvisorSummary] = useState<DashboardAdvisorSummaryItem[]>([]);
+  const [advisorRanking, setAdvisorRanking] = useState<DashboardAdvisorSummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,147 +263,168 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-
-      const credentials = { username: loginUsername, pin: loginPin };
-      const [lotesResult, usersResult] = await Promise.allSettled([
-        loadLotesFromApi(),
-        listAdminUsers(credentials),
-      ]);
-
-      if (cancelled) return;
-
-      if (lotesResult.status === "fulfilled") {
-        setLotes(lotesResult.value);
-      } else {
-        setError(lotesResult.reason instanceof Error ? lotesResult.reason.message : "No se pudo cargar lotes.");
+    const loadUsers = async () => {
+      try {
+        const credentials = { username: loginUsername, pin: loginPin };
+        const result = await listAdminUsers(credentials);
+        if (!cancelled) {
+          setUsers(result.users);
+        }
+      } catch {
+        if (!cancelled) {
+          setUsers([]);
+        }
       }
-
-      if (usersResult.status === "fulfilled") {
-        setUsers(usersResult.value.users);
-      } else {
-        setUsers([]);
-      }
-
-      setLoading(false);
     };
 
-    void load();
+    void loadUsers();
+
     return () => {
       cancelled = true;
     };
   }, [loginPin, loginUsername]);
 
-  const zones = useMemo(() => {
-    const uniques = Array.from(new Set(lotes.map((lote) => String(lote.mz || "").trim()).filter(Boolean)));
-    return ["TODAS", ...uniques.sort()];
-  }, [lotes]);
+  const requestFilters = useMemo<DashboardAdminFilters>(
+    () => ({
+      from: filters.from || null,
+      to: filters.to || null,
+      estadoLote: filters.estadoLote || null,
+      estadoVenta: filters.estadoVenta || null,
+      asesorId: filters.asesorId || null,
+    }),
+    [filters.asesorId, filters.estadoLote, filters.estadoVenta, filters.from, filters.to]
+  );
 
-  const filteredLotes = useMemo(() => {
-    return lotes.filter((lote) => {
-      const loteStatus = normalizeStatus(lote.condicion);
-      const matchesStatus = status === "TODOS" ? true : loteStatus === status;
-      const matchesZone = zone === "TODAS" ? true : String(lote.mz).toUpperCase() === zone.toUpperCase();
-      return matchesStatus && matchesZone;
-    });
-  }, [lotes, status, zone]);
+  useEffect(() => {
+    let cancelled = false;
 
-  const dashboard = useMemo(() => {
-    const totalLots = filteredLotes.length;
-    const soldLots = filteredLotes.filter((lote) => normalizeStatus(lote.condicion) === "VENDIDO");
-    const reservedLots = filteredLotes.filter((lote) => normalizeStatus(lote.condicion) === "SEPARADO");
-    const availableLots = filteredLotes.filter((lote) => normalizeStatus(lote.condicion) === "DISPONIBLE");
+    const loadDashboard = async () => {
+      setLoading(true);
+      setError(null);
 
-    const totalPotential = filteredLotes.reduce((sum, lote) => sum + (lote.price ?? 0), 0);
-    const soldValue = soldLots.reduce((sum, lote) => sum + (lote.price ?? 0), 0);
-    const reservedValue = reservedLots.reduce((sum, lote) => sum + (lote.price ?? 0), 0);
-    const inventoryValue = availableLots.reduce((sum, lote) => sum + (lote.price ?? 0), 0);
-    const realizedRevenue = soldValue + reservedValue * 0.38;
-    const placementRate = totalLots > 0 ? ((soldLots.length + reservedLots.length * 0.5) / totalLots) * 100 : 0;
-    const activeAdvisors = users.filter((user) => user.rol === "ASESOR" && user.estado === "ACTIVO");
-    const activeAdmins = users.filter((user) => user.rol === "ADMIN" && user.estado === "ACTIVO");
-    const avgTicket = soldLots.length > 0 ? soldValue / soldLots.length : totalPotential / Math.max(totalLots, 1);
+      const [kpisResult, salesSeriesResult, inventoryResult, summaryResult, rankingResult] =
+        await Promise.allSettled([
+          getAdminDashboardKpis(requestFilters),
+          getAdminDashboardSalesSeries({ ...requestFilters, groupBy: filters.groupBy }),
+          getAdminDashboardInventory(requestFilters),
+          getAdminDashboardAdvisorSummary(requestFilters),
+          getAdminDashboardAdvisorRanking({
+            ...requestFilters,
+            metric: filters.metric,
+            topN: Number.parseInt(filters.topN, 10) || 5,
+          }),
+        ]);
 
-    const lineSeries = createMonthSeries(Math.max(4, soldLots.length + reservedLots.length), period);
+      if (cancelled) {
+        return;
+      }
 
-    const donutSegments = [
-      { label: "Disponibles", value: availableLots.length, color: "var(--admin-donut-disponible)" },
-      { label: "Separados", value: reservedLots.length, color: "var(--admin-donut-separado)" },
-      { label: "Vendidos", value: soldLots.length, color: "var(--admin-donut-vendido)" },
-    ];
+      if (kpisResult.status === "fulfilled") {
+        setKpis(kpisResult.value);
+      } else {
+        setKpis(emptyKpis);
+        setError(kpisResult.reason instanceof Error ? kpisResult.reason.message : "No se pudo cargar KPIs.");
+      }
 
-    const byZone = Array.from(
-      filteredLotes.reduce((map, lote) => {
-        const key = String(lote.mz || "SN").toUpperCase();
-        const current = map.get(key) ?? { count: 0, value: 0 };
-        current.count += 1;
-        current.value += lote.price ?? 0;
-        map.set(key, current);
-        return map;
-      }, new Map<string, { count: number; value: number }>())
-    )
-      .map(([label, value]) => ({ label, ...value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+      if (salesSeriesResult.status === "fulfilled") {
+        setSalesSeries(salesSeriesResult.value);
+      } else {
+        setSalesSeries([]);
+      }
 
-    const maxZoneValue = Math.max(...byZone.map((item) => item.value), 1);
-    const zoneBars = byZone.map((item) => ({
-      label: `MZ ${item.label}`,
-      helper: `${item.count} lotes en filtro`,
-      valueLabel: compactMoney(item.value),
-      ratio: item.value / maxZoneValue,
-    }));
+      if (inventoryResult.status === "fulfilled") {
+        setInventory(inventoryResult.value);
+      } else {
+        setInventory([]);
+      }
 
-    const advisorPool =
-      activeAdvisors.length > 0
-        ? activeAdvisors
-        : [
-            {
-              id: "sim-1",
-              nombres: "Sin",
-              apellidos: "asesores",
-              username: "sin-asesores",
-              rol: "ASESOR",
-              estado: "INACTIVO",
-              telefono: "",
-              created_at: new Date().toISOString(),
-            },
-          ];
+      if (summaryResult.status === "fulfilled") {
+        setAdvisorSummary(summaryResult.value);
+      } else {
+        setAdvisorSummary([]);
+      }
 
-    const weights = advisorPool.map((_, index) => 1.22 - index * 0.14).map((value) => Math.max(0.42, value));
-    const totalWeight = weights.reduce((sum, value) => sum + value, 0);
-    const ranking = advisorPool.map((advisor, index) => {
-      const share = weights[index] / totalWeight;
-      const units = Math.max(0, Math.round((soldLots.length + reservedLots.length * 0.4) * share));
-      const value = realizedRevenue * share;
-      const name = `${advisor.nombres} ${advisor.apellidos}`.trim();
-      return {
-        name,
-        detail: advisor.estado === "ACTIVO" ? "Asesor activo" : "Cobertura simulada",
-        valueLabel: compactMoney(value),
-        helper: `${units} cierres estimados`,
-        initials: getInitials(name),
-      };
-    });
+      if (rankingResult.status === "fulfilled") {
+        setAdvisorRanking(rankingResult.value);
+      } else {
+        setAdvisorRanking([]);
+      }
 
-    return {
-      totalLots,
-      soldCount: soldLots.length,
-      inventoryValue,
-      realizedRevenue,
-      placementRate,
-      totalPotential,
-      avgTicket,
-      activeAdvisors: activeAdvisors.length,
-      activeAdmins: activeAdmins.length,
-      lineSeries,
-      donutSegments,
-      zoneBars,
-      ranking,
+      setLoading(false);
     };
-  }, [filteredLotes, period, users]);
+
+    void loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.groupBy, filters.metric, filters.topN, requestFilters]);
+
+  const advisors = useMemo(
+    () => users.filter((user) => user.rol === "ASESOR" && user.estado === "ACTIVO"),
+    [users]
+  );
+
+  const topAdvisorName = useMemo(() => {
+    if (!kpis.asesorTopNombre && !kpis.asesorTopUsername) {
+      return "Sin asesor destacado";
+    }
+    return kpis.asesorTopNombre || kpis.asesorTopUsername || "Sin asesor destacado";
+  }, [kpis.asesorTopNombre, kpis.asesorTopUsername]);
+
+  const lineSeries = useMemo(
+    () =>
+      salesSeries.map((item) => ({
+        label: formatBucketLabel(item.bucket),
+        value: item.montoVendido,
+      })),
+    [salesSeries]
+  );
+
+  const donutSegments = useMemo(
+    () =>
+      inventory.map((item) => ({
+        label: inventoryLabel(item.estadoComercial),
+        value: item.cantidad,
+        color:
+          item.estadoComercial === "DISPONIBLE"
+            ? "var(--admin-donut-disponible)"
+            : item.estadoComercial === "SEPARADO"
+              ? "var(--admin-donut-separado)"
+              : "var(--admin-donut-vendido)",
+      })),
+    [inventory]
+  );
+
+  const summaryBars = useMemo(() => {
+    const topItems = [...advisorSummary]
+      .sort((a, b) => b.montoVendido - a.montoVendido)
+      .slice(0, 5);
+    const maxValue = Math.max(...topItems.map((item) => item.montoVendido), 1);
+
+    return topItems.map((item) => ({
+      label: item.asesorNombre || item.asesorUsername || "Asesor",
+      helper: `${item.cantidadVentas} ventas · cartera ${item.carteraActiva}`,
+      valueLabel: compactMoney(item.montoVendido),
+      ratio: item.montoVendido / maxValue,
+    }));
+  }, [advisorSummary]);
+
+  const rankingItems = useMemo(
+    () =>
+      advisorRanking.map((item) => {
+        const name = item.asesorNombre || item.asesorUsername || "Asesor";
+        const value = metricToValue(item, filters.metric);
+        return {
+          name,
+          detail: `${item.cantidadVentas} ventas · cobrado ${compactMoney(item.montoCobrado)}`,
+          valueLabel: filters.metric === "cantidad_ventas" || filters.metric === "cartera_activa" ? String(value) : compactMoney(value),
+          helper: metricToLabel(filters.metric),
+          initials: getInitials(name),
+        };
+      }),
+    [advisorRanking, filters.metric]
+  );
 
   const actions = (
     <nav className="topbar-nav">
@@ -316,14 +446,12 @@ export default function AdminDashboardPage() {
   const exportSummary = () => {
     const payload = {
       generatedAt: new Date().toISOString(),
-      filters: { period, status, zone },
-      totals: {
-        totalLots: dashboard.totalLots,
-        soldCount: dashboard.soldCount,
-        inventoryValue: dashboard.inventoryValue,
-        realizedRevenue: dashboard.realizedRevenue,
-        placementRate: dashboard.placementRate,
-      },
+      filters,
+      kpis,
+      salesSeries,
+      inventory,
+      advisorSummary,
+      advisorRanking,
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -343,11 +471,10 @@ export default function AdminDashboardPage() {
         <div className="admin-dashboard__hero">
           <div>
             <span className="admin-dashboard__eyebrow">Resumen operativo</span>
-            <h2>Desempeño comercial del proyecto</h2>
+            <h2>Desempeno comercial del proyecto</h2>
             <p>
-              Mezcla datos reales de lotes y usuarios activos. Las series históricas y el ranking se
-              estiman a partir del inventario actual para no depender de tablas de ventas todavía no
-              modeladas.
+              Dashboard conectado a las funciones analytics del backend. Los filtros usan el contrato real
+              de `devsimple` y reflejan ventas, inventario y asesores sin simulaciones locales.
             </p>
           </div>
 
@@ -355,12 +482,42 @@ export default function AdminDashboardPage() {
             <label className="admin-dashboard__filter">
               <span>
                 <IconCalendar />
-                Periodo
+                Desde
               </span>
-              <select value={period} onChange={(event) => setPeriod(event.target.value as DashboardPeriod)}>
-                {PERIOD_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "MES" ? "Mes" : option === "TRIMESTRE" ? "Trimestre" : "Semestre"}
+              <input
+                type="date"
+                value={filters.from}
+                onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
+              />
+            </label>
+            <label className="admin-dashboard__filter">
+              <span>
+                <IconCalendar />
+                Hasta
+              </span>
+              <input
+                type="date"
+                value={filters.to}
+                onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
+              />
+            </label>
+            <label className="admin-dashboard__filter">
+              <span>
+                <IconFilter />
+                Estado lote
+              </span>
+              <select
+                value={filters.estadoLote}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    estadoLote: event.target.value as DashboardFiltersState["estadoLote"],
+                  }))
+                }
+              >
+                {LOT_STATE_OPTIONS.map((option) => (
+                  <option key={option.label} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -368,12 +525,79 @@ export default function AdminDashboardPage() {
             <label className="admin-dashboard__filter">
               <span>
                 <IconFilter />
-                Estado
+                Estado venta
               </span>
-              <select value={status} onChange={(event) => setStatus(event.target.value)}>
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "TODOS" ? "Todos" : option.charAt(0) + option.slice(1).toLowerCase()}
+              <select
+                value={filters.estadoVenta}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    estadoVenta: event.target.value as DashboardFiltersState["estadoVenta"],
+                  }))
+                }
+              >
+                {SALE_STATE_OPTIONS.map((option) => (
+                  <option key={option.label} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-dashboard__filter">
+              <span>
+                <IconUsers />
+                Asesor
+              </span>
+              <select
+                value={filters.asesorId}
+                onChange={(event) => setFilters((current) => ({ ...current, asesorId: event.target.value }))}
+              >
+                <option value="">Todos</option>
+                {advisors.map((advisor) => (
+                  <option key={advisor.id} value={advisor.id}>
+                    {`${advisor.nombres} ${advisor.apellidos}`.trim() || advisor.username}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-dashboard__filter">
+              <span>
+                <IconFilter />
+                Agrupar
+              </span>
+              <select
+                value={filters.groupBy}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    groupBy: event.target.value as DashboardGroupBy,
+                  }))
+                }
+              >
+                {GROUP_BY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-dashboard__filter">
+              <span>
+                <IconRate />
+                Ranking
+              </span>
+              <select
+                value={filters.metric}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    metric: event.target.value as DashboardRankingMetric,
+                  }))
+                }
+              >
+                {RANKING_METRIC_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -381,15 +605,15 @@ export default function AdminDashboardPage() {
             <label className="admin-dashboard__filter">
               <span>
                 <IconLots />
-                MZ
+                Top N
               </span>
-              <select value={zone} onChange={(event) => setZone(event.target.value)}>
-                {zones.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "TODAS" ? "Todas" : `MZ ${option}`}
-                  </option>
-                ))}
-              </select>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={filters.topN}
+                onChange={(event) => setFilters((current) => ({ ...current, topN: event.target.value }))}
+              />
             </label>
             <button type="button" className="btn" onClick={exportSummary}>
               <IconExport />
@@ -402,34 +626,34 @@ export default function AdminDashboardPage() {
 
         <div className="admin-dashboard__stats">
           <AdminDashboardStatCard
-            label="Lotes visibles"
-            value={loading ? "..." : `${dashboard.totalLots}`}
-            helper={`${dashboard.activeAdmins} admins activos`}
-            trend={`Promedio ticket ${compactMoney(dashboard.avgTicket || 0)}`}
+            label="Inventario total"
+            value={loading ? "..." : `${kpis.inventarioTotal}`}
+            helper={`${kpis.lotesDisponibles} disponibles`}
+            trend={`${kpis.lotesSeparados} separados · ${kpis.lotesVendidos} vendidos`}
             tone="info"
             icon={<IconLots />}
           />
           <AdminDashboardStatCard
-            label="Lotes vendidos"
-            value={loading ? "..." : `${dashboard.soldCount}`}
-            helper={`${dashboard.activeAdvisors} asesores activos`}
-            trend={`${Math.round((dashboard.soldCount / Math.max(dashboard.totalLots, 1)) * 100)}% del filtro`}
+            label="Ventas activas"
+            value={loading ? "..." : `${kpis.ventasActivas}`}
+            helper={topAdvisorName}
+            trend={`Top ${compactMoney(kpis.asesorTopMontoVendido)}`}
             tone="success"
             icon={<IconSold />}
           />
           <AdminDashboardStatCard
-            label="Valor inventario"
-            value={loading ? "..." : compactMoney(dashboard.inventoryValue)}
-            helper={`Potencial total ${compactMoney(dashboard.totalPotential)}`}
-            trend={`Realizado ${compactMoney(dashboard.realizedRevenue)}`}
+            label="Monto vendido"
+            value={loading ? "..." : compactMoney(kpis.montoVendido)}
+            helper={`Cobrado ${compactMoney(kpis.montoCobrado)}`}
+            trend={`Ticket ${compactMoney(kpis.ticketPromedioVenta)}`}
             tone="warning"
             icon={<IconMoney />}
           />
           <AdminDashboardStatCard
-            label="Tasa de colocacion"
-            value={loading ? "..." : `${dashboard.placementRate.toFixed(1)}%`}
-            helper="Venta + reserva ponderada"
-            trend={`${STATUS_OPTIONS.includes(status) && status !== "TODOS" ? status.toLowerCase() : "mix"} actual`}
+            label="Saldo pendiente"
+            value={loading ? "..." : compactMoney(kpis.saldoPendienteGlobal)}
+            helper={`${advisors.length} asesores activos`}
+            trend={`Filtro ${filters.estadoVenta || filters.estadoLote || "general"}`}
             tone="neutral"
             icon={<IconRate />}
           />
@@ -437,32 +661,48 @@ export default function AdminDashboardPage() {
 
         <div className="admin-dashboard__charts">
           <AdminDashboardLineChart
-            title="Movimiento estimado en el tiempo"
-            subtitle="Serie operativa basada en lotes vendidos y separados del filtro actual."
-            legend="Operaciones"
-            data={dashboard.lineSeries}
+            title="Serie de ventas"
+            subtitle="Monto vendido agrupado segun el periodo seleccionado."
+            legend={filters.groupBy}
+            data={lineSeries}
           />
           <AdminDashboardDonutChart
-            title="Distribucion por estado"
-            subtitle="Lectura directa del inventario filtrado."
-            segments={dashboard.donutSegments}
+            title="Distribucion de inventario"
+            subtitle="Estados comerciales devueltos por analytics."
+            segments={donutSegments}
             centerLabel="lotes"
-            centerValue={`${dashboard.totalLots}`}
+            centerValue={`${kpis.inventarioTotal}`}
           />
         </div>
 
         <div className="admin-dashboard__bottom">
           <AdminDashboardBarChart
-            title="Bloques con mayor valor"
-            subtitle="Top de manzanas por valor acumulado del filtro."
-            items={dashboard.zoneBars}
+            title="Resumen por asesor"
+            subtitle="Top por monto vendido en el rango y filtros actuales."
+            items={summaryBars}
           />
           <AdminDashboardRanking
-            title="Asesores con mayor cobertura"
-            subtitle="Ranking operativo estimado con base en inventario y equipo activo."
-            items={dashboard.ranking}
+            title="Ranking de asesores"
+            subtitle={`Ordenado por ${metricToLabel(filters.metric).toLowerCase()}.`}
+            items={rankingItems}
           />
         </div>
+
+        {!loading && salesSeries.length === 0 && inventory.length === 0 && advisorSummary.length === 0 ? (
+          <p className="muted">No hay datos de dashboard para los filtros seleccionados.</p>
+        ) : null}
+
+        {!loading && inventory.length > 0 ? (
+          <p className="muted">
+            Inventario actual: {inventory.map((item) => `${inventoryLabel(item.estadoComercial)} ${item.cantidad}`).join(" · ")}
+          </p>
+        ) : null}
+
+        {!loading ? (
+          <p className="muted">
+            Ticket promedio: {formatMoney(kpis.ticketPromedioVenta)} · Monto cobrado: {formatMoney(kpis.montoCobrado)}
+          </p>
+        ) : null}
       </section>
     </AppShell>
   );

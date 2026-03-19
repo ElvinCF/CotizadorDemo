@@ -7,6 +7,7 @@ import AdminPage from "../pages/admin/AdminPage";
 import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
 import SalesListPage from "../pages/sales/SalesListPage";
 import SaleFormPage from "../pages/sales/SaleFormPage";
+import AdvisorDashboardPage from "../pages/seller-dashboard/AdvisorDashboardPage";
 import ProtectedRoute from "./ProtectedRoute";
 
 export const appRouter = createBrowserRouter([
@@ -58,8 +59,7 @@ export const appRouter = createBrowserRouter([
     path: "/asesor",
     element: (
       <ProtectedRoute allowedRoles={["asesor"]}>
-        {/* Placeholder: To be implemented */}
-        <div>Dashboard Personal Asesor</div>
+        <AdvisorDashboardPage />
       </ProtectedRoute>
     ),
   },
