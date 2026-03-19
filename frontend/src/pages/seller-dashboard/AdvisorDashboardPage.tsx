@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
@@ -10,6 +10,7 @@ import AdminDashboardStatCard from "../../components/admin-dashboard/AdminDashbo
 import DashboardFilterField from "../../components/dashboard/DashboardFilterField";
 import DashboardFilterToggle from "../../components/dashboard/DashboardFilterToggle";
 import DashboardFilterToolbar from "../../components/dashboard/DashboardFilterToolbar";
+import DashboardToolbarActions from "../../components/dashboard/DashboardToolbarActions";
 import type {
   DashboardAdvisorClientItem,
   DashboardAdvisorKpis,
@@ -32,6 +33,7 @@ import {
   getAdvisorDashboardPayments,
   getAdvisorDashboardSalesSeries,
 } from "../../services/dashboard";
+import { exportElementToPdfA4 } from "../../utils/exportElementToPdfA4";
 
 type AdvisorDashboardFiltersState = {
   from: string;
@@ -237,6 +239,7 @@ export default function AdvisorDashboardPage() {
   const [payments, setPayments] = useState<DashboardAdvisorPaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const dashboardRef = useRef<HTMLElement | null>(null);
 
   const commonFilters = useMemo<DashboardCommonFilters>(
     () => ({
@@ -395,6 +398,15 @@ export default function AdvisorDashboardPage() {
 
   const advisorBadge = <span className="dashboard-title-badge">{username || "Asesor"}</span>;
 
+  const printDashboard = async () => {
+    if (!dashboardRef.current) return;
+    await exportElementToPdfA4(dashboardRef.current, `dashboard-asesor-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
+  const clearFilters = () => {
+    setFilters(defaultFilters);
+  };
+
   return (
     <AppShell
       title="Dashboard de Asesor"
@@ -404,7 +416,7 @@ export default function AdvisorDashboardPage() {
       keepThemeVisibleOnMobile
       contentClassName="main--admin-dashboard"
     >
-      <section className="admin-dashboard">
+      <section className="admin-dashboard" ref={dashboardRef}>
         <DashboardFilterToolbar id="advisor-dashboard-filters" open={filtersOpen} className="admin-dashboard__filters--advisor">
           <DashboardFilterField label="Desde" icon={<IconCalendar />}>
               <input
@@ -488,6 +500,7 @@ export default function AdvisorDashboardPage() {
                 ))}
               </select>
           </DashboardFilterField>
+          <DashboardToolbarActions onPrint={() => void printDashboard()} onClear={clearFilters} />
         </DashboardFilterToolbar>
 
         {error ? <p className="admin-error">{error}</p> : null}

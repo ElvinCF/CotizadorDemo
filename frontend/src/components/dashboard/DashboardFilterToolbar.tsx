@@ -14,7 +14,11 @@ export default function DashboardFilterToolbar({
   children,
 }: DashboardFilterToolbarProps) {
   return (
-    <div id={id} className={`admin-dashboard__hero admin-dashboard__hero--toolbar${open ? "" : " is-collapsed"}`}>
+    <div
+      id={id}
+      data-dashboard-print-hide="true"
+      className={`admin-dashboard__hero admin-dashboard__hero--toolbar${open ? "" : " is-collapsed"}`}
+    >
       <div className={`admin-dashboard__filters ${className}`.trim()}>{children}</div>
     </div>
   );

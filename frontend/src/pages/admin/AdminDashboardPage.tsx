@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
@@ -10,6 +10,7 @@ import AdminDashboardStatCard from "../../components/admin-dashboard/AdminDashbo
 import DashboardFilterField from "../../components/dashboard/DashboardFilterField";
 import DashboardFilterToggle from "../../components/dashboard/DashboardFilterToggle";
 import DashboardFilterToolbar from "../../components/dashboard/DashboardFilterToolbar";
+import DashboardToolbarActions from "../../components/dashboard/DashboardToolbarActions";
 import type {
   DashboardAdminFilters,
   DashboardAdminKpis,
@@ -31,6 +32,7 @@ import {
   getAdminDashboardKpis,
   getAdminDashboardSalesSeries,
 } from "../../services/dashboard";
+import { exportElementToPdfA4 } from "../../utils/exportElementToPdfA4";
 
 type DashboardFiltersState = {
   from: string;
@@ -173,12 +175,6 @@ const IconFilter = () => (
   </svg>
 );
 
-const IconExport = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path d="M12 4v10m0 0 4-4m-4 4-4-4M5 18v2h14v-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 const compactMoney = (value: number) =>
   new Intl.NumberFormat("es-PE", {
     style: "currency",
@@ -259,6 +255,7 @@ export default function AdminDashboardPage() {
   const [advisorRanking, setAdvisorRanking] = useState<DashboardAdvisorSummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const dashboardRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (location.hash === "#usuarios") {
@@ -467,26 +464,13 @@ export default function AdminDashboardPage() {
 
   const adminBadge = <span className="dashboard-title-badge">{username || "Admin"}</span>;
 
-  const exportSummary = () => {
-    const payload = {
-      generatedAt: new Date().toISOString(),
-      filters,
-      kpis,
-      salesSeries,
-      inventory,
-      advisorSummary,
-      advisorRanking,
-    };
+  const printDashboard = async () => {
+    if (!dashboardRef.current) return;
+    await exportElementToPdfA4(dashboardRef.current, `dashboard-admin-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `dashboard-admin-${Date.now()}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+  const clearFilters = () => {
+    setFilters(defaultFilters);
   };
 
   return (
@@ -498,7 +482,7 @@ export default function AdminDashboardPage() {
       keepThemeVisibleOnMobile
       contentClassName="main--admin-dashboard"
     >
-      <section className="admin-dashboard">
+      <section className="admin-dashboard" ref={dashboardRef}>
         <DashboardFilterToolbar id="admin-dashboard-filters" open={filtersOpen} className="admin-dashboard__filters--admin">
           <DashboardFilterField label="Desde" icon={<IconCalendar />}>
               <input
@@ -604,10 +588,7 @@ export default function AdminDashboardPage() {
                 onChange={(event) => setFilters((current) => ({ ...current, topN: event.target.value }))}
               />
           </DashboardFilterField>
-            <button type="button" className="btn" onClick={exportSummary}>
-              <IconExport />
-              Exportar resumen
-            </button>
+          <DashboardToolbarActions onPrint={() => void printDashboard()} onClear={clearFilters} />
         </DashboardFilterToolbar>
 
         {error ? <p className="admin-error">{error}</p> : null}

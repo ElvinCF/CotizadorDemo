@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import AdminSegmentedControl from "../../components/admin/AdminSegmentedControl";
-import { statusToClass } from "../../domain/formatters";
+import { formatArea, statusToClass } from "../../domain/formatters";
 import type { Lote } from "../../domain/types";
 import { listSales } from "../../services/ventas";
 
@@ -11,8 +11,6 @@ type EditableFields = {
   price: string;
   estado: string;
 };
-
-const formatArea = (value: number | null) => (value == null ? "-" : value.toFixed(2));
 
 const normalizeStatus = (value: string | undefined) => {
   const normalized = String(value || "DISPONIBLE").toUpperCase();
