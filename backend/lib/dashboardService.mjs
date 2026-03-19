@@ -2,14 +2,14 @@ import { badRequest } from "./errors.mjs";
 import { resolveDbSchema, withPgClient } from "./postgres.mjs";
 import { requireAdminUserAsync, requireAdvisorUserAsync } from "./authService.mjs";
 
-const LOT_STATES = new Set(["LIBRE", "SEPARADO", "VENDIDO", "BLOQUEADO", "INACTIVO"]);
-const SALE_STAGES = new Set(["SEPARADO", "CONTRATO", "PAGANDO", "COMPLETADO", "ANULADO"]);
-const PAYMENT_TYPES = new Set(["SEPARACION", "INICIAL", "CUOTA", "ABONO_EXTRAORDINARIO", "AJUSTE", "DEVOLUCION"]);
+const LOT_STATES = new Set(["DISPONIBLE", "SEPARADO", "VENDIDO"]);
+const SALE_STATES = new Set(["SEPARADA", "INICIAL_PAGADA", "CONTRATO_FIRMADO", "PAGANDO", "COMPLETADA", "CAIDA"]);
+const PAYMENT_TYPES = new Set(["SEPARACION", "INICIAL", "CUOTA", "OTRO"]);
 const GROUP_BY_VALUES = new Set(["day", "week", "month"]);
 const RANKING_METRICS = new Set([
   "monto_vendido",
   "monto_cobrado",
-  "ticket_promedio",
+  "ticket_promedio_venta",
   "saldo_pendiente",
   "cantidad_ventas",
   "cartera_activa",
@@ -18,7 +18,7 @@ const RANKING_METRICS = new Set([
 
 const NUMERIC_KEYS = new Set([
   "inventarioTotal",
-  "lotesLibres",
+  "lotesDisponibles",
   "lotesSeparados",
   "lotesVendidos",
   "ventasActivas",
@@ -39,10 +39,14 @@ const NUMERIC_KEYS = new Set([
   "miMontoCobrado",
   "saldoPendienteMiCartera",
   "clientesActivos",
-  "precioLote",
+  "precioVenta",
   "pagadoTotal",
   "montoAcumulado",
   "operacionesActivas",
+  "monto",
+  "montoCuota",
+  "montoInicialTotal",
+  "montoFinanciado",
 ]);
 
 const asTrimmed = (value) => String(value ?? "").trim();
@@ -161,13 +165,15 @@ const parsePage = (value) => {
   return parsed;
 };
 
+const parseSaleState = (query) =>
+  parseOptionalEnum(query?.estadoVenta ?? query?.etapaVenta, SALE_STATES, "estadoVenta");
+
 const buildCommonFilters = (query, { allowAdvisorId = false } = {}) => {
   const filters = {
     from: parseOptionalDate(query?.from, "from"),
     to: parseOptionalDate(query?.to, "to"),
-    proyectoId: parseOptionalUuid(query?.proyectoId, "proyectoId"),
     estadoLote: parseOptionalEnum(query?.estadoLote, LOT_STATES, "estadoLote"),
-    etapaVenta: parseOptionalEnum(query?.etapaVenta, SALE_STAGES, "etapaVenta"),
+    estadoVenta: parseSaleState(query),
   };
 
   if (filters.from && filters.to && filters.from > filters.to) {
@@ -222,10 +228,9 @@ export const getAdminDashboardKpisAsync = async (username, pin, query) => {
   return queryOne("dashboard_admin_kpis", [
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.asesorId ?? null,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
   ]);
 };
 
@@ -236,10 +241,9 @@ export const getAdminDashboardSalesSeriesAsync = async (username, pin, query) =>
   return queryMany("dashboard_admin_series_ventas", [
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.asesorId ?? null,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     parseGroupBy(query?.groupBy),
   ]);
 };
@@ -251,10 +255,9 @@ export const getAdminDashboardCollectionsSeriesAsync = async (username, pin, que
   return queryMany("dashboard_admin_series_cobros", [
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.asesorId ?? null,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     filters.tipoPago,
     parseGroupBy(query?.groupBy),
   ]);
@@ -264,10 +267,7 @@ export const getAdminDashboardInventoryAsync = async (username, pin, query) => {
   await requireAdminUserAsync(username, pin);
   const filters = buildCommonFilters(query);
 
-  return queryMany("dashboard_admin_inventario_estado", [
-    filters.proyectoId,
-    filters.estadoLote,
-  ]);
+  return queryMany("dashboard_admin_inventario_estado", [filters.estadoLote]);
 };
 
 export const getAdminDashboardAdvisorSummaryAsync = async (username, pin, query) => {
@@ -277,10 +277,9 @@ export const getAdminDashboardAdvisorSummaryAsync = async (username, pin, query)
   return queryMany("dashboard_admin_resumen_asesores", [
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.asesorId ?? null,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
   ]);
 };
 
@@ -291,10 +290,9 @@ export const getAdminDashboardAdvisorRankingAsync = async (username, pin, query)
   return queryMany("dashboard_admin_ranking_asesores", [
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.asesorId ?? null,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     parseRankingMetric(query?.metric),
     parsePositiveInt(query?.topN, "topN", 10, 50),
   ]);
@@ -308,10 +306,9 @@ export const getAdminDashboardActiveSalesAsync = async (username, pin, query) =>
   return queryMany("dashboard_admin_ventas_activas", [
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.asesorId ?? null,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     pagination.pageSize,
     pagination.offset,
   ]);
@@ -322,10 +319,9 @@ export const getAdminDashboardCancelledSalesAsync = async (username, pin, query)
   const filters = buildCommonFilters(query, { allowAdvisorId: true });
   const pagination = buildPagination(query);
 
-  return queryMany("dashboard_admin_operaciones_anuladas", [
+  return queryMany("dashboard_admin_operaciones_caidas", [
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.asesorId ?? null,
     filters.estadoLote,
     pagination.pageSize,
@@ -343,9 +339,8 @@ export const getAdvisorDashboardKpisAsync = async (username, pin, query) => {
     advisor.id,
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
   ]);
 };
 
@@ -357,9 +352,8 @@ export const getAdvisorDashboardSalesSeriesAsync = async (username, pin, query) 
     advisor.id,
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     parseGroupBy(query?.groupBy),
   ]);
 };
@@ -372,9 +366,8 @@ export const getAdvisorDashboardCollectionsSeriesAsync = async (username, pin, q
     advisor.id,
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     filters.tipoPago,
     parseGroupBy(query?.groupBy),
   ]);
@@ -384,13 +377,12 @@ export const getAdvisorDashboardOperationsByStageAsync = async (username, pin, q
   const advisor = await resolveAdvisorUser(username, pin);
   const filters = buildCommonFilters(query);
 
-  return queryMany("dashboard_asesor_operaciones_por_etapa", [
+  return queryMany("dashboard_asesor_operaciones_por_estado", [
     advisor.id,
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
   ]);
 };
 
@@ -403,9 +395,8 @@ export const getAdvisorDashboardOperationsAsync = async (username, pin, query) =
     advisor.id,
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     pagination.pageSize,
     pagination.offset,
   ]);
@@ -420,9 +411,8 @@ export const getAdvisorDashboardClientsAsync = async (username, pin, query) => {
     advisor.id,
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     pagination.pageSize,
     pagination.offset,
   ]);
@@ -437,9 +427,8 @@ export const getAdvisorDashboardPaymentsAsync = async (username, pin, query) => 
     advisor.id,
     filters.from,
     filters.to,
-    filters.proyectoId,
     filters.estadoLote,
-    filters.etapaVenta,
+    filters.estadoVenta,
     filters.tipoPago,
     pagination.pageSize,
     pagination.offset,

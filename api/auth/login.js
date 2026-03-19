@@ -1,4 +1,5 @@
-import { loginAsync } from "../../backend/lib/usuariosService.mjs";
+import { getErrorStatus } from "../../backend/lib/errors.mjs";
+import { authenticateUserAsync } from "../../backend/lib/authService.mjs";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -14,7 +15,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    const userData = await loginAsync(username, pin);
+    const userData = await authenticateUserAsync(username, pin);
     if (!userData) {
       res.status(401).json({ error: "Usuario o PIN incorrectos." });
       return;
@@ -23,6 +24,6 @@ export default async function handler(req, res) {
     res.status(200).json({ success: true, user: userData });
   } catch (error) {
     console.error("Vercel API POST /api/auth/login error:", error);
-    res.status(403).json({ error: error.message || "No tienes permisos para acceder." });
+    res.status(getErrorStatus(error, 403)).json({ error: error.message || "No tienes permisos para acceder." });
   }
 }
