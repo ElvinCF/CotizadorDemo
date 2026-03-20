@@ -1,6 +1,6 @@
 ## Plan Detallado - Sistema de Tablas UI
 
-Actualizado: `2026-03-20 15:19:49`
+Actualizado: `2026-03-20 15:28:15`
 
 ### Objetivo
 Uniformizar todas las tablas del proyecto con el mismo sistema visual y de interacción, sin mezclar reglas de negocio, permisos o fetch dentro del componente base.
@@ -141,7 +141,7 @@ Responsabilidad de cada pagina:
 
 ---
 
-### Checklist UI tablas - 2026-03-20 15:19:49
+### Checklist UI tablas - 2026-03-20 15:28:15
 - [x] Fase 1 base creada: `DataTableShell`, `DataTableToolbar`, `DataTableFilters`, `DataTable`, `DataTableSortHeader`
 - [x] Altura controlada para vistas de tabla: contenedor interno sin rebasar `viewport - header`
 - [x] Header de tabla unificado con titulo + contador
@@ -161,6 +161,6 @@ Responsabilidad de cada pagina:
 - [x] Loader aplicado en `/ventas` y `/usuarios`
 - [x] Fase 2 aplicada a `/ventas`
 - [x] Fase 3 aplicada a `/usuarios`
-- [ ] Fase 4 aplicar a `/lotes`
+- [x] Fase 4 aplicada a `/lotes` (toolbar/filtros/sort/loader sin cambiar logica de negocio)
 - [ ] Fase 5 aplicar a tabla de pagos en `/ventas/:id`
 - [ ] Fase 6 aplicar a vista tabla de `/`

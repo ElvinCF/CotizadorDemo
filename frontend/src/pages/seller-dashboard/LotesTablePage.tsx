@@ -3,6 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import AdminSegmentedControl from "../../components/admin/AdminSegmentedControl";
+import DataTable from "../../components/data-table/DataTable";
+import DataTableFilters from "../../components/data-table/DataTableFilters";
+import DataTableLoadingRows from "../../components/data-table/DataTableLoadingRows";
+import DataTableShell from "../../components/data-table/DataTableShell";
+import DataTableSortHeader from "../../components/data-table/DataTableSortHeader";
+import DataTableToolbar from "../../components/data-table/DataTableToolbar";
+import { resolveTableLoadState } from "../../components/data-table/loadState";
+import type { SortState } from "../../components/data-table/types";
 import { formatArea, statusToClass } from "../../domain/formatters";
 import type { Lote } from "../../domain/types";
 import { listSales } from "../../services/ventas";
@@ -10,6 +18,13 @@ import { listSales } from "../../services/ventas";
 type EditableFields = {
   price: string;
   estado: string;
+};
+
+type LotesSortKey = "mz" | "lote" | "area" | "precio" | "condicion";
+
+type LotesFilters = {
+  mz: string;
+  estado: "TODOS" | "DISPONIBLE" | "SEPARADO" | "VENDIDO";
 };
 
 const normalizeStatus = (value: string | undefined) => {
@@ -30,6 +45,11 @@ const numberFromInput = (value: string) => {
 const emptyDraft: EditableFields = {
   price: "",
   estado: "DISPONIBLE",
+};
+
+const defaultFilters: LotesFilters = {
+  mz: "TODAS",
+  estado: "TODOS",
 };
 
 const IconRefresh = () => (
@@ -54,13 +74,6 @@ const IconMap = () => (
       strokeLinejoin="round"
     />
     <path d="M9 4v13.5M15 6.5V20" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-);
-
-const IconSearch = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.6" />
-    <path d="m16 16 4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
   </svg>
 );
 
@@ -94,9 +107,13 @@ function LotesTablePage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkType, setBulkType] = useState<"MONTO" | "PORCENTAJE">("MONTO");
   const [bulkValue, setBulkValue] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filters, setFilters] = useState<LotesFilters>(defaultFilters);
+  const [sort, setSort] = useState<SortState<LotesSortKey>>({ key: "mz", direction: "asc" });
 
   const loadRows = async (keepNotice = true) => {
     try {
+      setLoading(true);
       if (!keepNotice) setNotice("");
       const response = await fetch("/api/lotes", { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -112,7 +129,7 @@ function LotesTablePage() {
   };
 
   useEffect(() => {
-    loadRows();
+    void loadRows();
   }, []);
 
   useEffect(() => {
@@ -135,16 +152,51 @@ function LotesTablePage() {
     void run();
   }, []);
 
-  const filteredRows = useMemo(() => {
+  const mzOptions = useMemo(
+    () =>
+      Array.from(new Set(rows.map((row) => row.mz)))
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right, "es", { sensitivity: "base" })),
+    [rows]
+  );
+
+  const visibleRows = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((row) => {
+    const filtered = rows.filter((row) => {
+      const byMz = filters.mz === "TODAS" || row.mz === filters.mz;
+      const byStatus = filters.estado === "TODOS" || normalizeStatus(row.condicion) === filters.estado;
+      if (!byMz || !byStatus) return false;
+
+      if (!term) return true;
       const raw = [row.id, row.mz, String(row.lote), String(row.price ?? ""), row.condicion]
         .join(" ")
         .toLowerCase();
       return raw.includes(term);
     });
-  }, [query, rows]);
+
+    if (!sort.key || !sort.direction) return filtered;
+
+    const sorted = [...filtered].sort((left, right) => {
+      switch (sort.key) {
+        case "mz":
+          return left.mz.localeCompare(right.mz, "es", { sensitivity: "base" });
+        case "lote":
+          return left.lote - right.lote;
+        case "area":
+          return (left.areaM2 ?? -1) - (right.areaM2 ?? -1);
+        case "precio":
+          return (left.price ?? -1) - (right.price ?? -1);
+        case "condicion":
+          return normalizeStatus(left.condicion).localeCompare(normalizeStatus(right.condicion), "es", {
+            sensitivity: "base",
+          });
+        default:
+          return 0;
+      }
+    });
+
+    return sort.direction === "asc" ? sorted : sorted.reverse();
+  }, [filters.estado, filters.mz, query, rows, sort.direction, sort.key]);
 
   const readValue = (row: Lote, field: keyof EditableFields) => {
     const draft = drafts[row.id];
@@ -173,14 +225,12 @@ function LotesTablePage() {
   const isDirty = (row: Lote) => {
     const draft = drafts[row.id];
     if (!draft) return false;
-    return (
-      numberFromInput(draft.price) !== (row.price ?? null) ||
-      draft.estado !== normalizeStatus(row.condicion)
-    );
+    return numberFromInput(draft.price) !== (row.price ?? null) || draft.estado !== normalizeStatus(row.condicion);
   };
 
   const hasPendingChanges = rows.some((row) => isDirty(row));
   const canUseBulkPrices = role === "admin";
+  const loadState = resolveTableLoadState(loading, visibleRows.length);
 
   const bulkValueNumber = numberFromInput(bulkValue);
   const bulkValueValid = bulkValueNumber != null;
@@ -294,56 +344,94 @@ function LotesTablePage() {
     </nav>
   );
 
+  const sortDirectionFor = (key: LotesSortKey) => (sort.key === key ? sort.direction : null);
+
+  const handleSort = (key: LotesSortKey) => {
+    setSort((current) => {
+      if (current.key !== key) return { key, direction: "asc" };
+      if (current.direction === "asc") return { key, direction: "desc" };
+      if (current.direction === "desc") return { key: null, direction: null };
+      return { key, direction: "asc" };
+    });
+  };
+
+  const resetFilters = () => setFilters(defaultFilters);
+
+  const toolbarActions = (
+    <>
+      {canUseBulkPrices ? (
+        <button type="button" className="btn ghost data-table-toolbar__btn" onClick={() => setBulkModalOpen(true)}>
+          <IconBulk />
+          <span className="data-table-toolbar__btn-label">Ajuste masivo</span>
+        </button>
+      ) : null}
+      <button type="button" className="btn ghost data-table-toolbar__btn" onClick={() => loadRows(false)}>
+        <IconRefresh />
+        <span className="data-table-toolbar__btn-label">Refrescar</span>
+      </button>
+    </>
+  );
+
   return (
-    <AppShell title="Gestion de Lotes" actions={actions} contentClassName="main--seller">
-      <section className="seller-page">
-        <div className="seller-page__head">
-          <div className="seller-page__head-main">
-            <div className="seller-toolbar">
-              <div className="seller-search-block">
-                <label htmlFor="seller-search">Buscar en la tabla</label>
-                <div className="seller-search-input">
-                  <span className="seller-search-input__icon" aria-hidden="true">
-                    <IconSearch />
-                  </span>
-                  <input
-                    id="seller-search"
-                    type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Buscar por lote o condicion"
-                  />
-                </div>
-              </div>
+    <AppShell title="Gestion de Lotes" actions={actions} contentClassName="main--data-table">
+      <DataTableShell
+        className="lotes-table-page"
+        title="Lotes editables"
+        meta={<span className="data-table-shell__count">{`${visibleRows.length} de ${rows.length}`}</span>}
+        toolbar={
+          <DataTableToolbar
+            searchValue={query}
+            onSearchChange={setQuery}
+            onClearSearch={() => setQuery("")}
+            searchPlaceholder="Buscar por lote, MZ o condicion"
+            filtersOpen={filtersOpen}
+            onToggleFilters={() => setFiltersOpen((current) => !current)}
+            onClearFilters={resetFilters}
+            actions={toolbarActions}
+          />
+        }
+        filters={
+          <DataTableFilters open={filtersOpen}>
+            <label className="data-table-filters__field">
+              <span>Estado</span>
+              <select
+                value={filters.estado}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    estado: event.target.value as LotesFilters["estado"],
+                  }))
+                }
+              >
+                <option value="TODOS">Todos</option>
+                <option value="DISPONIBLE">Disponible</option>
+                <option value="SEPARADO">Separado</option>
+                <option value="VENDIDO">Vendido</option>
+              </select>
+            </label>
 
-              <div className="seller-toolbar__actions">
-                {canUseBulkPrices ? (
-                  <button className="btn ghost seller-bulk-btn seller-bulk-btn--desktop" onClick={() => setBulkModalOpen(true)}>
-                    <IconBulk />
-                    <span>Ajuste masivo</span>
-                  </button>
-                ) : null}
-                <div className="seller-page__actions">
-                  <button className="btn ghost" onClick={() => loadRows(false)} aria-label="Refrescar tabla">
-                    <IconRefresh />
-                    <span className="seller-refresh-label">Refrescar</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {canUseBulkPrices ? (
-              <div className="seller-toolbar seller-toolbar--mobile-secondary">
-                <button className="btn ghost seller-bulk-btn" onClick={() => setBulkModalOpen(true)}>
-                  <IconBulk />
-                  <span>Ajuste masivo</span>
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {loading ? <p className="muted">Cargando lotes...</p> : null}
+            <label className="data-table-filters__field">
+              <span>MZ</span>
+              <select
+                value={filters.mz}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    mz: event.target.value,
+                  }))
+                }
+              >
+                <option value="TODAS">Todas</option>
+                {mzOptions.map((mz) => (
+                  <option key={mz} value={mz}>
+                    {mz}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </DataTableFilters>
+        }
+      >
         {error ? <p className="seller-error">{error}</p> : null}
         {notice ? (
           <p className="seller-notice">
@@ -358,24 +446,58 @@ function LotesTablePage() {
             </button>
           </p>
         ) : null}
-        {hasPendingChanges ? (
-          <p className="seller-pending warn">Hay cambios sin guardar en la tabla.</p>
-        ) : null}
+        {hasPendingChanges ? <p className="seller-pending warn">Hay cambios sin guardar en la tabla.</p> : null}
 
-        <div className="seller-table-wrap">
+        <DataTable className="seller-table-view">
           <table className="seller-edit-table">
             <thead>
               <tr>
-                <th>MZ</th>
-                <th>LOTE</th>
-                <th>AREA (m2)</th>
-                <th>PRECIO</th>
-                <th>CONDICION</th>
+                <th>
+                  <DataTableSortHeader label="MZ" direction={sortDirectionFor("mz")} onToggle={() => handleSort("mz")} />
+                </th>
+                <th>
+                  <DataTableSortHeader
+                    label="LOTE"
+                    direction={sortDirectionFor("lote")}
+                    onToggle={() => handleSort("lote")}
+                  />
+                </th>
+                <th>
+                  <DataTableSortHeader
+                    label="AREA (m2)"
+                    direction={sortDirectionFor("area")}
+                    onToggle={() => handleSort("area")}
+                  />
+                </th>
+                <th>
+                  <DataTableSortHeader
+                    label="PRECIO"
+                    direction={sortDirectionFor("precio")}
+                    onToggle={() => handleSort("precio")}
+                  />
+                </th>
+                <th>
+                  <DataTableSortHeader
+                    label="CONDICION"
+                    direction={sortDirectionFor("condicion")}
+                    onToggle={() => handleSort("condicion")}
+                  />
+                </th>
                 <th>ACCION</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => {
+              {loadState === "loading-initial" ? <DataTableLoadingRows colSpan={6} label="Cargando lotes" /> : null}
+
+              {loadState === "loading-refresh" ? (
+                <tr>
+                  <td colSpan={6} className="data-table__refreshing">
+                    Actualizando lotes...
+                  </td>
+                </tr>
+              ) : null}
+
+              {visibleRows.map((row) => {
                 const currentStatus = readValue(row, "estado");
                 const dirty = isDirty(row);
                 const disabled = savingId === row.id;
@@ -437,10 +559,18 @@ function LotesTablePage() {
                   </tr>
                 );
               })}
+
+              {loadState === "empty" ? (
+                <tr>
+                  <td colSpan={6} className="data-table__empty">
+                    No hay lotes para el filtro aplicado.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
-        </div>
-      </section>
+        </DataTable>
+      </DataTableShell>
 
       {bulkModalOpen ? (
         <div className="modal-backdrop" onClick={() => setBulkModalOpen(false)}>
