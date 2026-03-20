@@ -1,13 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "../../app/AppShell";
-import { useAuth } from "../../app/AuthContext";
 import AdminUserModal from "../../components/admin/AdminUserModal";
-import AdminUsersTable from "../../components/admin/AdminUsersTable";
+import AdminUsersTable, { type AdminUsersSortKey } from "../../components/admin/AdminUsersTable";
+import DataTableFilters from "../../components/data-table/DataTableFilters";
+import DataTableShell from "../../components/data-table/DataTableShell";
+import DataTableToolbar from "../../components/data-table/DataTableToolbar";
+import { buildDateBounds, withDefaultDateRange } from "../../components/data-table/dateRange";
+import type { SortState } from "../../components/data-table/types";
+import { useAuth } from "../../app/AuthContext";
 import type { AdminUser, AdminUserCatalogs, AdminUserPayload } from "../../domain/adminUsers";
 import { createAdminUser, listAdminUsers, updateAdminUser } from "../../services/adminUsers";
 
 const MAX_ADMINS = 3;
+
+type UsersFiltersState = {
+  rol: "TODOS" | "ADMIN" | "ASESOR";
+  estado: "TODOS" | "ACTIVO" | "INACTIVO";
+  fechaDesde: string;
+  fechaHasta: string;
+};
+
+const defaultFilters: UsersFiltersState = {
+  rol: "TODOS",
+  estado: "TODOS",
+  fechaDesde: "",
+  fechaHasta: "",
+};
 
 const IconMap = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
@@ -38,6 +57,34 @@ const IconDashboard = () => (
   </svg>
 );
 
+const normalizeText = (value: string) => value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+
+const compareText = (left: string, right: string) => left.localeCompare(right, "es", { sensitivity: "base" });
+
+const compareNumber = (left: number, right: number) => left - right;
+
+const inDateRange = (value: string, from: string, to: string) => {
+  if (!from && !to) return true;
+  const current = new Date(value);
+  if (Number.isNaN(current.getTime())) return false;
+  const currentTime = current.getTime();
+
+  if (from) {
+    const fromDate = new Date(from);
+    if (!Number.isNaN(fromDate.getTime()) && currentTime < fromDate.getTime()) return false;
+  }
+
+  if (to) {
+    const toDate = new Date(to);
+    if (!Number.isNaN(toDate.getTime())) {
+      toDate.setHours(23, 59, 59, 999);
+      if (currentTime > toDate.getTime()) return false;
+    }
+  }
+
+  return true;
+};
+
 function AdminPage() {
   const { loginUsername, loginPin } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -52,10 +99,12 @@ function AdminPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filters, setFilters] = useState<UsersFiltersState>(defaultFilters);
+  const [sort, setSort] = useState<SortState<AdminUsersSortKey>>({ key: "username", direction: "asc" });
 
   const adminCount = users.filter((user) => user.rol === "ADMIN" && user.estado === "ACTIVO").length;
-  const asesorTotal = users.filter((user) => user.rol === "ASESOR").length;
-  const asesorCount = users.filter((user) => user.rol === "ASESOR" && user.estado === "ACTIVO").length;
   const canCreateAdmin = adminCount < MAX_ADMINS;
 
   const credentials = useMemo(
@@ -125,7 +174,72 @@ function AdminPage() {
     }
   };
 
-  const actions = (
+  const visibleUsers = useMemo(() => {
+    const query = normalizeText(search);
+    const filtered = users.filter((user) => {
+      const roleOk = filters.rol === "TODOS" || user.rol === filters.rol;
+      const statusOk = filters.estado === "TODOS" || user.estado === filters.estado;
+      const dateOk = inDateRange(user.created_at, filters.fechaDesde, filters.fechaHasta);
+      if (!roleOk || !statusOk || !dateOk) return false;
+
+      if (!query) return true;
+      const haystack = normalizeText(
+        [user.username, user.nombres, user.apellidos, user.telefono || "", user.rol, user.estado].join(" ")
+      );
+      return haystack.includes(query);
+    });
+
+    if (!sort.key || !sort.direction) return filtered;
+
+    const sorted = [...filtered].sort((left, right) => {
+      switch (sort.key) {
+        case "username":
+          return compareText(left.username, right.username);
+        case "nombre":
+          return compareText(
+            `${left.nombres} ${left.apellidos}`.trim(),
+            `${right.nombres} ${right.apellidos}`.trim()
+          );
+        case "rol":
+          return compareText(left.rol, right.rol);
+        case "telefono":
+          return compareText(left.telefono || "", right.telefono || "");
+        case "creado":
+          return compareNumber(new Date(left.created_at).getTime(), new Date(right.created_at).getTime());
+        case "estado":
+          return compareText(left.estado, right.estado);
+        default:
+          return 0;
+      }
+    });
+
+    return sort.direction === "asc" ? sorted : sorted.reverse();
+  }, [filters, search, sort, users]);
+
+  const dateBounds = useMemo(() => buildDateBounds(users.map((user) => user.created_at)), [users]);
+
+  useEffect(() => {
+    if (!dateBounds.min || !dateBounds.max) return;
+    setFilters((current) => withDefaultDateRange(current, dateBounds));
+  }, [dateBounds.max, dateBounds.min]);
+
+  const handleSort = (key: AdminUsersSortKey) => {
+    setSort((current) => {
+      if (current.key !== key) return { key, direction: "asc" };
+      if (current.direction === "asc") return { key, direction: "desc" };
+      if (current.direction === "desc") return { key: null, direction: null };
+      return { key, direction: "asc" };
+    });
+  };
+
+  const resetFilters = () =>
+    setFilters({
+      ...defaultFilters,
+      fechaDesde: dateBounds.min,
+      fechaHasta: dateBounds.max,
+    });
+
+  const topbarActions = (
     <nav className="topbar-nav">
       <Link className="btn ghost topbar-action" to="/">
         <IconMap />
@@ -142,24 +256,85 @@ function AdminPage() {
     </nav>
   );
 
-  return (
-    <AppShell title="Gestion de Usuarios" actions={actions} contentClassName="main--admin">
-      <section className="admin-page">
-        <div className="admin-page__head">
-          <div className="admin-page__summary">
-            <span className="admin-badge admin-badge--total">{users.length} usuarios</span>
-            <span className="admin-badge admin-badge--asesor">
-              {asesorCount}/{Math.max(asesorTotal, 1)} asesores activos
-            </span>
-            <span className={`admin-badge admin-badge--admin${canCreateAdmin ? "" : " warn"}`}>
-              {adminCount}/{MAX_ADMINS} admins activos
-            </span>
-          </div>
-          <button className="btn" onClick={openCreateModal}>
-            + Nuevo usuario
-          </button>
-        </div>
+  const toolbarActions = (
+    <>
+      <button type="button" className="btn data-table-toolbar__btn" onClick={openCreateModal}>
+        + Nuevo
+      </button>
+    </>
+  );
 
+  return (
+    <AppShell title="Gestion de Usuarios" actions={topbarActions} contentClassName="main--data-table">
+      <DataTableShell
+        className="admin-users-page"
+        title="Usuarios registrados"
+        meta={<span className="data-table-shell__count">{`${visibleUsers.length} de ${users.length}`}</span>}
+        toolbar={
+          <DataTableToolbar
+            searchValue={search}
+            onSearchChange={setSearch}
+            onClearSearch={() => setSearch("")}
+            searchPlaceholder="Buscar por username, nombre, telefono o estado"
+            filtersOpen={filtersOpen}
+            onToggleFilters={() => setFiltersOpen((current) => !current)}
+            onClearFilters={resetFilters}
+            actions={toolbarActions}
+          />
+        }
+        filters={
+          <DataTableFilters open={filtersOpen}>
+            <label className="data-table-filters__field">
+              <span>Rol</span>
+              <select value={filters.rol} onChange={(event) => setFilters((current) => ({ ...current, rol: event.target.value as UsersFiltersState["rol"] }))}>
+                <option value="TODOS">Todos</option>
+                {catalogs.roles.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="data-table-filters__field">
+              <span>Estado</span>
+              <select
+                value={filters.estado}
+                onChange={(event) => setFilters((current) => ({ ...current, estado: event.target.value as UsersFiltersState["estado"] }))}
+              >
+                <option value="TODOS">Todos</option>
+                {catalogs.statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="data-table-filters__field data-table-filters__field--date">
+              <span>Desde</span>
+              <input
+                type="date"
+                value={filters.fechaDesde}
+                min={dateBounds.min || undefined}
+                max={filters.fechaHasta || dateBounds.max || undefined}
+                onChange={(event) => setFilters((current) => ({ ...current, fechaDesde: event.target.value }))}
+              />
+            </label>
+
+            <label className="data-table-filters__field data-table-filters__field--date">
+              <span>Hasta</span>
+              <input
+                type="date"
+                value={filters.fechaHasta}
+                min={filters.fechaDesde || dateBounds.min || undefined}
+                max={dateBounds.max || undefined}
+                onChange={(event) => setFilters((current) => ({ ...current, fechaHasta: event.target.value }))}
+              />
+            </label>
+          </DataTableFilters>
+        }
+      >
         {error ? (
           <p className="admin-error">
             {error}
@@ -178,8 +353,8 @@ function AdminPage() {
           </p>
         ) : null}
 
-        <AdminUsersTable users={users} loading={loading} onEdit={openEditModal} />
-      </section>
+        <AdminUsersTable users={visibleUsers} loading={loading} onEdit={openEditModal} sort={sort} onSort={handleSort} />
+      </DataTableShell>
 
       <AdminUserModal
         open={modalOpen}
