@@ -7,6 +7,7 @@ import {
   getAdminDashboardCollectionsSeriesAsync,
   getAdminDashboardInventoryAsync,
   getAdminDashboardKpisAsync,
+  getAdminDashboardOverviewAsync,
   getAdminDashboardSalesSeriesAsync,
   getAdvisorDashboardClientsAsync,
   getAdvisorDashboardCollectionsSeriesAsync,
@@ -32,6 +33,7 @@ const getAuthCredentials = (req) => {
 const ROUTE_HANDLERS = {
   admin: {
     kpis: getAdminDashboardKpisAsync,
+    resumen: getAdminDashboardOverviewAsync,
     "series-ventas": getAdminDashboardSalesSeriesAsync,
     "series-cobros": getAdminDashboardCollectionsSeriesAsync,
     inventario: getAdminDashboardInventoryAsync,
@@ -53,6 +55,7 @@ const ROUTE_HANDLERS = {
 
 const RESPONSE_KEY = {
   kpis: "item",
+  resumen: "item",
 };
 
 export default async function handler(req, res) {

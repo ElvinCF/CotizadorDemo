@@ -12,8 +12,6 @@ import { useAuth } from "../../app/AuthContext";
 import type { AdminUser, AdminUserCatalogs, AdminUserPayload } from "../../domain/adminUsers";
 import { createAdminUser, listAdminUsers, updateAdminUser } from "../../services/adminUsers";
 
-const MAX_ADMINS = 3;
-
 type UsersFiltersState = {
   rol: "TODOS" | "ADMIN" | "ASESOR";
   estado: "TODOS" | "ACTIVO" | "INACTIVO";
@@ -82,8 +80,7 @@ function AdminPage() {
   const [filters, setFilters] = useState<UsersFiltersState>(defaultFilters);
   const [sort, setSort] = useState<SortState<AdminUsersSortKey>>({ key: "username", direction: "asc" });
 
-  const adminCount = users.filter((user) => user.rol === "ADMIN" && user.estado === "ACTIVO").length;
-  const canCreateAdmin = adminCount < MAX_ADMINS;
+  const canCreateAdmin = true;
 
   const credentials = useMemo(
     () => ({

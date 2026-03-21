@@ -6,7 +6,6 @@ const hashPin = (pin) => createHash("sha256").update(String(pin)).digest("hex");
 
 const VALID_ROLES = new Set(["ADMIN", "ASESOR"]);
 const VALID_STATUS = new Set(["ACTIVO", "INACTIVO"]);
-const MAX_ADMINS = 3;
 
 const mapUserRow = (row) => ({
   id: row.id,
@@ -43,22 +42,6 @@ const getUserByUsername = async (client, schema, username, includePin = false) =
   );
 
   return result.rows[0] ?? null;
-};
-
-const countActiveAdmins = async (client, schema, excludeId = null) => {
-  const values = ["ADMIN", "ACTIVO"];
-  let query = `select count(*)::int as total
-                 from ${schema}.usuarios
-                where rol = $1
-                  and estado = $2`;
-
-  if (excludeId) {
-    query += ` and id <> $3`;
-    values.push(excludeId);
-  }
-
-  const result = await client.query(query, values);
-  return Number(result.rows[0]?.total ?? 0);
 };
 
 const verifyAdminAsync = async (username, pin) => {
@@ -122,13 +105,6 @@ export const createUserAsync = async (adminUsername, adminPin, nuevoUsuario) => 
   }
 
   return withPgTransaction(async (client) => {
-    if (rolUpper === "ADMIN") {
-      const adminCount = await countActiveAdmins(client, schema);
-      if (adminCount >= MAX_ADMINS) {
-        throw conflict(`No se pueden crear mas de ${MAX_ADMINS} administradores activos.`);
-      }
-    }
-
     const userLower = String(username).trim().toLowerCase();
     const existing = await getUserByUsername(client, schema, userLower, false);
     if (existing) {
@@ -238,16 +214,6 @@ export const updateUserAsync = async (adminUsername, adminPin, userId, patchInpu
     if (patch.telefono !== undefined) nextData.telefono = String(patch.telefono).trim();
     if (patch.pin !== undefined && String(patch.pin).trim() !== "") {
       nextData.pin_hash = hashPin(String(patch.pin).trim());
-    }
-
-    const nextRole = String(nextData.rol ?? existing.rol).toUpperCase();
-    const nextStatus = String(nextData.estado ?? existing.estado).toUpperCase();
-
-    if (nextRole === "ADMIN" && nextStatus === "ACTIVO") {
-      const adminCount = await countActiveAdmins(client, schema, id);
-      if (adminCount >= MAX_ADMINS) {
-        throw conflict(`No se pueden crear mas de ${MAX_ADMINS} administradores activos.`);
-      }
     }
 
     const sets = [];

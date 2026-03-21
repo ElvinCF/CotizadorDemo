@@ -222,31 +222,59 @@ const queryOne = async (functionName, args) => {
   return rows[0] ?? {};
 };
 
-export const getAdminDashboardKpisAsync = async (username, pin, query) => {
-  await requireAdminUserAsync(username, pin);
-  const filters = buildCommonFilters(query, { allowAdvisorId: true });
+const getAdminFilters = (query) => buildCommonFilters(query, { allowAdvisorId: true });
 
-  return queryOne("dashboard_admin_kpis", [
+const fetchAdminKpis = (filters) =>
+  queryOne("dashboard_admin_kpis", [
     filters.from,
     filters.to,
     filters.asesorId ?? null,
     filters.estadoLote,
     filters.estadoVenta,
   ]);
+
+const fetchAdminSalesSeries = (filters, groupBy) =>
+  queryMany("dashboard_admin_series_ventas", [
+    filters.from,
+    filters.to,
+    filters.asesorId ?? null,
+    filters.estadoLote,
+    filters.estadoVenta,
+    groupBy,
+  ]);
+
+const fetchAdminInventory = (filters) => queryMany("dashboard_admin_inventario_estado", [filters.estadoLote]);
+
+const fetchAdminAdvisorSummary = (filters) =>
+  queryMany("dashboard_admin_resumen_asesores", [
+    filters.from,
+    filters.to,
+    filters.asesorId ?? null,
+    filters.estadoLote,
+    filters.estadoVenta,
+  ]);
+
+const fetchAdminAdvisorRanking = (filters, metric, topN) =>
+  queryMany("dashboard_admin_ranking_asesores", [
+    filters.from,
+    filters.to,
+    filters.asesorId ?? null,
+    filters.estadoLote,
+    filters.estadoVenta,
+    metric,
+    topN,
+  ]);
+
+export const getAdminDashboardKpisAsync = async (username, pin, query) => {
+  await requireAdminUserAsync(username, pin);
+  const filters = getAdminFilters(query);
+  return fetchAdminKpis(filters);
 };
 
 export const getAdminDashboardSalesSeriesAsync = async (username, pin, query) => {
   await requireAdminUserAsync(username, pin);
-  const filters = buildCommonFilters(query, { allowAdvisorId: true });
-
-  return queryMany("dashboard_admin_series_ventas", [
-    filters.from,
-    filters.to,
-    filters.asesorId ?? null,
-    filters.estadoLote,
-    filters.estadoVenta,
-    parseGroupBy(query?.groupBy),
-  ]);
+  const filters = getAdminFilters(query);
+  return fetchAdminSalesSeries(filters, parseGroupBy(query?.groupBy));
 };
 
 export const getAdminDashboardCollectionsSeriesAsync = async (username, pin, query) => {
@@ -267,36 +295,41 @@ export const getAdminDashboardCollectionsSeriesAsync = async (username, pin, que
 export const getAdminDashboardInventoryAsync = async (username, pin, query) => {
   await requireAdminUserAsync(username, pin);
   const filters = buildCommonFilters(query);
-
-  return queryMany("dashboard_admin_inventario_estado", [filters.estadoLote]);
+  return fetchAdminInventory(filters);
 };
 
 export const getAdminDashboardAdvisorSummaryAsync = async (username, pin, query) => {
   await requireAdminUserAsync(username, pin);
-  const filters = buildCommonFilters(query, { allowAdvisorId: true });
-
-  return queryMany("dashboard_admin_resumen_asesores", [
-    filters.from,
-    filters.to,
-    filters.asesorId ?? null,
-    filters.estadoLote,
-    filters.estadoVenta,
-  ]);
+  const filters = getAdminFilters(query);
+  return fetchAdminAdvisorSummary(filters);
 };
 
 export const getAdminDashboardAdvisorRankingAsync = async (username, pin, query) => {
   await requireAdminUserAsync(username, pin);
-  const filters = buildCommonFilters(query, { allowAdvisorId: true });
-
-  return queryMany("dashboard_admin_ranking_asesores", [
-    filters.from,
-    filters.to,
-    filters.asesorId ?? null,
-    filters.estadoLote,
-    filters.estadoVenta,
+  const filters = getAdminFilters(query);
+  return fetchAdminAdvisorRanking(
+    filters,
     parseRankingMetric(query?.metric),
-    parsePositiveInt(query?.topN, "topN", 10, 50),
+    parsePositiveInt(query?.topN, "topN", 10, 50)
+  );
+};
+
+export const getAdminDashboardOverviewAsync = async (username, pin, query) => {
+  await requireAdminUserAsync(username, pin);
+  const filters = getAdminFilters(query);
+  const groupBy = parseGroupBy(query?.groupBy);
+  const metric = parseRankingMetric(query?.metric);
+  const topN = parsePositiveInt(query?.topN, "topN", 10, 50);
+
+  const [kpis, salesSeries, inventory, advisorSummary, advisorRanking] = await Promise.all([
+    fetchAdminKpis(filters),
+    fetchAdminSalesSeries(filters, groupBy),
+    fetchAdminInventory(filters),
+    fetchAdminAdvisorSummary(filters),
+    fetchAdminAdvisorRanking(filters, metric, topN),
   ]);
+
+  return { kpis, salesSeries, inventory, advisorSummary, advisorRanking };
 };
 
 export const getAdminDashboardActiveSalesAsync = async (username, pin, query) => {

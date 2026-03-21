@@ -1,7 +1,9 @@
 import type {
   DashboardAdminFilters,
   DashboardGroupBy,
+  DashboardRankingMetric,
   DashboardAdminKpis,
+  DashboardAdminOverview,
   DashboardAdminPaymentFilters,
   DashboardAdminSeriesFilters,
   DashboardAdvisorClientItem,
@@ -169,6 +171,21 @@ export const getAdminDashboardKpis = async (filters?: DashboardAdminFilters) =>
     "kpis",
     toAdminFilterParams(filters),
     "No se pudo cargar los KPIs del dashboard administrativo."
+  );
+
+export const getAdminDashboardOverview = async (
+  filters?: DashboardAdminFilters & { groupBy?: DashboardGroupBy | null; metric?: DashboardRankingMetric | null; topN?: number | null }
+) =>
+  requestDashboardItem<DashboardAdminOverview>(
+    "admin",
+    "resumen",
+    {
+      ...toAdminFilterParams(filters),
+      groupBy: filters?.groupBy ?? null,
+      metric: filters?.metric ?? null,
+      topN: filters?.topN ?? null,
+    },
+    "No se pudo cargar el resumen del dashboard administrativo."
   );
 
 export const getAdminDashboardSalesSeries = async (filters?: DashboardAdminSeriesFilters) =>

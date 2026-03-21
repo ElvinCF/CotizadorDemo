@@ -105,6 +105,14 @@ export type DashboardAdvisorSummaryItem = {
   mayorVenta: number;
 };
 
+export type DashboardAdminOverview = {
+  kpis: DashboardAdminKpis;
+  salesSeries: DashboardSalesSeriesItem[];
+  inventory: DashboardInventoryItem[];
+  advisorSummary: DashboardAdvisorSummaryItem[];
+  advisorRanking: DashboardAdvisorSummaryItem[];
+};
+
 export type DashboardSaleOperationItem = {
   ventaId: string;
   fechaVenta: string;
