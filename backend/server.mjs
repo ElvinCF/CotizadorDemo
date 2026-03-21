@@ -9,6 +9,7 @@ import {
   getAdminDashboardCollectionsSeriesAsync,
   getAdminDashboardInventoryAsync,
   getAdminDashboardKpisAsync,
+  getAdminDashboardOverviewAsync,
   getAdminDashboardSalesSeriesAsync,
   getAdvisorDashboardClientsAsync,
   getAdvisorDashboardCollectionsSeriesAsync,
@@ -121,6 +122,22 @@ app.get("/api/dashboard/admin/kpis", async (req, res) => {
   } catch (error) {
     console.error("Error loading admin dashboard KPIs:", error);
     res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener KPIs del dashboard." });
+  }
+});
+
+app.get("/api/dashboard/admin/resumen", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const item = await getAdminDashboardOverviewAsync(username, pin, req.query ?? {});
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading admin dashboard overview:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener resumen del dashboard." });
   }
 });
 

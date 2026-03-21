@@ -1,4 +1,4 @@
-import { Client } from "pg";
+import { Pool } from "pg";
 import { badRequest } from "./errors.mjs";
 
 const ALLOWED_SCHEMAS = new Set(["public", "dev", "devsimple"]);
@@ -14,7 +14,7 @@ export const resolveDbSchema = () => {
   return configured;
 };
 
-const buildPgClient = () => {
+const buildPgConfig = () => {
   const host = process.env.SUPABASE_DB_HOST;
   const port = Number(process.env.SUPABASE_DB_PORT || 5432);
   const database = process.env.SUPABASE_DB_NAME || "postgres";
@@ -26,21 +26,29 @@ const buildPgClient = () => {
     throw badRequest("Faltan SUPABASE_DB_HOST o SUPABASE_DB_PASSWORD para usar transacciones directas.");
   }
 
-  return new Client({
+  return {
     host,
     port,
     database,
     user,
     password,
     ssl: sslEnabled ? { rejectUnauthorized: false } : false,
-  });
+  };
+};
+
+let poolSingleton = null;
+
+const getPgPool = () => {
+  if (!poolSingleton) {
+    poolSingleton = new Pool(buildPgConfig());
+  }
+  return poolSingleton;
 };
 
 export const withPgTransaction = async (callback) => {
-  const client = buildPgClient();
+  const client = await getPgPool().connect();
 
   try {
-    await client.connect();
     await client.query("begin");
     const result = await callback(client);
     await client.query("commit");
@@ -53,17 +61,16 @@ export const withPgTransaction = async (callback) => {
     }
     throw error;
   } finally {
-    await client.end();
+    client.release();
   }
 };
 
 export const withPgClient = async (callback) => {
-  const client = buildPgClient();
+  const client = await getPgPool().connect();
 
   try {
-    await client.connect();
     return await callback(client);
   } finally {
-    await client.end();
+    client.release();
   }
 };

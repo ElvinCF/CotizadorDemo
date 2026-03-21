@@ -26,11 +26,7 @@ import type { SaleState } from "../../domain/ventas";
 import { formatMoney } from "../../domain/formatters";
 import { listAdminUsers } from "../../services/adminUsers";
 import {
-  getAdminDashboardAdvisorRanking,
-  getAdminDashboardAdvisorSummary,
-  getAdminDashboardInventory,
-  getAdminDashboardKpis,
-  getAdminDashboardSalesSeries,
+  getAdminDashboardOverview,
 } from "../../services/dashboard";
 import { exportElementToPdfA4 } from "../../utils/exportElementToPdfA4";
 
@@ -305,52 +301,32 @@ export default function AdminDashboardPage() {
       setLoading(true);
       setError(null);
 
-      const [kpisResult, salesSeriesResult, inventoryResult, summaryResult, rankingResult] =
-        await Promise.allSettled([
-          getAdminDashboardKpis(requestFilters),
-          getAdminDashboardSalesSeries({ ...requestFilters, groupBy: filters.groupBy }),
-          getAdminDashboardInventory(requestFilters),
-          getAdminDashboardAdvisorSummary(requestFilters),
-          getAdminDashboardAdvisorRanking({
-            ...requestFilters,
-            metric: filters.metric,
-            topN: Number.parseInt(filters.topN, 10) || 5,
-          }),
-        ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      if (kpisResult.status === "fulfilled") {
-        setKpis(kpisResult.value);
-      } else {
+      try {
+        const overview = await getAdminDashboardOverview({
+          ...requestFilters,
+          groupBy: filters.groupBy,
+          metric: filters.metric,
+          topN: Number.parseInt(filters.topN, 10) || 5,
+        });
+        if (cancelled) {
+          return;
+        }
+        // Pinta KPIs primero para mejorar percepcion de carga.
+        setKpis(overview.kpis);
+        setSalesSeries(overview.salesSeries);
+        setInventory(overview.inventory);
+        setAdvisorSummary(overview.advisorSummary);
+        setAdvisorRanking(overview.advisorRanking);
+      } catch (loadError) {
+        if (cancelled) {
+          return;
+        }
         setKpis(emptyKpis);
-        setError(kpisResult.reason instanceof Error ? kpisResult.reason.message : "No se pudo cargar KPIs.");
-      }
-
-      if (salesSeriesResult.status === "fulfilled") {
-        setSalesSeries(salesSeriesResult.value);
-      } else {
         setSalesSeries([]);
-      }
-
-      if (inventoryResult.status === "fulfilled") {
-        setInventory(inventoryResult.value);
-      } else {
         setInventory([]);
-      }
-
-      if (summaryResult.status === "fulfilled") {
-        setAdvisorSummary(summaryResult.value);
-      } else {
         setAdvisorSummary([]);
-      }
-
-      if (rankingResult.status === "fulfilled") {
-        setAdvisorRanking(rankingResult.value);
-      } else {
         setAdvisorRanking([]);
+        setError(loadError instanceof Error ? loadError.message : "No se pudo cargar KPIs.");
       }
 
       setLoading(false);

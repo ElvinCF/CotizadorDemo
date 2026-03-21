@@ -8,18 +8,6 @@ const IconClose = () => (
   </svg>
 );
 
-const IconPrint = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path
-      d="M7 8V4h10v4M7 15h10v6H7v-6Zm12 0h2v-5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v5h2"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 const IconPlus = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -37,7 +25,6 @@ type CotizadorDrawerProps = {
   cuota: number;
   cuotaRapida: (meses: number, inicial: number) => number;
   onClose: () => void;
-  onPrint: () => void;
   onOpenProforma: () => void;
   onChangeQuote: (next: QuoteState) => void;
   hideProformaButton?: boolean;
@@ -54,7 +41,6 @@ function CotizadorDrawer({
   cuota,
   cuotaRapida,
   onClose,
-  onPrint,
   onOpenProforma,
   onChangeQuote,
   hideProformaButton = false,
@@ -212,12 +198,6 @@ function CotizadorDrawer({
             </div>
 
             <div className="drawer-footer-actions">
-              {selectedLote.condicion !== "VENDIDO" ? (
-                <button className="btn ghost drawer-footer-btn" onClick={onPrint}>
-                  <IconPrint />
-                  <span>Imprimir cotizacion</span>
-                </button>
-              ) : null}
               {selectedLote.condicion !== "VENDIDO" && !hideProformaButton ? (
                 <button className="btn drawer-footer-btn drawer-footer-btn--primary" onClick={onOpenProforma}>
                   <IconPlus />
