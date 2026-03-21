@@ -1,4 +1,4 @@
-import { getErrorStatus } from "../../../../backend/lib/errors.mjs";
+import { getErrorStatus } from "../../../backend/lib/errors.mjs";
 import {
   getAdminDashboardActiveSalesAsync,
   getAdminDashboardAdvisorRankingAsync,
@@ -15,7 +15,7 @@ import {
   getAdvisorDashboardOperationsByStageAsync,
   getAdvisorDashboardPaymentsAsync,
   getAdvisorDashboardSalesSeriesAsync,
-} from "../../../../backend/lib/dashboardService.mjs";
+} from "../../../backend/lib/dashboardService.mjs";
 
 const getAuthCredentials = (req) => {
   const headerUser = req.headers["x-auth-user"];
