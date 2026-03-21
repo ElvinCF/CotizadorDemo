@@ -546,108 +546,114 @@ function LotesTablePage() {
               </label>
             </div>
 
-            <label className="data-table-filters__field">
-              <span>{`Area m2 (${areaBounds.min} - ${areaBounds.max})`}</span>
-              <div className="data-table-filters__range-pair">
-                <input
-                  type="number"
-                  step="0.01"
-                  min={areaBounds.min}
-                  max={filters.areaMax}
-                  value={filters.areaMin}
-                  onChange={(event) => {
-                    const raw = numberFromInput(event.target.value);
-                    if (raw == null) return;
-                    const nextMin = clampBetween(raw, areaBounds.min, filters.areaMax);
-                    setFilters((current) => ({ ...current, areaMin: nextMin }));
-                  }}
-                  placeholder="Min m2"
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  min={filters.areaMin}
-                  max={areaBounds.max}
-                  value={filters.areaMax}
-                  onChange={(event) => {
-                    const raw = numberFromInput(event.target.value);
-                    if (raw == null) return;
-                    const nextMax = clampBetween(raw, filters.areaMin, areaBounds.max);
-                    setFilters((current) => ({ ...current, areaMax: nextMax }));
-                  }}
-                  placeholder="Max m2"
-                />
-              </div>
-            </label>
+            <div className="data-table-filters__group">
+              <label className="data-table-filters__field">
+                <span>{`Area m2 (${areaBounds.min} - ${areaBounds.max})`}</span>
+                <div className="data-table-filters__range-pair">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={areaBounds.min}
+                    max={filters.areaMax}
+                    value={filters.areaMin}
+                    onChange={(event) => {
+                      const raw = numberFromInput(event.target.value);
+                      if (raw == null) return;
+                      const nextMin = clampBetween(raw, areaBounds.min, filters.areaMax);
+                      setFilters((current) => ({ ...current, areaMin: nextMin }));
+                    }}
+                    placeholder="Min m2"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={filters.areaMin}
+                    max={areaBounds.max}
+                    value={filters.areaMax}
+                    onChange={(event) => {
+                      const raw = numberFromInput(event.target.value);
+                      if (raw == null) return;
+                      const nextMax = clampBetween(raw, filters.areaMin, areaBounds.max);
+                      setFilters((current) => ({ ...current, areaMax: nextMax }));
+                    }}
+                    placeholder="Max m2"
+                  />
+                </div>
+              </label>
+            </div>
 
-            <label className="data-table-filters__field">
-              <span>{`Precio (S/ ${priceBounds.min} - S/ ${priceBounds.max})`}</span>
-              <div className="data-table-filters__range-pair">
-                <input
-                  type="number"
-                  step="0.01"
-                  min={priceBounds.min}
-                  max={filters.priceMax}
-                  value={filters.priceMin}
-                  onChange={(event) => {
-                    const raw = numberFromInput(event.target.value);
-                    if (raw == null) return;
-                    const nextMin = clampBetween(raw, priceBounds.min, filters.priceMax);
-                    setFilters((current) => ({ ...current, priceMin: nextMin }));
-                  }}
-                  placeholder="Min S/"
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  min={filters.priceMin}
-                  max={priceBounds.max}
-                  value={filters.priceMax}
-                  onChange={(event) => {
-                    const raw = numberFromInput(event.target.value);
-                    if (raw == null) return;
-                    const nextMax = clampBetween(raw, filters.priceMin, priceBounds.max);
-                    setFilters((current) => ({ ...current, priceMax: nextMax }));
-                  }}
-                  placeholder="Max S/"
-                />
-              </div>
-            </label>
+            <div className="data-table-filters__group">
+              <label className="data-table-filters__field">
+                <span>{`Precio (S/ ${priceBounds.min} - S/ ${priceBounds.max})`}</span>
+                <div className="data-table-filters__range-pair">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={priceBounds.min}
+                    max={filters.priceMax}
+                    value={filters.priceMin}
+                    onChange={(event) => {
+                      const raw = numberFromInput(event.target.value);
+                      if (raw == null) return;
+                      const nextMin = clampBetween(raw, priceBounds.min, filters.priceMax);
+                      setFilters((current) => ({ ...current, priceMin: nextMin }));
+                    }}
+                    placeholder="Min S/"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={filters.priceMin}
+                    max={priceBounds.max}
+                    value={filters.priceMax}
+                    onChange={(event) => {
+                      const raw = numberFromInput(event.target.value);
+                      if (raw == null) return;
+                      const nextMax = clampBetween(raw, filters.priceMin, priceBounds.max);
+                      setFilters((current) => ({ ...current, priceMax: nextMax }));
+                    }}
+                    placeholder="Max S/"
+                  />
+                </div>
+              </label>
+            </div>
 
-            <label className="data-table-filters__field">
-              <span>Estado</span>
-              <select
-                value={filters.estado}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    estado: event.target.value as LotesFilters["estado"],
-                  }))
-                }
-              >
-                <option value="TODOS">Todos</option>
-                <option value="DISPONIBLE">Disponible</option>
-                <option value="SEPARADO">Separado</option>
-                <option value="VENDIDO">Vendido</option>
-              </select>
-            </label>
+            <div className="data-table-filters__group data-table-filters__group--status-venta">
+              <label className="data-table-filters__field data-table-filters__field--half">
+                <span>Estado</span>
+                <select
+                  value={filters.estado}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      estado: event.target.value as LotesFilters["estado"],
+                    }))
+                  }
+                >
+                  <option value="TODOS">Todos</option>
+                  <option value="DISPONIBLE">Disponible</option>
+                  <option value="SEPARADO">Separado</option>
+                  <option value="VENDIDO">Vendido</option>
+                </select>
+              </label>
 
-            <label className="data-table-filters__field">
-              <span>Con venta / Sin venta</span>
-              <select
-                value={filters.venta}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    venta: event.target.value as LotesFilters["venta"],
-                  }))
-                }
-              >
-                <option value="TODOS">Todos</option>
-                <option value="CON_VENTA">Con venta</option>
-                <option value="SIN_VENTA">Sin venta</option>
-              </select>
-            </label>
+              <label className="data-table-filters__field data-table-filters__field--half">
+                <span>Con venta / Sin venta</span>
+                <select
+                  value={filters.venta}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      venta: event.target.value as LotesFilters["venta"],
+                    }))
+                  }
+                >
+                  <option value="TODOS">Todos</option>
+                  <option value="CON_VENTA">Con venta</option>
+                  <option value="SIN_VENTA">Sin venta</option>
+                </select>
+              </label>
+            </div>
           </DataTableFilters>
         }
       >

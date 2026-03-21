@@ -69,6 +69,7 @@ export type SaleRecord = {
   observacion: string;
   lote: SalesLote | null;
   cliente: SalesClient | null;
+  cliente2: SalesClient | null;
   asesor: SaleAdvisor | null;
   pagos: SalePayment[];
   historial: SaleHistoryItem[];
@@ -91,6 +92,7 @@ export type SaleFormValues = {
   montoCuota: string;
   observacion: string;
   cliente: SalesClient;
+  cliente2: SalesClient | null;
   pagosIniciales: InitialPaymentInput[];
 };
 
@@ -103,6 +105,7 @@ export type SalePatchPayload = {
   montoCuota: string;
   observacion: string;
   cliente: SalesClient;
+  cliente2: SalesClient | null;
 };
 
 export type SalePaymentFormValues = {

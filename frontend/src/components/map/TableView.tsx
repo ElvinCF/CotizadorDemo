@@ -45,6 +45,9 @@ type TableViewProps = {
   filteredLotes: Lote[];
   selectedId: string | null;
   onSelectLote: (id: string) => void;
+  canOpenSales: boolean;
+  salesByLoteCode: Record<string, string>;
+  onOpenSale: (lote: Lote, activeSaleId: string | null) => void;
 };
 
 function TableView({
@@ -56,6 +59,9 @@ function TableView({
   filteredLotes,
   selectedId,
   onSelectLote,
+  canOpenSales,
+  salesByLoteCode,
+  onOpenSale,
 }: TableViewProps) {
   const [tableQuery, setTableQuery] = useState("");
 
@@ -162,12 +168,21 @@ function TableView({
             <span>AREA (M2)</span>
             <span>PRECIO</span>
             <span>CONDICION</span>
+            <span>ACCION</span>
           </div>
           {visibleLotes.map((lote) => (
-            <button
+            <div
               className={`table-row ${selectedId === lote.id ? "selected" : ""}`}
               key={lote.id}
               onClick={() => onSelectLote(lote.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectLote(lote.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
             >
               <span className="table-cell strong">{lote.mz}</span>
               <span className="table-cell strong">{lote.lote}</span>
@@ -176,7 +191,28 @@ function TableView({
               <span className={`table-cell status-pill ${statusToClass(lote.condicion)}`}>
                 {normalizeStatusLabel(lote.condicion)}
               </span>
-            </button>
+              <span className="table-cell table-cell--action">
+                {(() => {
+                  const status = String(lote.condicion || "").toUpperCase();
+                  const shouldShowAction = canOpenSales && (status === "SEPARADO" || status === "VENDIDO");
+                  if (!shouldShowAction) return null;
+
+                  const activeSaleId = salesByLoteCode[lote.id] ?? null;
+                  return (
+                    <button
+                      type="button"
+                      className={`btn ghost table-row__action ${activeSaleId ? "is-active" : "is-create"}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenSale(lote, activeSaleId);
+                      }}
+                    >
+                      {activeSaleId ? "Ver venta" : "Crear venta"}
+                    </button>
+                  );
+                })()}
+              </span>
+            </div>
           ))}
         </div>
       </div>

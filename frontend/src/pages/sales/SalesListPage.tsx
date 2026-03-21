@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "../../app/AppShell";
+import { useAuth } from "../../app/AuthContext";
 import DataTableFilters from "../../components/data-table/DataTableFilters";
 import DataTableShell from "../../components/data-table/DataTableShell";
 import DataTableToolbar from "../../components/data-table/DataTableToolbar";
-import { buildDateBounds, withDefaultDateRange } from "../../components/data-table/dateRange";
+import { buildDateBounds, isDateInRange, withDefaultDateRange } from "../../components/data-table/dateRange";
 import type { SortState } from "../../components/data-table/types";
 import SalesTable from "../../components/sales/SalesTable";
 import type { SaleRecord } from "../../domain/ventas";
@@ -32,28 +33,6 @@ const compareText = (left: string, right: string) => left.localeCompare(right, "
 
 const compareNumber = (left: number, right: number) => left - right;
 
-const inDateRange = (value: string, from: string, to: string) => {
-  if (!from && !to) return true;
-  const current = new Date(value);
-  if (Number.isNaN(current.getTime())) return false;
-  const currentTime = current.getTime();
-
-  if (from) {
-    const fromDate = new Date(from);
-    if (!Number.isNaN(fromDate.getTime()) && currentTime < fromDate.getTime()) return false;
-  }
-
-  if (to) {
-    const toDate = new Date(to);
-    if (!Number.isNaN(toDate.getTime())) {
-      toDate.setHours(23, 59, 59, 999);
-      if (currentTime > toDate.getTime()) return false;
-    }
-  }
-
-  return true;
-};
-
 const IconMap = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path
@@ -67,15 +46,8 @@ const IconMap = () => (
   </svg>
 );
 
-const IconKanban = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <rect x="4" y="5" width="5" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-    <rect x="10.5" y="5" width="3" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-    <rect x="15" y="5" width="5" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-);
-
 export default function SalesListPage() {
+  const { role, loginUsername } = useAuth();
   const [items, setItems] = useState<SaleRecord[]>([]);
   const [totalLotes, setTotalLotes] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -130,7 +102,12 @@ export default function SalesListPage() {
   useEffect(() => {
     if (!dateBounds.min || !dateBounds.max) return;
 
-    setFilters((current) => withDefaultDateRange(current, dateBounds));
+    setFilters((current) =>
+      withDefaultDateRange(current, {
+        min: dateBounds.min,
+        max: dateBounds.max,
+      })
+    );
   }, [dateBounds.max, dateBounds.min]);
 
   const visibleItems = useMemo(() => {
@@ -138,7 +115,7 @@ export default function SalesListPage() {
     const filtered = items.filter((sale) => {
       const statusOk = filters.estado === "TODAS" || sale.estadoVenta === filters.estado;
       const advisorOk = filters.asesorId === "TODOS" || sale.asesor?.id === filters.asesorId;
-      const dateOk = inDateRange(sale.fechaVenta, filters.fechaDesde, filters.fechaHasta);
+      const dateOk = isDateInRange(sale.fechaVenta, filters.fechaDesde, filters.fechaHasta);
       if (!statusOk || !advisorOk || !dateOk) return false;
 
       if (!query) return true;
@@ -191,15 +168,6 @@ export default function SalesListPage() {
       fechaHasta: dateBounds.max,
     });
 
-  const actions = (
-    <>
-      <button type="button" className="btn ghost data-table-toolbar__btn" disabled>
-        <IconKanban />
-        <span className="data-table-toolbar__btn-label">Kanban</span>
-      </button>
-    </>
-  );
-
   const topbarActions = (
     <nav className="topbar-nav">
       <Link className="btn ghost topbar-action" to="/">
@@ -224,7 +192,6 @@ export default function SalesListPage() {
             filtersOpen={filtersOpen}
             onToggleFilters={() => setFiltersOpen((current) => !current)}
             onClearFilters={resetFilters}
-            actions={actions}
           />
         }
         filters={
@@ -282,7 +249,14 @@ export default function SalesListPage() {
         }
       >
         {error ? <p className="admin-error">{error}</p> : null}
-        <SalesTable items={visibleItems} loading={loading} sort={sort} onSort={handleSort} />
+        <SalesTable
+          items={visibleItems}
+          loading={loading}
+          role={role}
+          loginUsername={loginUsername}
+          sort={sort}
+          onSort={handleSort}
+        />
       </DataTableShell>
     </AppShell>
   );

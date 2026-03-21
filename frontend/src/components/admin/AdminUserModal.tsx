@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { AdminUser, AdminUserCatalogs, AdminUserPayload } from "../../domain/adminUsers";
 import AdminSegmentedControl from "./AdminSegmentedControl";
 import AdminTextInput from "./AdminTextInput";
@@ -74,14 +74,8 @@ export default function AdminUserModal({
   onClose,
   onSubmit,
 }: AdminUserModalProps) {
-  const [form, setForm] = useState<AdminUserPayload>(emptyForm);
-  const [localError, setLocalError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    if (mode === "edit" && user) {
-      setForm({
+  const initialForm = mode === "edit" && user
+    ? {
         username: user.username,
         pin: "",
         rol: user.rol,
@@ -89,17 +83,10 @@ export default function AdminUserModal({
         nombres: user.nombres,
         apellidos: user.apellidos,
         telefono: user.telefono,
-      });
-      return;
-    }
-
-    setForm(emptyForm);
-  }, [mode, open, user]);
-
-  useEffect(() => {
-    if (!open) return;
-    setLocalError(null);
-  }, [open, mode, user]);
+      }
+    : emptyForm;
+  const [form, setForm] = useState<AdminUserPayload>(initialForm);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   if (!open) return null;
 

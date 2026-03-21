@@ -6,7 +6,7 @@ import AdminUsersTable, { type AdminUsersSortKey } from "../../components/admin/
 import DataTableFilters from "../../components/data-table/DataTableFilters";
 import DataTableShell from "../../components/data-table/DataTableShell";
 import DataTableToolbar from "../../components/data-table/DataTableToolbar";
-import { buildDateBounds, withDefaultDateRange } from "../../components/data-table/dateRange";
+import { buildDateBounds, isDateInRange, withDefaultDateRange } from "../../components/data-table/dateRange";
 import type { SortState } from "../../components/data-table/types";
 import { useAuth } from "../../app/AuthContext";
 import type { AdminUser, AdminUserCatalogs, AdminUserPayload } from "../../domain/adminUsers";
@@ -62,28 +62,6 @@ const normalizeText = (value: string) => value.normalize("NFD").replace(/\p{Diac
 const compareText = (left: string, right: string) => left.localeCompare(right, "es", { sensitivity: "base" });
 
 const compareNumber = (left: number, right: number) => left - right;
-
-const inDateRange = (value: string, from: string, to: string) => {
-  if (!from && !to) return true;
-  const current = new Date(value);
-  if (Number.isNaN(current.getTime())) return false;
-  const currentTime = current.getTime();
-
-  if (from) {
-    const fromDate = new Date(from);
-    if (!Number.isNaN(fromDate.getTime()) && currentTime < fromDate.getTime()) return false;
-  }
-
-  if (to) {
-    const toDate = new Date(to);
-    if (!Number.isNaN(toDate.getTime())) {
-      toDate.setHours(23, 59, 59, 999);
-      if (currentTime > toDate.getTime()) return false;
-    }
-  }
-
-  return true;
-};
 
 function AdminPage() {
   const { loginUsername, loginPin } = useAuth();
@@ -179,7 +157,7 @@ function AdminPage() {
     const filtered = users.filter((user) => {
       const roleOk = filters.rol === "TODOS" || user.rol === filters.rol;
       const statusOk = filters.estado === "TODOS" || user.estado === filters.estado;
-      const dateOk = inDateRange(user.created_at, filters.fechaDesde, filters.fechaHasta);
+      const dateOk = isDateInRange(user.created_at, filters.fechaDesde, filters.fechaHasta);
       if (!roleOk || !statusOk || !dateOk) return false;
 
       if (!query) return true;
@@ -220,7 +198,12 @@ function AdminPage() {
 
   useEffect(() => {
     if (!dateBounds.min || !dateBounds.max) return;
-    setFilters((current) => withDefaultDateRange(current, dateBounds));
+    setFilters((current) =>
+      withDefaultDateRange(current, {
+        min: dateBounds.min,
+        max: dateBounds.max,
+      })
+    );
   }, [dateBounds.max, dateBounds.min]);
 
   const handleSort = (key: AdminUsersSortKey) => {
@@ -356,17 +339,20 @@ function AdminPage() {
         <AdminUsersTable users={visibleUsers} loading={loading} onEdit={openEditModal} sort={sort} onSort={handleSort} />
       </DataTableShell>
 
-      <AdminUserModal
-        open={modalOpen}
-        mode={editingUser ? "edit" : "create"}
-        user={editingUser}
-        catalogs={catalogs}
-        saving={saving}
-        canCreateAdmin={canCreateAdmin}
-        error={modalError}
-        onClose={closeModal}
-        onSubmit={handleSaveUser}
-      />
+      {modalOpen ? (
+        <AdminUserModal
+          key={`${editingUser ? `edit-${editingUser.id}` : "create"}-${modalOpen ? "open" : "closed"}`}
+          open={modalOpen}
+          mode={editingUser ? "edit" : "create"}
+          user={editingUser}
+          catalogs={catalogs}
+          saving={saving}
+          canCreateAdmin={canCreateAdmin}
+          error={modalError}
+          onClose={closeModal}
+          onSubmit={handleSaveUser}
+        />
+      ) : null}
     </AppShell>
   );
 }

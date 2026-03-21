@@ -35,6 +35,7 @@ import { buildIdSet, overlayStyle, quoteMonthly } from "../../domain/finance";
 import type { FiltersState, Lote, OverlayTransform, ProformaState, QuoteState } from "../../domain/types";
 import { projectInfo } from "../../data/projectInfo";
 import { loadLotesFromApi } from "../../services/lotes";
+import { listSales } from "../../services/ventas";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
@@ -103,6 +104,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const lastPriceEditedRef = useRef<"soles" | "pct" | "promo" | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, string>>({});
   const hidePublicRestrictedActions = publicView && !isAuthenticated;
   const isCotizadorRoute = publicView && location.pathname === "/cotizador";
   const DRAWER_PULSE_MS = 900;
@@ -165,6 +167,39 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadActiveSales = async () => {
+      if (!isAuthenticated) {
+        setSalesByLoteCode({});
+        return;
+      }
+
+      try {
+        const sales = await listSales();
+        if (cancelled) return;
+        const mapping = sales.reduce<Record<string, string>>((acc, sale) => {
+          const loteCode = sale.lote?.codigo;
+          if (loteCode && !acc[loteCode]) {
+            acc[loteCode] = sale.id;
+          }
+          return acc;
+        }, {});
+        setSalesByLoteCode(mapping);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("No se pudo cargar ventas activas para mapa:", error);
+        setSalesByLoteCode({});
+      }
+    };
+
+    void loadActiveSales();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const raw = localStorage.getItem(PROFORMA_VENDOR_KEY);
@@ -1334,6 +1369,15 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 selectedId={selectedId}
                 onSelectLote={(id) => {
                   openQuoteDrawer(id);
+                }}
+                canOpenSales={isAuthenticated}
+                salesByLoteCode={salesByLoteCode}
+                onOpenSale={(lote, activeSaleId) => {
+                  if (activeSaleId) {
+                    navigate(`/ventas/${activeSaleId}`);
+                    return;
+                  }
+                  navigate(`/ventas/nueva?lote=${lote.id}&target=${lote.condicion}`);
                 }}
               />
             )}

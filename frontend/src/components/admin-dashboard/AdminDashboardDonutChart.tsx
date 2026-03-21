@@ -63,7 +63,19 @@ export default function AdminDashboardDonutChart({
       chartLength: (segment.rawLength / remainingRawLength) * remainingDrawableLength,
     };
   });
-  let offset = 0;
+  const chartSegmentsWithOffset = chartSegments.reduce<
+    Array<(typeof chartSegments)[number] & { offset: number; segmentLength: number }>
+  >((acc, segment) => {
+    const last = acc[acc.length - 1];
+    const previousOffset = last ? last.offset + last.segmentLength : 0;
+    const segmentLength = Math.max(segment.chartLength - segmentGap, 0);
+    acc.push({
+      ...segment,
+      offset: previousOffset,
+      segmentLength,
+    });
+    return acc;
+  }, []);
 
   return (
     <article className="admin-dashboard-panel admin-dashboard-panel--donut">
@@ -78,8 +90,7 @@ export default function AdminDashboardDonutChart({
         <div className="admin-donut__chart">
           <svg viewBox="0 0 160 160" aria-hidden="true">
             <circle cx="80" cy="80" r={radius} className="admin-donut__track" />
-            {chartSegments.map((segment) => {
-              const segmentLength = Math.max(segment.chartLength - segmentGap, 0);
+            {chartSegmentsWithOffset.map((segment) => {
               const circle = (
                 <circle
                   key={segment.label}
@@ -88,11 +99,10 @@ export default function AdminDashboardDonutChart({
                   r={radius}
                   className="admin-donut__segment"
                   style={{ stroke: segment.color }}
-                  strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
-                  strokeDashoffset={offset}
+                  strokeDasharray={`${segment.segmentLength} ${circumference - segment.segmentLength}`}
+                  strokeDashoffset={segment.offset}
                 />
               );
-              offset += segmentLength;
               return circle;
             })}
           </svg>

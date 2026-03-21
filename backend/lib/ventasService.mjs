@@ -480,6 +480,12 @@ const getSaleDetail = async (saleId) => {
          c.celular as cliente_celular,
          c.direccion as cliente_direccion,
          c.ocupacion as cliente_ocupacion,
+         c2.id as cliente2_id,
+         c2.nombre_completo as cliente2_nombre_completo,
+         c2.dni as cliente2_dni,
+         c2.celular as cliente2_celular,
+         c2.direccion as cliente2_direccion,
+         c2.ocupacion as cliente2_ocupacion,
          u.id as asesor_id,
          u.username as asesor_username,
          u.nombres as asesor_nombres,
@@ -487,6 +493,7 @@ const getSaleDetail = async (saleId) => {
        from ${schema}.ventas v
        left join ${schema}.lotes l on l.id = v.lote_id
        left join ${schema}.clientes c on c.id = v.cliente_id
+       left join ${schema}.clientes c2 on c2.id = v.cliente2_id
        left join ${schema}.usuarios u on u.id = v.asesor_id
       where v.id = $1
       limit 1`,
@@ -555,6 +562,16 @@ const getSaleDetail = async (saleId) => {
             ocupacion: row.cliente_ocupacion ?? "",
           }
         : null,
+      cliente2: row.cliente2_id
+        ? {
+            id: row.cliente2_id,
+            nombreCompleto: row.cliente2_nombre_completo,
+            dni: row.cliente2_dni,
+            celular: row.cliente2_celular ?? "",
+            direccion: row.cliente2_direccion ?? "",
+            ocupacion: row.cliente2_ocupacion ?? "",
+          }
+        : null,
       asesor: row.asesor_id
         ? {
             id: row.asesor_id,
@@ -584,7 +601,7 @@ const getSaleBaseByIdTx = async (client, schema, saleId) => {
   }
 
   const result = await client.query(
-    `select id, lote_id, cliente_id, asesor_id, precio_venta, estado_venta, tipo_financiamiento,
+    `select id, lote_id, cliente_id, cliente2_id, asesor_id, precio_venta, estado_venta, tipo_financiamiento,
             monto_inicial_total, monto_financiado, cantidad_cuotas, monto_cuota, observacion, fecha_venta
        from ${schema}.ventas
       where id = $1
@@ -749,6 +766,7 @@ export const listSalesAsync = async (username, pin) => {
               ocupacion: row.cliente_ocupacion ?? "",
             }
           : null,
+        cliente2: null,
         asesor: row.asesor_id
           ? {
               id: row.asesor_id,
@@ -794,11 +812,20 @@ export const createSaleAsync = async (username, pin, saleInput) => {
     saleId = await withPgTransaction(async (client) => {
       const lote = await ensureLoteAvailableForSale(client, schema, saleInput?.loteCodigo);
       const cliente = await upsertClientByDniTx(client, schema, saleInput?.cliente ?? {});
+      const cliente2 =
+        saleInput?.cliente2?.dni && saleInput?.cliente2?.nombreCompleto
+          ? await upsertClientByDniTx(client, schema, saleInput.cliente2)
+          : null;
+
+      if (cliente2?.id && cliente2.id === cliente.id) {
+        throw badRequest("El segundo titular debe ser distinto al titular principal.");
+      }
 
       const saleResult = await client.query(
         `insert into ${schema}.ventas (
            lote_id,
            cliente_id,
+           cliente2_id,
            asesor_id,
            fecha_venta,
            precio_venta,
@@ -809,11 +836,12 @@ export const createSaleAsync = async (username, pin, saleInput) => {
            cantidad_cuotas,
            monto_cuota,
            observacion
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          returning id`,
         [
           lote.id,
           cliente.id,
+          cliente2?.id ?? null,
           operator.id,
           formatIso(saleInput?.fechaVenta, "Fecha de venta"),
           asPositiveNumber(saleInput?.precioVenta, "Precio de venta", true),
@@ -868,6 +896,18 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
         clienteId = updatedClient.id;
       }
 
+      let cliente2Id = existing.cliente2_id ?? null;
+      if (patchInput?.cliente2 === null) {
+        cliente2Id = null;
+      } else if (patchInput?.cliente2?.dni && patchInput?.cliente2?.nombreCompleto) {
+        const updatedClient2 = await upsertClientByDniTx(client, schema, patchInput.cliente2);
+        cliente2Id = updatedClient2.id;
+      }
+
+      if (cliente2Id && cliente2Id === clienteId) {
+        throw badRequest("El segundo titular debe ser distinto al titular principal.");
+      }
+
       const requestedState =
         patchInput?.estadoVenta !== undefined
           ? normalizeSaleState(patchInput.estadoVenta)
@@ -888,19 +928,21 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
       await client.query(
         `update ${schema}.ventas
             set cliente_id = $2,
-                fecha_venta = $3,
-                precio_venta = $4,
-                estado_venta = $5,
-                tipo_financiamiento = $6,
-                monto_inicial_total = $7,
-                monto_financiado = $8,
-                cantidad_cuotas = $9,
-                monto_cuota = $10,
-                observacion = $11
+                cliente2_id = $3,
+                fecha_venta = $4,
+                precio_venta = $5,
+                estado_venta = $6,
+                tipo_financiamiento = $7,
+                monto_inicial_total = $8,
+                monto_financiado = $9,
+                cantidad_cuotas = $10,
+                monto_cuota = $11,
+                observacion = $12
           where id = $1`,
         [
           existing.id,
           clienteId,
+          cliente2Id,
           patchInput?.fechaVenta ? formatIso(patchInput.fechaVenta, "Fecha de venta") : existing.fecha_venta,
           patchInput?.precioVenta !== undefined
             ? asPositiveNumber(patchInput.precioVenta, "Precio de venta", true)
@@ -944,6 +986,102 @@ export const addSalePaymentAsync = async (username, pin, saleId, paymentInput) =
         `insert into ${schema}.pagos (venta_id, fecha_pago, tipo_pago, monto, nro_cuota, observacion)
          values ($1, $2, $3, $4, $5, $6)`,
         [
+          existing.id,
+          paymentPayload.fecha_pago,
+          paymentPayload.tipo_pago,
+          paymentPayload.monto,
+          paymentPayload.nro_cuota,
+          paymentPayload.observacion,
+        ]
+      );
+
+      const payments = await getSalePaymentsTx(client, schema, existing.id);
+      const montoInicialTotal = getInitialTotalFromPayments(payments);
+      const derivedState = deriveStateFromPayments(payments, existing.precio_venta, existing.estado_venta);
+      const nextState = assertValidSaleTransition(existing.estado_venta, derivedState, {
+        actorRole: operator.role,
+        source: "payment",
+      });
+
+      const financing = calculateFinancing({
+        precioVenta: existing.precio_venta,
+        montoInicialTotal,
+        tipoFinanciamiento: existing.tipo_financiamiento,
+        cantidadCuotas: existing.cantidad_cuotas,
+        montoCuota: existing.monto_cuota,
+      });
+
+      await client.query(
+        `update ${schema}.ventas
+            set monto_inicial_total = $2,
+                monto_financiado = $3,
+                cantidad_cuotas = $4,
+                monto_cuota = $5,
+                estado_venta = $6
+          where id = $1`,
+        [
+          existing.id,
+          montoInicialTotal,
+          financing.montoFinanciado,
+          financing.cantidadCuotas,
+          financing.montoCuota,
+          nextState,
+        ]
+      );
+
+      if (existing.estado_venta !== nextState) {
+        await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
+      }
+
+      await syncLoteCommercialStateTx(client, schema, existing.lote_id, nextState);
+      return existing.id;
+    });
+  } catch (error) {
+    rethrowMutationError(error);
+  }
+
+  return getSaleDetail(updatedSaleId);
+};
+
+export const updateSalePaymentAsync = async (username, pin, saleId, paymentId, paymentInput) => {
+  const operator = await requireOperator(username, pin);
+  const schema = resolveDbSchema();
+  const paymentPayload = buildPaymentPayload(paymentInput);
+  const paymentRowId = asTrimmed(paymentId);
+  if (!paymentRowId) {
+    throw badRequest("Falta id del pago.");
+  }
+
+  let updatedSaleId;
+  try {
+    updatedSaleId = await withPgTransaction(async (client) => {
+      const existing = await getSaleBaseByIdTx(client, schema, saleId);
+      assertSaleAcceptsPayments(existing);
+
+      const paymentExists = await client.query(
+        `select id
+           from ${schema}.pagos
+          where id = $1
+            and venta_id = $2
+          for update`,
+        [paymentRowId, existing.id]
+      );
+
+      if (!paymentExists.rows[0]) {
+        throw notFound("Pago no encontrado para la venta.");
+      }
+
+      await client.query(
+        `update ${schema}.pagos
+            set fecha_pago = $3,
+                tipo_pago = $4,
+                monto = $5,
+                nro_cuota = $6,
+                observacion = $7
+          where id = $1
+            and venta_id = $2`,
+        [
+          paymentRowId,
           existing.id,
           paymentPayload.fecha_pago,
           paymentPayload.tipo_pago,

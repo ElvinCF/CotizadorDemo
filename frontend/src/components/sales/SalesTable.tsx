@@ -11,6 +11,8 @@ type SalesSortKey = "lote" | "cliente" | "asesor" | "estado" | "precio" | "fecha
 type SalesTableProps = {
   items: SaleRecord[];
   loading: boolean;
+  role: "admin" | "asesor" | null;
+  loginUsername: string | null;
   sort: SortState<SalesSortKey>;
   onSort: (key: SalesSortKey) => void;
 };
@@ -37,7 +39,7 @@ const statusClass = (state: string) => {
 
 const sortDirectionFor = (sort: SortState<SalesSortKey>, key: SalesSortKey) => (sort.key === key ? sort.direction : null);
 
-export default function SalesTable({ items, loading, sort, onSort }: SalesTableProps) {
+export default function SalesTable({ items, loading, role, loginUsername, sort, onSort }: SalesTableProps) {
   const loadState = resolveTableLoadState(loading, items.length);
   const showDataRows = loadState === "ready" || loadState === "loading-refresh";
 
@@ -106,9 +108,31 @@ export default function SalesTable({ items, loading, sort, onSort }: SalesTableP
                 <td>{formatMoney(sale.precioVenta)}</td>
                 <td>{formatDate(sale.fechaVenta)}</td>
                 <td>
-                  <Link className="btn ghost data-table__row-action" to={`/ventas/${sale.id}`}>
-                    <span className="data-table__row-action-label">Ver detalle</span>
-                  </Link>
+                  {(() => {
+                    const isAdmin = role === "admin";
+                    const ownerUsername = sale.asesor?.username?.trim().toLowerCase();
+                    const currentUsername = loginUsername?.trim().toLowerCase();
+                    const canViewDetail = isAdmin || (role === "asesor" && !!ownerUsername && !!currentUsername && ownerUsername === currentUsername);
+
+                    if (canViewDetail) {
+                      return (
+                        <Link className="btn ghost data-table__row-action" to={`/ventas/${sale.id}`}>
+                          <span className="data-table__row-action-label">Ver detalle</span>
+                        </Link>
+                      );
+                    }
+
+                    return (
+                      <button
+                        type="button"
+                        className="btn ghost data-table__row-action"
+                        disabled
+                        title="No puedes abrir ventas de otro asesor"
+                      >
+                        <span className="data-table__row-action-label">Ver detalle</span>
+                      </button>
+                    );
+                  })()}
                 </td>
               </tr>
             ))}

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 export type Role = "asesor" | "admin";
@@ -26,23 +27,36 @@ const defaultState: AuthState = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [auth, setAuth] = useState<AuthState>(defaultState);
-    const [isLoaded, setIsLoaded] = useState(false);
+    const [auth, setAuth] = useState<AuthState>(() => {
+        const stored = localStorage.getItem("auth_session");
+        if (!stored) return defaultState;
+        try {
+            const parsed = JSON.parse(stored) as AuthState;
+            return parsed.isAuthenticated ? parsed : defaultState;
+        } catch (e) {
+            console.error("Failed to parse auth_session", e);
+            return defaultState;
+        }
+    });
 
     useEffect(() => {
-        // Attempt to load from localStorage on mount
-        const stored = localStorage.getItem("auth_session");
-        if (stored) {
+        // Keep session in sync if another tab updates it.
+        const onStorage = (event: StorageEvent) => {
+            if (event.key !== "auth_session") return;
+            if (!event.newValue) {
+                setAuth(defaultState);
+                return;
+            }
             try {
-                const parsed = JSON.parse(stored) as AuthState;
-                if (parsed.isAuthenticated) {
-                    setAuth(parsed);
-                }
+                const parsed = JSON.parse(event.newValue) as AuthState;
+                setAuth(parsed.isAuthenticated ? parsed : defaultState);
             } catch (e) {
                 console.error("Failed to parse auth_session", e);
+                setAuth(defaultState);
             }
-        }
-        setIsLoaded(true);
+        };
+        window.addEventListener("storage", onStorage);
+        return () => window.removeEventListener("storage", onStorage);
     }, []);
 
     const login = async (username: string, pin: string): Promise<boolean> => {
@@ -89,10 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuth(defaultState);
         localStorage.removeItem("auth_session");
     };
-
-    if (!isLoaded) {
-        return null; // or a tiny loader
-    }
 
     return (
         <AuthContext.Provider value={{ ...auth, login, logout }}>

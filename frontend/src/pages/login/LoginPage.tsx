@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
@@ -38,7 +38,7 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastAutoKey, setLastAutoKey] = useState<string | null>(null);
+  const lastAutoKeyRef = useRef<string | null>(null);
 
   const normalizedUsername = useMemo(() => username.trim(), [username]);
   const from = location.state?.from?.pathname;
@@ -83,24 +83,22 @@ export default function LoginPage() {
 
   const handlePinChange = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      if (value.length <= 6) {
-        setPin(value);
-      }
-    }
+    if (!(value === "" || /^\d+$/.test(value))) return;
+    if (value.length > 6) return;
+
+    setPin(value);
+
+    const usernameNow = normalizedUsername;
+    if (!usernameNow || value.length !== 6 || isSubmitting) return;
+    const nextKey = `${usernameNow.toLowerCase()}|${value}`;
+    if (lastAutoKeyRef.current === nextKey) return;
+    lastAutoKeyRef.current = nextKey;
+    void submitLogin();
   };
 
   useEffect(() => {
-    if (!normalizedUsername || pin.length !== 6 || isSubmitting) return;
-    const nextKey = `${normalizedUsername.toLowerCase()}|${pin}`;
-    if (lastAutoKey === nextKey) return;
-    setLastAutoKey(nextKey);
-    void submitLogin();
-  }, [isSubmitting, lastAutoKey, normalizedUsername, pin, submitLogin]);
-
-  useEffect(() => {
     if (pin.length < 6) {
-      setLastAutoKey(null);
+      lastAutoKeyRef.current = null;
     }
   }, [pin.length]);
 

@@ -28,13 +28,15 @@ const IconFilterOff = () => (
 
 const IconReset = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M5 4 20 19" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     <path
-      d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"
+      d="M13.6 12.6 9 17.2a1 1 0 0 0 0 1.4l2.4 2.4a1 1 0 0 0 1.4 0l4.6-4.6"
       stroke="currentColor"
-      strokeWidth="1.6"
+      strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+    <path d="M10.6 20.2 8.8 22M12.3 21.3l-1.8 1.8M14 22.4l-1.8 1.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
 
@@ -61,18 +63,13 @@ export default function DataTableToolbar({
 }: DataTableToolbarProps) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const isSearchOpen = mobileSearchOpen || Boolean(searchValue);
 
   useEffect(() => {
-    if (searchValue) {
-      setMobileSearchOpen(true);
-    }
-  }, [searchValue]);
-
-  useEffect(() => {
-    if (mobileSearchOpen) {
+    if (isSearchOpen) {
       searchInputRef.current?.focus();
     }
-  }, [mobileSearchOpen]);
+  }, [isSearchOpen]);
 
   const closeMobileSearch = () => {
     setMobileSearchOpen(false);
@@ -87,8 +84,8 @@ export default function DataTableToolbar({
   };
 
   return (
-    <div className={`data-table-toolbar${mobileSearchOpen ? " is-search-open" : ""}`}>
-      {!mobileSearchOpen ? (
+    <div className={`data-table-toolbar${isSearchOpen ? " is-search-open" : ""}`}>
+      {!isSearchOpen ? (
         <button
           type="button"
           className="btn ghost icon-only data-table-toolbar__search-toggle"
@@ -99,7 +96,7 @@ export default function DataTableToolbar({
         </button>
       ) : null}
 
-      <label className={`data-table-toolbar__search${mobileSearchOpen ? " is-open" : ""}`}>
+      <label className={`data-table-toolbar__search${isSearchOpen ? " is-open" : ""}`}>
         <span className="data-table-toolbar__search-icon" aria-hidden="true">
           <IconSearch />
         </span>
@@ -110,7 +107,7 @@ export default function DataTableToolbar({
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder={searchPlaceholder}
         />
-        {searchValue || mobileSearchOpen ? (
+        {searchValue || isSearchOpen ? (
           <button
             type="button"
             className="btn ghost icon-only data-table-toolbar__clear-search"

@@ -35,6 +35,7 @@ import {
   findClientByDniAsync,
   getSaleByIdAsync,
   listSalesAsync,
+  updateSalePaymentAsync,
   updateSaleAsync,
 } from "./lib/ventasService.mjs";
 
@@ -445,6 +446,22 @@ app.post("/api/ventas/:id/pagos", async (req, res) => {
   } catch (error) {
     console.error("Error adding payment to sale:", error);
     res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo registrar el pago." });
+  }
+});
+
+app.put("/api/ventas/:id/pagos/:pagoId", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const sale = await updateSalePaymentAsync(username, pin, req.params.id, req.params.pagoId, req.body ?? {});
+    res.json({ sale });
+  } catch (error) {
+    console.error("Error updating payment in sale:", error);
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar el pago." });
   }
 });
 

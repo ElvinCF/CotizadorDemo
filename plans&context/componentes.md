@@ -164,3 +164,287 @@ Responsabilidad de cada pagina:
 - [x] Fase 4 aplicada a `/lotes` (toolbar/filtros/sort/loader sin cambiar logica de negocio)
 - [ ] Fase 5 aplicar a tabla de pagos en `/ventas/:id`
 - [ ] Fase 6 aplicar a vista tabla de `/`
+
+---
+
+## Plan Detallado - Modulo Ventas (`/ventas/:id`)
+
+Actualizado: `2026-03-21 04:42:19`
+
+### Objetivo
+Pasar la vista de detalle de venta a una arquitectura por componentes pequenos, con una UI de expediente editable en el tiempo, soporte de estados, pagos y salida imprimible en dos formatos:
+- Ficha de separacion
+- Ficha de venta/contrato
+
+### Estructura UX acordada
+- Bloque superior: formulario de venta editable en todo el ancho (sin modal extra).
+- Bloque inferior: dos cards.
+- Izquierda: card de clientes titulares.
+- Derecha: card de pagos con tabla.
+- Formularios de cliente y pagos en modal.
+- Botones de impresion en header de detalle.
+
+### Reglas funcionales del detalle
+- Mostrar como editables solo datos de venta que el usuario debe mantener.
+- Mantener campos calculados como automaticos en resumen (inicial total, financiado, cuotas, cuota base).
+- Permitir segundo titular opcional.
+- Impedir que titular principal y segundo titular sean la misma persona (mismo cliente/DNI).
+- Registrar pagos desde modal y refrescar venta en pantalla.
+
+### Arquitectura de componentes (implementada)
+
+Componentes nuevos:
+- `frontend/src/components/sales/SaleEditableCard.tsx`
+- `frontend/src/components/sales/SaleClientCard.tsx`
+- `frontend/src/components/sales/SalePaymentsCard.tsx`
+- `frontend/src/components/sales/SaleClientModal.tsx`
+- `frontend/src/components/sales/SalePaymentModal.tsx`
+- `frontend/src/components/sales/salePrint.ts`
+
+Integracion de pagina:
+- `frontend/src/pages/sales/SaleFormPage.tsx`
+  - modo edicion (`/ventas/:id`): usa layout nuevo por cards + modales
+  - modo creacion (`/ventas/nueva`): se mantiene flujo actual para no romper alta
+
+Estilos globales agregados:
+- `frontend/src/App.css`
+  - grid de detalle y cards laterales
+  - estilos de modal cliente/pago
+  - estilos de bloques de titulares
+
+### Contratos de datos actualizados (frontend)
+- `frontend/src/domain/ventas.ts`
+  - `SaleRecord` incluye `cliente2`
+  - `SaleFormValues` incluye `cliente2`
+  - `SalePatchPayload` incluye `cliente2`
+
+### Soporte backend aplicado
+- `backend/lib/ventasService.mjs`
+  - `getSaleDetail`: trae `cliente2` via join adicional a `clientes`
+  - `getSaleBaseByIdTx`: incluye `cliente2_id`
+  - `createSaleAsync`: persiste `cliente2_id` cuando se envia
+  - `updateSaleAsync`: actualiza/limpia `cliente2_id` segun payload
+  - validacion: segundo titular distinto a titular principal
+
+### Impresion documental
+- `salePrint.ts` implementa dos plantillas:
+  - separacion (narrativa tipo declaracion)
+  - venta/contrato (resumen comercial/contractual)
+- Ambas incluyen:
+  - logos del proyecto/empresa
+  - datos de lote, cliente(s), asesor y plan
+  - bloque de firmas
+
+### Checklist modulo ventas - 2026-03-21 04:42:19
+- [x] Layout del detalle reordenado a card superior + 2 cards inferiores
+- [x] Card de clientes con acciones de editar/agregar/quitar segundo titular
+- [x] Modal de cliente con busqueda por DNI
+- [x] Card de pagos con tabla operativa
+- [x] Modal para registrar pagos
+- [x] Soporte de `cliente2` en frontend (tipos + form + payload)
+- [x] Soporte de `cliente2` en backend (detalle/crear/editar)
+- [x] Validacion de titular principal vs segundo titular
+- [x] Botones de impresion para separacion y contrato
+- [x] Componentizacion del detalle de venta en piezas pequenas
+- [ ] Afinar texto legal final de ambos formatos con negocio
+- [ ] Agregar card/timeline visual de historial de estados en el detalle
+- [ ] Conectar impresion a version final legal aprobada
+
+### Nota de alcance
+Este documento queda como fuente central del plan de componentes del sistema (no solo tablas), incluyendo estructura reusable de vistas de datos y modulos de negocio como ventas.
+
+---
+
+## Plan Detallado - Sistema de Formularios
+
+Actualizado: `2026-03-21 06:35:00`
+
+### Objetivo
+Unificar todos los formularios del proyecto en componentes reutilizables, con estilo consistente, validacion predecible y separacion clara entre:
+- validacion UX (frontend)
+- validacion de negocio y seguridad (backend)
+
+### Inventario actual de inputs y controles
+
+Tipos base detectados:
+- `text`
+- `password`
+- `number`
+- `date`
+- `email`
+- `search`
+- `select`
+- `textarea`
+
+Controles de interaccion detectados (no `input` simple):
+- selector segmentado (tipo tabs/chips)
+- busqueda con clear embebido
+- campo numerico validado con feedback inline
+
+Campos especiales actuales de negocio:
+- DNI
+- celular
+- PIN
+- montos moneda (precio, inicial, cuota, pago)
+- cantidades (meses, cuotas)
+- fechas de venta y pago
+- estados y tipos (selects)
+
+### Problemas actuales a resolver
+- validaciones repetidas en cada pagina
+- saneamiento de datos mezclado con UI
+- formatos (numero/fecha) no unificados
+- mensajes de error inconsistentes
+- reglas de negocio dispersas entre frontend y backend
+
+### Arquitectura propuesta de componentes de formulario
+
+Base comun:
+- `FormField`
+- `FormSection`
+- `FormActions`
+
+Campos reutilizables:
+- `TextField`
+- `NumberField`
+- `DateField`
+- `SelectField`
+- `TextAreaField`
+- `SearchField`
+- `SegmentedField`
+- `LookupField`
+
+Campos de dominio (encapsulan formateo/saneo especifico):
+- `DniField`
+- `PhoneField`
+- `PinField`
+- `CurrencyField`
+- `PercentField`
+
+### Contrato sugerido de props por componente
+
+`FormField` (wrapper visual):
+- `label: string`
+- `required?: boolean`
+- `hint?: string`
+- `error?: string | null`
+- `htmlFor?: string`
+- `children: ReactNode`
+
+`TextField`:
+- `value: string`
+- `onChange: (value: string) => void`
+- `placeholder?: string`
+- `maxLength?: number`
+- `disabled?: boolean`
+- `autoComplete?: string`
+
+`NumberField`:
+- `value: string | number`
+- `onChange: (value: string) => void`
+- `min?: number`
+- `max?: number`
+- `step?: number`
+- `allowNegative?: boolean`
+- `decimals?: number`
+
+`DateField`:
+- `value: string`
+- `onChange: (value: string) => void`
+- `min?: string`
+- `max?: string`
+- `disabled?: boolean`
+
+`SelectField`:
+- `value: string`
+- `onChange: (value: string) => void`
+- `options: Array<{ value: string; label: string; disabled?: boolean }>`
+- `placeholder?: string`
+- `disabled?: boolean`
+
+`TextAreaField`:
+- `value: string`
+- `onChange: (value: string) => void`
+- `rows?: number`
+- `maxLength?: number`
+
+`SearchField`:
+- `value: string`
+- `onChange: (value: string) => void`
+- `onClear?: () => void`
+- `placeholder?: string`
+
+`SegmentedField`:
+- `value: string`
+- `onChange: (value: string) => void`
+- `options: Array<{ value: string; label: string; icon?: ReactNode; disabled?: boolean }>`
+
+`LookupField`:
+- `value: string`
+- `onChange: (value: string) => void`
+- `onLookup: () => Promise<void> | void`
+- `lookupLabel?: string`
+- `loading?: boolean`
+
+### Validaciones por capa (frontend vs backend)
+
+Frontend (UX y prevalidacion):
+- campos obligatorios (`required`)
+- formato basico (DNI digitos, telefono digitos)
+- limites basicos (`min/max/step/maxLength`)
+- consistencia visual de errores por campo
+- bloqueo de acciones cuando faltan datos minimos
+- normalizacion de entrada (trim, reemplazo de coma por punto en numericos)
+
+Backend (fuente de verdad):
+- permisos por rol y usuario autenticado
+- transiciones validas de estado de venta
+- reglas de negocio de pagos (tipos, montos, cuotas)
+- relaciones y unicidad (cliente/venta/lote)
+- recalculo y persistencia de campos derivados
+- validacion final de integridad de payload
+
+Regla de oro:
+- si frontend y backend discrepan, manda backend
+- frontend no debe decidir reglas comerciales criticas
+
+### Formularios del proyecto y orden de migracion
+
+Fase F1 - Biblioteca base:
+- crear `FormField`, `TextField`, `NumberField`, `SelectField`, `DateField`, `TextAreaField`
+- definir estilos/tokens y estados (`default/focus/error/disabled`)
+
+Fase F2 - Modulo ventas (`/ventas/:id` y modales):
+- `SaleEditableCard` (estado, financiamiento, fecha, precio, cuotas, observacion)
+- `SaleClientModal` (DNI lookup + datos cliente)
+- `SalePaymentModal` (tipo pago, monto, fecha, cuotas)
+
+Fase F3 - Modulo usuarios (`/usuarios`):
+- formulario de alta/edicion de usuario admin/asesor
+- reemplazo de inputs manuales por componentes base
+
+Fase F4 - Ajuste masivo y lotes (`/lotes`):
+- modal de ajuste masivo
+- inputs numericos y selects de filtros de lotes
+
+Fase F5 - Proforma y cotizador:
+- campos de contacto y montos en `ProformaModal`
+- unificar saneamiento de moneda/porcentaje
+
+Fase F6 - Cierre y endurecimiento:
+- extraer validadores frontend reutilizables por dominio
+- homologar mensajes de error frontend/backend
+- pruebas de regresion de formularios criticos
+
+### Checklist formularios - 2026-03-21 06:35:00
+- [x] Inventario inicial de tipos de inputs y controles realizado
+- [x] Definicion de arquitectura de componentes de formularios
+- [x] Contrato de props propuesto por componente base
+- [x] Mapa de validaciones frontend vs backend definido
+- [x] Orden de migracion por formularios y pantallas definido
+- [ ] Implementar F1 (biblioteca base de formularios)
+- [ ] Migrar F2 ventas completo
+- [ ] Migrar F3 usuarios
+- [ ] Migrar F4 lotes
+- [ ] Migrar F5 proforma/cotizador
+- [ ] Ejecutar F6 (hardening + pruebas)

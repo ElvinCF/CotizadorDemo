@@ -152,6 +152,24 @@ export const addSalePayment = async (saleId: string, values: SalePaymentFormValu
   return payload.sale;
 };
 
+export const updateSalePayment = async (saleId: string, paymentId: string, values: SalePaymentFormValues) => {
+  const response = await fetch(`/api/ventas/${saleId}/pagos/${paymentId}`, {
+    method: "PUT",
+    headers: buildHeaders(),
+    body: JSON.stringify(values),
+  });
+
+  if (!response.ok) {
+    throw await buildError(response, `No se pudo actualizar el pago (${response.status})`);
+  }
+
+  const payload = (await response.json()) as { sale?: SaleRecord };
+  if (!payload.sale) {
+    throw new Error("La API no devolvio la venta actualizada.");
+  }
+  return payload.sale;
+};
+
 export const findClientByDni = async (dni: string) => {
   const params = new URLSearchParams({ dni });
   const response = await fetch(`/api/clientes?${params.toString()}`, {
