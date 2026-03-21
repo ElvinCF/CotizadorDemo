@@ -1,26 +1,11 @@
 export type Lote = {
   id: string;
+  dbId?: string;
   mz: string;
   lote: number;
   areaM2: number | null;
   price: number | null;
   condicion: string;
-  asesor?: string;
-  cliente?: string;
-  comentario?: string;
-  ultimaModificacion?: string;
-};
-
-export type CsvRow = {
-  MZ?: string;
-  LOTE?: string;
-  AREA?: string;
-  PRECIO?: string;
-  CONDICION?: string;
-  ASESOR?: string;
-  CLIENTE?: string;
-  COMENTARIO?: string;
-  ULTIMA_MODIFICACION?: string;
 };
 
 export type QuoteState = {
@@ -39,7 +24,6 @@ export type OverlayTransform = {
 export type FiltersState = {
   mz: string;
   status: string;
-  asesor: string;
   priceMin: string;
   priceMax: string;
   areaMin: string;

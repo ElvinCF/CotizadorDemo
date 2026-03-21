@@ -1,7 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { badRequest, notFound } from "./errors.mjs";
+import { resolveDbSchema, withPgClient } from "./postgres.mjs";
 
-const ALLOWED_STATUS = new Set(["LIBRE", "SEPARADO", "VENDIDO"]);
-const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const ALLOWED_STATUS = new Set(["DISPONIBLE", "SEPARADO", "VENDIDO"]);
 
 const cleanNumber = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -11,112 +11,88 @@ const cleanNumber = (value) => {
 };
 
 const normalizeStatus = (value) => {
-  const normalized = String(value || "LIBRE").trim().toUpperCase();
-  return ALLOWED_STATUS.has(normalized) ? normalized : "LIBRE";
-};
-
-const normalizeText = (value) => String(value ?? "").trim();
-
-const toCurrentTimestamp = () => {
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, "0");
-  const mmm = MONTHS[now.getMonth()];
-  const aa = String(now.getFullYear()).slice(-2);
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mi = String(now.getMinutes()).padStart(2, "0");
-  const ss = String(now.getSeconds()).padStart(2, "0");
-  return `${dd}-${mmm}-${aa} ${hh}:${mi}:${ss}`;
+  const normalized = String(value || "DISPONIBLE").trim().toUpperCase();
+  return ALLOWED_STATUS.has(normalized) ? normalized : "DISPONIBLE";
 };
 
 export const toLoteId = (mz, lote) => `${String(mz).trim().toUpperCase()}-${String(lote).padStart(2, "0")}`;
 
-export const getSupabaseAdminClient = () => {
-  const url = process.env.SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRole) {
-    throw new Error("Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY");
-  }
-  return createClient(url, serviceRole, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
+const mapDbRowToLote = (row) => ({
+  id: row.codigo ?? toLoteId(row.manzana, row.lote),
+  dbId: row.id,
+  mz: row.manzana,
+  lote: row.lote,
+  areaM2: row.area_m2,
+  price: Number(row.precio_referencial ?? 0),
+  condicion: normalizeStatus(row.estado_comercial),
+});
+
+export const listLotes = async () => {
+  const schema = resolveDbSchema();
+  return withPgClient(async (client) => {
+    const result = await client.query(
+      `select id, manzana, lote, area_m2, precio_referencial, estado_comercial, codigo
+         from ${schema}.lotes
+        order by manzana asc, lote asc`
+    );
+
+    return result.rows.map(mapDbRowToLote);
   });
 };
 
-const mapDbRowToLote = (row) => ({
-  id: row.id,
-  mz: row.mz,
-  lote: row.lote,
-  areaM2: row.area,
-  price: row.precio,
-  condicion: normalizeStatus(row.condicion),
-  asesor: row.asesor || undefined,
-  cliente: row.cliente || undefined,
-  comentario: row.comentario || undefined,
-  ultimaModificacion: row.ultima_modificacion || undefined,
-});
-
-export const listLotes = async (supabase) => {
-  const { data, error } = await supabase
-    .from("lotes")
-    .select("id,mz,lote,area,precio,condicion,asesor,cliente,comentario,ultima_modificacion")
-    .order("mz", { ascending: true })
-    .order("lote", { ascending: true });
-
-  if (error) throw error;
-  return (data || []).map(mapDbRowToLote);
-};
-
-export const updateLoteById = async (supabase, loteId, payload) => {
-  const patch = {
-    condicion: normalizeStatus(payload.estado),
-    asesor: normalizeText(payload.asesor),
-    cliente: normalizeText(payload.cliente),
-    comentario: normalizeText(payload.comentario),
-    ultima_modificacion: toCurrentTimestamp(),
-  };
-
-  if (payload.price !== undefined) {
-    patch.precio = cleanNumber(payload.price);
+export const updateLoteById = async (loteId, payload) => {
+  const schema = resolveDbSchema();
+  const code = String(loteId || "").trim();
+  if (!code) {
+    throw badRequest("Falta id de lote.");
   }
 
-  const { data, error } = await supabase
-    .from("lotes")
-    .update(patch)
-    .eq("id", String(loteId || "").trim().toUpperCase())
-    .select("id,mz,lote,area,precio,condicion,asesor,cliente,comentario,ultima_modificacion")
-    .maybeSingle();
+  const patchStatus = normalizeStatus(payload.estado);
+  const price = payload.price !== undefined ? cleanNumber(payload.price) : undefined;
 
-  if (error) throw error;
-  if (!data) return null;
-  return mapDbRowToLote(data);
+  return withPgClient(async (client) => {
+    const fields = ["estado_comercial = $2"];
+    const values = [code, patchStatus];
+
+    if (price !== undefined) {
+      fields.push(`precio_referencial = $${values.length + 1}`);
+      values.push(price);
+    }
+
+    const result = await client.query(
+      `update ${schema}.lotes
+          set ${fields.join(", ")}
+        where codigo = $1
+        returning id, manzana, lote, area_m2, precio_referencial, estado_comercial, codigo`,
+      values
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    return mapDbRowToLote(row);
+  });
 };
 
-export const updateAvailablePricesMassive = async (supabase, payload) => {
+export const updateAvailablePricesMassive = async (payload) => {
+  const schema = resolveDbSchema();
   const tipoAjuste = String(payload?.tipoAjuste || "").trim().toUpperCase();
   const valorAjuste = cleanNumber(payload?.valorAjuste);
 
   if (tipoAjuste !== "MONTO" && tipoAjuste !== "PORCENTAJE") {
-    throw new Error("tipoAjuste invalido. Usa MONTO o PORCENTAJE.");
+    throw badRequest("tipoAjuste invalido. Usa MONTO o PORCENTAJE.");
   }
   if (valorAjuste === null) {
-    throw new Error("valorAjuste invalido.");
+    throw badRequest("valorAjuste invalido.");
   }
 
-  const { data, error } = await supabase.rpc("sp_actualizar_precios_disponibles", {
-    p_tipo_ajuste: tipoAjuste,
-    p_valor_ajuste: valorAjuste,
+  return withPgClient(async (client) => {
+    const result = await client.query(
+      `select ${schema}.sp_actualizar_precios_disponibles($1, $2) as updated_count`,
+      [tipoAjuste, valorAjuste]
+    );
+
+    return Number(result.rows[0]?.updated_count ?? 0);
   });
-
-  if (error) throw error;
-
-  if (typeof data === "number") {
-    return data;
-  }
-  if (Array.isArray(data) && data.length > 0 && typeof data[0]?.updated_count === "number") {
-    return data[0].updated_count;
-  }
-  return 0;
 };
-

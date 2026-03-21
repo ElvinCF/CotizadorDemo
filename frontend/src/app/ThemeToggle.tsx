@@ -21,27 +21,25 @@ const MoonIcon = () => (
 
 const ThemeToggle = () => {
   const { effectiveTheme, setPreference } = useTheme();
-
-  const options = [
-    { value: "light", label: "Modo claro", Icon: SunIcon },
-    { value: "dark", label: "Modo oscuro", Icon: MoonIcon },
-  ] as const;
+  const nextTheme = effectiveTheme === "light" ? "dark" : "light";
+  const label = nextTheme === "dark" ? "Cambiar a modo oscuro" : "Cambiar a modo claro";
 
   return (
-    <div className="theme-toggle" role="group" aria-label="Modo de color">
-      {options.map(({ value, label, Icon }) => (
-        <button
-          key={value}
-          type="button"
-          className={effectiveTheme === value ? "theme-toggle__btn is-active" : "theme-toggle__btn"}
-          aria-pressed={effectiveTheme === value}
-          aria-label={label}
-          onClick={() => setPreference(value)}
-        >
-          <Icon />
-        </button>
-      ))}
-    </div>
+    <button
+      type="button"
+      className={`theme-toggle theme-toggle--${effectiveTheme}`}
+      aria-label={label}
+      aria-pressed={effectiveTheme === "dark"}
+      onClick={() => setPreference(nextTheme)}
+    >
+      <span className="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">
+        <SunIcon />
+      </span>
+      <span className="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">
+        <MoonIcon />
+      </span>
+      <span className="theme-toggle__thumb" aria-hidden="true" />
+    </button>
   );
 };
 

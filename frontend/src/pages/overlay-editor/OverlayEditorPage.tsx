@@ -10,10 +10,30 @@ import AppShell from "../../app/AppShell";
 import { MAP_HEIGHT, MAP_WIDTH, defaultOverlay, mapVars } from "../../domain/constants";
 import { overlayStyle } from "../../domain/finance";
 import type { Lote, OverlayTransform } from "../../domain/types";
-import { loadLotesFromApi, loadLotesFromCsvFallback } from "../../services/lotes";
+import { loadLotesFromApi } from "../../services/lotes";
 import EditorPanel from "./EditorPanel";
 
 const MemoArenasSvg = memo(ArenasSvg);
+
+const IconMap = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20V6.5Z"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M9 4v13.5M15 6.5V20" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+const IconTable = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M3 10h18M9 5v14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
 
 const OverlayEditorPage = () => {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -26,16 +46,23 @@ const OverlayEditorPage = () => {
   const overlayStyleMemo = useMemo(() => overlayStyle(overlay), [overlay]);
   const [mapTransform, setMapTransform] = useState({ scale: 1, positionX: 0, positionY: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     const syncLotes = async () => {
       try {
         const items = await loadLotesFromApi();
-        if (active) setLotes(items);
-      } catch {
-        const fallback = await loadLotesFromCsvFallback();
-        if (active) setLotes(fallback);
+        if (!active) return;
+        setLotes(items);
+        setLoadError(null);
+      } catch (error) {
+        console.error(error);
+        if (!active) return;
+        setLotes([]);
+        setLoadError(
+          "No se pudo cargar lotes desde Supabase/API. Verifica SUPABASE_DB_SCHEMA y variables del backend."
+        );
       }
     };
     syncLotes();
@@ -85,15 +112,31 @@ const OverlayEditorPage = () => {
       title="Editor de overlay"
       actions={
         <nav className="topbar-nav">
-          <Link className="btn ghost" to="/">
-            Ver mapa
+          <Link className="btn ghost topbar-action" to="/">
+            <IconMap />
+            Mapa
           </Link>
-          <Link className="btn ghost" to="/vendedor">
-            Panel vendedor
+          <Link className="btn ghost topbar-action" to="/lotes">
+            <IconTable />
+            Lotes
           </Link>
         </nav>
       }
     >
+      {loadError && (
+        <div className="modal-backdrop" onClick={() => setLoadError(null)}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h4>Error de carga</h4>
+            <p className="muted">{loadError}</p>
+            <div className="confirm-actions">
+              <button className="btn" onClick={() => setLoadError(null)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <EditorPanel
         overlay={overlay}
         setOverlay={setOverlay}

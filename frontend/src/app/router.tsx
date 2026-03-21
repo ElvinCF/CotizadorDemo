@@ -1,26 +1,88 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import OverlayEditorPage from "../pages/overlay-editor/OverlayEditorPage";
-import PublicMapPage from "../pages/public-map/PublicMapPage";
-import SellerDashboardPage from "../pages/seller-dashboard/SellerDashboardPage";
+import LotesTablePage from "../pages/seller-dashboard/LotesTablePage";
+import LoginPage from "../pages/login/LoginPage";
+import SalesMapPage from "../pages/admin/SalesMapPage";
+import AdminPage from "../pages/admin/AdminPage";
+import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
+import SalesListPage from "../pages/sales/SalesListPage";
+import SaleFormPage from "../pages/sales/SaleFormPage";
+import AdvisorDashboardPage from "../pages/seller-dashboard/AdvisorDashboardPage";
 import ProtectedRoute from "./ProtectedRoute";
 
 export const appRouter = createBrowserRouter([
   {
     path: "/",
-    element: <PublicMapPage />,
+    element: <SalesMapPage publicView />,
   },
   {
-    path: "/vendedor",
+    path: "/login",
+    element: <LoginPage />,
+  },
+  {
+    path: "/cotizador",
+    element: <SalesMapPage publicView />,
+  },
+  {
+    path: "/lotes",
     element: (
-      <ProtectedRoute>
-        <SellerDashboardPage />
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <LotesTablePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/ventas",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <SalesListPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/ventas/nueva",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <SaleFormPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/ventas/:id",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "asesor"]}>
+        <SaleFormPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/asesor",
+    element: (
+      <ProtectedRoute allowedRoles={["asesor"]}>
+        <AdvisorDashboardPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin",
+    element: (
+      <ProtectedRoute allowedRoles={["admin"]}>
+        <AdminDashboardPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/usuarios",
+    element: (
+      <ProtectedRoute allowedRoles={["admin"]}>
+        <AdminPage />
       </ProtectedRoute>
     ),
   },
   {
     path: "/editor",
     element: (
-      <ProtectedRoute>
+      <ProtectedRoute allowedRoles={["admin"]}>
         <OverlayEditorPage />
       </ProtectedRoute>
     ),

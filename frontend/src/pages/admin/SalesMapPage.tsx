@@ -1,5 +1,7 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
+import { useAuth } from "../../app/AuthContext";
 import {
   TransformComponent,
   TransformWrapper,
@@ -32,11 +34,19 @@ import {
 import { buildIdSet, overlayStyle, quoteMonthly } from "../../domain/finance";
 import type { FiltersState, Lote, OverlayTransform, ProformaState, QuoteState } from "../../domain/types";
 import { projectInfo } from "../../data/projectInfo";
-import { loadLotesFromApi, loadLotesFromCsvFallback } from "../../services/lotes";
+import { loadLotesFromApi } from "../../services/lotes";
+import { listSales } from "../../services/ventas";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
-function PublicMapPage() {
+type SalesMapPageProps = {
+  publicView?: boolean;
+};
+
+function SalesMapPage({ publicView = false }: SalesMapPageProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -93,24 +103,62 @@ function PublicMapPage() {
   const hoverRafRef = useRef<number | null>(null);
   const lastPriceEditedRef = useRef<"soles" | "pct" | "promo" | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, string>>({});
+  const hidePublicRestrictedActions = publicView && !isAuthenticated;
+  const isCotizadorRoute = publicView && location.pathname === "/cotizador";
+  const DRAWER_PULSE_MS = 900;
+
+  const openQuoteDrawer = useCallback(
+    (loteId?: string | null) => {
+      if (loteId) {
+        setSelectedId(loteId);
+      }
+      setRightOpen(true);
+
+      if (publicView && location.pathname !== "/cotizador") {
+        navigate("/cotizador");
+      }
+    },
+    [location.pathname, navigate, publicView]
+  );
+
+  const closeQuoteDrawer = useCallback(() => {
+    setRightOpen(false);
+    setSelectedId(null);
+
+    if (publicView && location.pathname === "/cotizador") {
+      navigate("/", { replace: true });
+    }
+  }, [location.pathname, navigate, publicView]);
+
+  useEffect(() => {
+    if (!publicView) return;
+
+    if (isCotizadorRoute) {
+      setRightOpen(true);
+      return;
+    }
+
+    setRightOpen(false);
+    setSelectedId(null);
+  }, [isCotizadorRoute, publicView]);
+
   useEffect(() => {
     let active = true;
     const syncLotes = async () => {
       try {
         const items = await loadLotesFromApi();
-        if (active) {
-          setRawLotes(items);
-        }
+        if (!active) return;
+        setRawLotes(items);
+        setLoadError(null);
       } catch (error) {
         console.error(error);
-        try {
-          const fallbackItems = await loadLotesFromCsvFallback();
-          if (active) {
-            setRawLotes(fallbackItems);
-          }
-        } catch (fallbackError) {
-          console.error(fallbackError);
-        }
+        if (!active) return;
+        setRawLotes([]);
+        setLoadError(
+          "No se pudo cargar lotes desde Supabase/API. Verifica SUPABASE_DB_SCHEMA y variables del backend."
+        );
       }
     };
 
@@ -119,6 +167,39 @@ function PublicMapPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadActiveSales = async () => {
+      if (!isAuthenticated) {
+        setSalesByLoteCode({});
+        return;
+      }
+
+      try {
+        const sales = await listSales();
+        if (cancelled) return;
+        const mapping = sales.reduce<Record<string, string>>((acc, sale) => {
+          const loteCode = sale.lote?.codigo;
+          if (loteCode && !acc[loteCode]) {
+            acc[loteCode] = sale.id;
+          }
+          return acc;
+        }, {});
+        setSalesByLoteCode(mapping);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("No se pudo cargar ventas activas para mapa:", error);
+        setSalesByLoteCode({});
+      }
+    };
+
+    void loadActiveSales();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const raw = localStorage.getItem(PROFORMA_VENDOR_KEY);
@@ -164,7 +245,6 @@ function PublicMapPage() {
   const filteredLotes = useMemo(() => {
     const mz = filters.mz.trim().toUpperCase();
     const status = filters.status.toUpperCase();
-    const asesor = filters.asesor.trim().toUpperCase();
     const priceMin = filters.priceMin ? Number(filters.priceMin) : null;
     const priceMax = filters.priceMax ? Number(filters.priceMax) : null;
     const areaMin = filters.areaMin ? Number(filters.areaMin) : null;
@@ -173,7 +253,6 @@ function PublicMapPage() {
     return lotes.filter((lote) => {
       if (mz && lote.mz !== mz) return false;
       if (status !== "TODOS" && lote.condicion !== status) return false;
-      if (asesor !== "TODOS" && (lote.asesor ?? "").trim().toUpperCase() !== asesor) return false;
       if (priceMin != null && (lote.price ?? 0) < priceMin) return false;
       if (priceMax != null && (lote.price ?? 0) > priceMax) return false;
       if (areaMin != null && (lote.areaM2 ?? 0) < areaMin) return false;
@@ -204,15 +283,15 @@ function PublicMapPage() {
     const prevLote = previousLoteRef.current;
     if (prevMz != null && prevMz !== selectedLote.mz) {
       setPulseMz(true);
-      window.setTimeout(() => setPulseMz(false), 420);
+      window.setTimeout(() => setPulseMz(false), DRAWER_PULSE_MS);
     }
     if (prevLote != null && prevLote !== selectedLote.lote) {
       setPulseLote(true);
-      window.setTimeout(() => setPulseLote(false), 420);
+      window.setTimeout(() => setPulseLote(false), DRAWER_PULSE_MS);
     }
     previousMzRef.current = selectedLote.mz;
     previousLoteRef.current = selectedLote.lote;
-  }, [selectedLote]);
+  }, [selectedLote, DRAWER_PULSE_MS]);
 
   useEffect(() => {
     const root = svgRef.current;
@@ -291,7 +370,7 @@ function PublicMapPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [proformaDirty, proformaOpen]);
+  }, [closeQuoteDrawer, proformaDirty, proformaOpen]);
 
   useEffect(() => {
     return () => {
@@ -348,15 +427,14 @@ function PublicMapPage() {
       }
       return;
     }
-    if (event.type === "click") {
-      if (draggedRef.current) {
-        draggedRef.current = false;
+      if (event.type === "click") {
+        if (draggedRef.current) {
+          draggedRef.current = false;
+          return;
+        }
+        openQuoteDrawer(id);
         return;
       }
-      setSelectedId(id);
-      setRightOpen(true);
-      return;
-    }
     if (hoveredId !== id) {
       setHoveredId(id);
     }
@@ -367,7 +445,7 @@ function PublicMapPage() {
         hoverRafRef.current = null;
       });
     }
-  }, [hoveredId]);
+  }, [hoveredId, openQuoteDrawer]);
 
   const handleSvgLeave = useCallback(() => {
     setHoveredId(null);
@@ -453,9 +531,11 @@ function PublicMapPage() {
   });
 
   const refreshProformaFromLote = (lote: Lote) => {
-    const regular = lote.price ?? 0;
+    const regular = Math.max(quote.precio || lote.price || 0, 0);
     const promo = regular;
-    const inicial = clamp(6000, 6000, promo || 6000);
+    const inicialCotizada = Math.max(Math.round(quote.inicialMonto || 0), 6000);
+    const inicial = clamp(inicialCotizada, 6000, promo || 6000);
+    const meses = clamp(Math.round(quote.cuotas || 0), 1, 36);
     const dias = 3;
     lastPriceEditedRef.current = null;
     setProforma({
@@ -475,7 +555,7 @@ function PublicMapPage() {
       fechaCaducidad: toDateValue(addDays(new Date(), dias)),
       separacion: 0,
       inicial,
-      meses: 24,
+      meses,
       vendedor: proforma.vendedor,
       creadoEn: new Date().toISOString(),
     });
@@ -533,12 +613,11 @@ function PublicMapPage() {
 
 
   const exportTableCsv = () => {
-    const headers = ["MZ", "LT", "AREA_M2", "ASESOR", "PRECIO", "CONDICION"];
+    const headers = ["MZ", "LT", "AREA_M2", "PRECIO", "CONDICION"];
     const rows = filteredLotes.map((lote) => [
       lote.mz,
       String(lote.lote),
       formatNumber(lote.areaM2),
-      lote.asesor ?? "",
       formatNumber(lote.price),
       lote.condicion,
     ]);
@@ -693,7 +772,7 @@ function PublicMapPage() {
       svgClone.style.transformOrigin = "0 0";
 
       // Force light theme lot colors for consistent export regardless of current theme.
-      const LIGHT_FILL_LIBRE = "rgba(60, 223, 101, 0.322)";
+      const LIGHT_FILL_DISPONIBLE = "rgba(60, 223, 101, 0.322)";
       const LIGHT_FILL_SEPARADO = "rgba(255, 196, 99, 0.5)";
       const LIGHT_FILL_VENDIDO = "rgba(255, 133, 149, 0.5)";
       const LIGHT_STROKE = "rgba(0,0,0,0)";
@@ -710,7 +789,7 @@ function PublicMapPage() {
         } else if (status === "VENDIDO") {
           cloneNode.setAttribute("fill", LIGHT_FILL_VENDIDO);
         } else {
-          cloneNode.setAttribute("fill", LIGHT_FILL_LIBRE);
+          cloneNode.setAttribute("fill", LIGHT_FILL_DISPONIBLE);
         }
         cloneNode.setAttribute("stroke", LIGHT_STROKE);
         cloneNode.setAttribute("stroke-width", "0");
@@ -855,7 +934,6 @@ function PublicMapPage() {
           <div><span>Area</span><strong>${formatArea(selectedLote.areaM2)}</strong></div>
           <div><span>Precio</span><strong>${formatMoney(selectedLote.price)}</strong></div>
           <div><span>Estado</span><strong>${selectedLote.condicion}</strong></div>
-          <div><span>Asesor</span><strong>${selectedLote.asesor ?? "-"}</strong></div>
         </div>
       </section>
     `
@@ -872,25 +950,23 @@ function PublicMapPage() {
               <th>MZ</th>
               <th>LT</th>
               <th>AREA (M2)</th>
-              <th>ASESOR</th>
               <th>PRECIO</th>
               <th>CONDICION</th>
             </tr>
           </thead>
           <tbody>
             ${filteredLotes
-              .map(
-                (lote) => `
+          .map(
+            (lote) => `
               <tr>
                 <td>${lote.mz}</td>
                 <td>${lote.lote}</td>
                 <td>${formatArea(lote.areaM2)}</td>
-                <td>${lote.asesor ?? "-"}</td>
                 <td>${formatMoney(lote.price)}</td>
                 <td>${lote.condicion}</td>
               </tr>`
-              )
-              .join("")}
+          )
+          .join("")}
           </tbody>
         </table>
       </section>
@@ -1133,6 +1209,9 @@ function PublicMapPage() {
   };
 
   const openProforma = () => {
+    if (hidePublicRestrictedActions) {
+      return;
+    }
     if (!selectedLote) {
       setProformaAlert("Selecciona un lote para crear la proforma.");
       return;
@@ -1157,173 +1236,180 @@ function PublicMapPage() {
             totalCount={lotes.length}
             onExportExecutivePdf={exportExecutivePdf}
             onExportTable={exportTableCsv}
+            hideExecutiveExport={hidePublicRestrictedActions}
           />
           <div
             ref={mapContainerRef}
             className={`map-container ${isPanning ? "is-panning" : ""}`}
             style={mapVars as CSSProperties}
           >
-          {view === "mapa" ? (
-            <Fragment>
-              <TransformWrapper
-                ref={transformRef}
-                minScale={0.4}
-                maxScale={6}
-                initialScale={1}
-                limitToBounds={false}
-                centerZoomedOut={false}
-                centerOnInit={false}
-                initialPositionX={0}
-                initialPositionY={0}
-                alignmentAnimation={{ disabled: true }}
-                panning={{ velocityDisabled: true }}
-                wheel={{ step: 0.04, smoothStep: 0.003 }}
-                onTransformed={(_, state) => {
-                  mapTransformRef.current = state;
-                  if (transformRafRef.current == null) {
-                    transformRafRef.current = requestAnimationFrame(() => {
-                      setMapTransform(mapTransformRef.current);
-                      transformRafRef.current = null;
-                    });
-                  }
-                  if (isPanningRef.current && panStartRef.current) {
-                    const dx = state.positionX - panStartRef.current.x;
-                    const dy = state.positionY - panStartRef.current.y;
-                    if (Math.hypot(dx, dy) > 2) {
-                      draggedRef.current = true;
+            {view === "mapa" ? (
+              <Fragment>
+                <TransformWrapper
+                  ref={transformRef}
+                  minScale={0.4}
+                  maxScale={6}
+                  initialScale={1}
+                  limitToBounds={false}
+                  centerZoomedOut={false}
+                  centerOnInit={false}
+                  initialPositionX={0}
+                  initialPositionY={0}
+                  alignmentAnimation={{ disabled: true }}
+                  panning={{ velocityDisabled: true }}
+                  wheel={{ step: 0.04, smoothStep: 0.003 }}
+                  onTransformed={(_, state) => {
+                    mapTransformRef.current = state;
+                    if (transformRafRef.current == null) {
+                      transformRafRef.current = requestAnimationFrame(() => {
+                        setMapTransform(mapTransformRef.current);
+                        transformRafRef.current = null;
+                      });
                     }
-                  }
-                }}
-                onPanningStart={() => {
-                  setIsPanning(true);
-                  isPanningRef.current = true;
-                  draggedRef.current = false;
-                  panStartRef.current = {
-                    x: mapTransformRef.current.positionX,
-                    y: mapTransformRef.current.positionY,
-                  };
-                }}
-                onPanningStop={() => {
-                  setIsPanning(false);
-                  isPanningRef.current = false;
-                  panStartRef.current = null;
-                }}
-              >
-                {({ zoomIn, zoomOut, resetTransform, setTransform }) => (
-                  <Fragment>
-                    <div className="map-overlay-legend" aria-label="Estado de lotes">
-                      <span className="status-pill libre">Disponible</span>
-                      <span className="status-pill separado">Separado</span>
-                      <span className="status-pill vendido">Vendido</span>
-                    </div>
-                    <div className="map-controls">
-                      <button className="btn ghost" onClick={() => zoomIn()}>
-                        +
-                      </button>
-                      <button className="btn ghost" onClick={() => zoomOut()}>
-                        -
-                      </button>
-                      <button
-                        className="btn ghost"
-                        onClick={() => {
-                          if (mapContainerRef.current) {
-                            const { width, height } = mapContainerRef.current.getBoundingClientRect();
-                            const nextScale = Math.min(width / MAP_WIDTH, height / MAP_HEIGHT);
-                            const nextX = (width - MAP_WIDTH * nextScale) / 2;
-                            const nextY = (height - MAP_HEIGHT * nextScale) / 2;
-                            setTransform(nextX, nextY, nextScale);
-                            return;
+                    if (isPanningRef.current && panStartRef.current) {
+                      const dx = state.positionX - panStartRef.current.x;
+                      const dy = state.positionY - panStartRef.current.y;
+                      if (Math.hypot(dx, dy) > 2) {
+                        draggedRef.current = true;
+                      }
+                    }
+                  }}
+                  onPanningStart={() => {
+                    setIsPanning(true);
+                    isPanningRef.current = true;
+                    draggedRef.current = false;
+                    panStartRef.current = {
+                      x: mapTransformRef.current.positionX,
+                      y: mapTransformRef.current.positionY,
+                    };
+                  }}
+                  onPanningStop={() => {
+                    setIsPanning(false);
+                    isPanningRef.current = false;
+                    panStartRef.current = null;
+                  }}
+                >
+                  {({ zoomIn, zoomOut, resetTransform, setTransform }) => (
+                    <Fragment>
+                      <div className="map-overlay-legend" aria-label="Estado de lotes">
+                        <span className="status-pill disponible">Disponible</span>
+                        <span className="status-pill separado">Separado</span>
+                        <span className="status-pill vendido">Vendido</span>
+                      </div>
+                      <div className="map-controls">
+                        <button className="btn ghost" onClick={() => zoomIn()}>
+                          +
+                        </button>
+                        <button className="btn ghost" onClick={() => zoomOut()}>
+                          -
+                        </button>
+                        <button
+                          className="btn ghost"
+                          onClick={() => {
+                            if (mapContainerRef.current) {
+                              const { width, height } = mapContainerRef.current.getBoundingClientRect();
+                              const nextScale = Math.min(width / MAP_WIDTH, height / MAP_HEIGHT);
+                              const nextX = (width - MAP_WIDTH * nextScale) / 2;
+                              const nextY = (height - MAP_HEIGHT * nextScale) / 2;
+                              setTransform(nextX, nextY, nextScale);
+                              return;
+                            }
+                            resetTransform();
+                          }}
+                        >
+                          Reset
+                        </button>
+                        <div className="zoom-indicator">{Math.round(mapTransform.scale * 100)}%</div>
+                        <input
+                          className="zoom-slider"
+                          type="range"
+                          min={0.6}
+                          max={6}
+                          step={0.05}
+                          value={mapTransform.scale}
+                          onInput={(event) =>
+                            handleSliderZoom(Number((event.target as HTMLInputElement).value), setTransform)
                           }
-                          resetTransform();
-                        }}
-                      >
-                        Reset
-                      </button>
-                      <div className="zoom-indicator">{Math.round(mapTransform.scale * 100)}%</div>
-                      <input
-                        className="zoom-slider"
-                        type="range"
-                        min={0.6}
-                        max={6}
-                        step={0.05}
-                        value={mapTransform.scale}
-                        onInput={(event) =>
-                          handleSliderZoom(Number((event.target as HTMLInputElement).value), setTransform)
-                        }
-                        onChange={(event) =>
-                          handleSliderZoom(Number((event.target as HTMLInputElement).value), setTransform)
-                        }
-                      />
-                    </div>
-                    <TransformComponent wrapperClass="transform-wrapper">
-                      <div className="map-layer">
-                        <img
-                          src="/assets/plano-fondo-demo.webp"
-                          alt="Plano de fondo"
-                          className="map-background"
-                          draggable={false}
-                        />
-                        <MemoArenasSvg
-                          svgRef={svgRef}
-                          className="lotes-svg"
-                          style={overlayStyleMemo}
-                          onMouseMove={handleSvgPointer}
-                          onClick={handleSvgPointer}
-                          onMouseLeave={handleSvgLeave}
+                          onChange={(event) =>
+                            handleSliderZoom(Number((event.target as HTMLInputElement).value), setTransform)
+                          }
                         />
                       </div>
-                    </TransformComponent>
-                  </Fragment>
-                )}
-              </TransformWrapper>
-            </Fragment>
-          ) : (
-            <TableView
-              tableFiltersOpen={tableFiltersOpen}
-              onToggleFilters={() => setTableFiltersOpen((prev) => !prev)}
-              allLotes={lotes}
-              filters={filters}
-              setFilters={setFilters}
-              onResetFilters={resetFilters}
-              filteredLotes={filteredLotes}
-              selectedId={selectedId}
-              onSelectLote={(id) => {
-                setSelectedId(id);
-                setRightOpen(true);
-              }}
-            />
-          )}
-          {hoveredLote && view === "mapa" && (
-            <div
-              className="hover-tooltip"
-              style={{ left: hoveredPos.x + 12, top: hoveredPos.y + 12 }}
-            >
-              <strong>{hoveredLote.id}</strong>
-              <span>{formatArea(hoveredLote.areaM2)}</span>
-              <span>{formatMoney(hoveredLote.price)}</span>
-              <span>{hoveredLote.condicion}</span>
-            </div>
-          )}
-        </div>
-      </section>
-      <CotizadorDrawer
-        rightOpen={rightOpen}
-        selectedLote={selectedLote}
-        pulseMz={pulseMz}
-        pulseLote={pulseLote}
-        quote={quote}
-        quoteInvalidInicial={quoteInvalidInicial}
-        quoteInvalidMeses={quoteInvalidMeses}
-        cuota={cuota}
-        cuotaRapida={cuotaRapida}
-        onPrint={exportPrintable}
-        onOpenProforma={openProforma}
-        onClose={() => {
-          setRightOpen(false);
-          setSelectedId(null);
-        }}
-        onChangeQuote={setQuote}
-      />
+                      <TransformComponent wrapperClass="transform-wrapper">
+                        <div className="map-layer">
+                          <img
+                            src="/assets/plano-fondo-demo.webp"
+                            alt="Plano de fondo"
+                            className="map-background"
+                            draggable={false}
+                          />
+                          <MemoArenasSvg
+                            svgRef={svgRef}
+                            className="lotes-svg"
+                            style={overlayStyleMemo}
+                            onMouseMove={handleSvgPointer}
+                            onClick={handleSvgPointer}
+                            onMouseLeave={handleSvgLeave}
+                          />
+                        </div>
+                      </TransformComponent>
+                    </Fragment>
+                  )}
+                </TransformWrapper>
+              </Fragment>
+            ) : (
+              <TableView
+                tableFiltersOpen={tableFiltersOpen}
+                onToggleFilters={() => setTableFiltersOpen((prev) => !prev)}
+                allLotes={lotes}
+                filters={filters}
+                setFilters={setFilters}
+                onResetFilters={resetFilters}
+                filteredLotes={filteredLotes}
+                selectedId={selectedId}
+                onSelectLote={(id) => {
+                  openQuoteDrawer(id);
+                }}
+                canOpenSales={isAuthenticated}
+                salesByLoteCode={salesByLoteCode}
+                onOpenSale={(lote, activeSaleId) => {
+                  if (activeSaleId) {
+                    navigate(`/ventas/${activeSaleId}`);
+                    return;
+                  }
+                  navigate(`/ventas/nueva?lote=${lote.id}&target=${lote.condicion}`);
+                }}
+              />
+            )}
+            {hoveredLote && view === "mapa" && (
+              <div
+                className="hover-tooltip"
+                style={{ left: hoveredPos.x + 12, top: hoveredPos.y + 12 }}
+              >
+                <strong>{hoveredLote.id}</strong>
+                <span>{formatArea(hoveredLote.areaM2)}</span>
+                <span>{formatMoney(hoveredLote.price)}</span>
+                <span>{hoveredLote.condicion}</span>
+              </div>
+            )}
+          </div>
+        </section>
+        <CotizadorDrawer
+          rightOpen={rightOpen}
+          selectedLote={selectedLote}
+          pulseMz={pulseMz}
+          pulseLote={pulseLote}
+          quote={quote}
+          quoteInvalidInicial={quoteInvalidInicial}
+          quoteInvalidMeses={quoteInvalidMeses}
+          cuota={cuota}
+          cuotaRapida={cuotaRapida}
+          onPrint={exportPrintable}
+          onOpenProforma={openProforma}
+          onClose={closeQuoteDrawer}
+          onChangeQuote={setQuote}
+          hideProformaButton={hidePublicRestrictedActions}
+        />
       </section>
     </section>
   );
@@ -1334,93 +1420,107 @@ function PublicMapPage() {
         {MapView}
       </AppShell>
 
-      {proformaOpen && (
-          <ProformaModal
-            proforma={proforma}
-            proformaInvalidInicial={proformaInvalidInicial}
-            proformaInvalidMeses={proformaInvalidMeses}
-            precioFinanciarRegular={precioFinanciarRegular}
-            precioFinanciarPromo={precioFinanciarPromo}
-            proformaCuotaRegular={proformaCuotaRegular}
-            proformaCuotaPromo={proformaCuotaPromo}
-            proformaAhorro={proformaAhorro}
-            cuotasRapidas={cuotasRapidas}
-            onBackdropClose={() => {
-              if (proformaDirty) {
-                setProformaConfirmClose(true);
-              } else {
-                setProformaOpen(false);
-              }
-            }}
-            onPrint={exportProforma}
-            onRequestClose={() => {
-              if (proformaDirty) {
-                setProformaConfirmClose(true);
-              } else {
-                setProformaOpen(false);
-              }
-            }}
-            onUpdate={(updater) => {
-              lastPriceEditedRef.current = null;
-              updateProforma(updater);
-            }}
-            onDiscountSoles={(value) => {
-              lastPriceEditedRef.current = "soles";
-              updateProforma((current) => ({ ...current, descuentoSoles: value }));
-            }}
-            onDiscountPct={(value) => {
-              lastPriceEditedRef.current = "pct";
-              updateProforma((current) => ({ ...current, descuentoPct: value }));
-            }}
-            onPromoPrice={(value) => {
-              lastPriceEditedRef.current = "promo";
-              updateProforma((current) => ({ ...current, precioPromocional: value }));
-            }}
-          />
-        )}
+      {!hidePublicRestrictedActions && proformaOpen && (
+        <ProformaModal
+          proforma={proforma}
+          proformaInvalidInicial={proformaInvalidInicial}
+          proformaInvalidMeses={proformaInvalidMeses}
+          precioFinanciarRegular={precioFinanciarRegular}
+          precioFinanciarPromo={precioFinanciarPromo}
+          proformaCuotaRegular={proformaCuotaRegular}
+          proformaCuotaPromo={proformaCuotaPromo}
+          proformaAhorro={proformaAhorro}
+          cuotasRapidas={cuotasRapidas}
+          onBackdropClose={() => {
+            if (proformaDirty) {
+              setProformaConfirmClose(true);
+            } else {
+              setProformaOpen(false);
+            }
+          }}
+          onPrint={exportProforma}
+          onRequestClose={() => {
+            if (proformaDirty) {
+              setProformaConfirmClose(true);
+            } else {
+              setProformaOpen(false);
+            }
+          }}
+          onUpdate={(updater) => {
+            lastPriceEditedRef.current = null;
+            updateProforma(updater);
+          }}
+          onDiscountSoles={(value) => {
+            lastPriceEditedRef.current = "soles";
+            updateProforma((current) => ({ ...current, descuentoSoles: value }));
+          }}
+          onDiscountPct={(value) => {
+            lastPriceEditedRef.current = "pct";
+            updateProforma((current) => ({ ...current, descuentoPct: value }));
+          }}
+          onPromoPrice={(value) => {
+            lastPriceEditedRef.current = "promo";
+            updateProforma((current) => ({ ...current, precioPromocional: value }));
+          }}
+        />
+      )}
 
-      {proformaConfirmClose && (
-          <div className="modal-backdrop" onClick={() => setProformaConfirmClose(false)}>
-            <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
-              <h4>Descartar cambios?</h4>
-              <p className="muted">Tienes cambios sin guardar. Deseas cerrar la proforma?</p>
-              <div className="confirm-actions">
-                <button className="btn ghost" onClick={() => setProformaConfirmClose(false)}>
-                  Cancelar
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => {
-                    setProformaConfirmClose(false);
-                    setProformaOpen(false);
-                    setProformaDirty(false);
-                  }}
-                >
-                  Descartar
-                </button>
-              </div>
+      {!hidePublicRestrictedActions && proformaConfirmClose && (
+        <div className="modal-backdrop" onClick={() => setProformaConfirmClose(false)}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h4>Descartar cambios?</h4>
+            <p className="muted">Tienes cambios sin guardar. Deseas cerrar la proforma?</p>
+            <div className="confirm-actions">
+              <button className="btn ghost" onClick={() => setProformaConfirmClose(false)}>
+                Cancelar
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setProformaConfirmClose(false);
+                  setProformaOpen(false);
+                  setProformaDirty(false);
+                }}
+              >
+                Descartar
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-      {proformaAlert && (
-          <div className="modal-backdrop" onClick={() => setProformaAlert(null)}>
-            <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
-              <h4>Proforma</h4>
-              <p className="muted">{proformaAlert}</p>
-              <div className="confirm-actions">
-                <button className="btn" onClick={() => setProformaAlert(null)}>
-                  Entendido
-                </button>
-              </div>
+      {loadError && (
+        <div className="modal-backdrop" onClick={() => setLoadError(null)}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h4>Error de carga</h4>
+            <p className="muted">{loadError}</p>
+            <div className="confirm-actions">
+              <button className="btn" onClick={() => setLoadError(null)}>
+                Cerrar
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {!hidePublicRestrictedActions && proformaAlert && (
+        <div className="modal-backdrop" onClick={() => setProformaAlert(null)}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h4>Proforma</h4>
+            <p className="muted">{proformaAlert}</p>
+            <div className="confirm-actions">
+              <button className="btn" onClick={() => setProformaAlert(null)}>
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Fragment>
   );
 }
 
-export default PublicMapPage;
+export default SalesMapPage;
 
 
 

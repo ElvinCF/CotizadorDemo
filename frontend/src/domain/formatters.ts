@@ -5,7 +5,7 @@ export const statusToClass = (value: string | undefined) => {
     case "VENDIDO":
       return "vendido";
     default:
-      return "libre";
+      return "disponible";
   }
 };
 
@@ -27,25 +27,39 @@ export const cleanNumber = (value: string | undefined) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const toFiniteNumber = (value: number | string | null | undefined) => {
+  if (value == null || value === "") return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const normalized = String(value).trim().replace(/\s+/g, "").replace(",", ".");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 export const toLoteId = (mz: string, lote: number) => `${mz}-${String(lote).padStart(2, "0")}`;
 
-export const formatMoney = (value: number | null) => {
-  if (value == null) return "-";
+export const formatMoney = (value: number | string | null) => {
+  const numericValue = toFiniteNumber(value);
+  if (numericValue == null) return "-";
   return new Intl.NumberFormat("es-PE", {
     style: "currency",
     currency: "PEN",
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(numericValue);
 };
 
-export const formatArea = (value: number | null) => {
-  if (value == null) return "-";
-  return `${value.toFixed(2)} m2`;
+export const formatArea = (value: number | string | null) => {
+  const numericValue = toFiniteNumber(value);
+  if (numericValue == null) return "-";
+  return `${numericValue.toFixed(2)} m2`;
 };
 
-export const formatNumber = (value: number | null) => {
-  if (value == null || Number.isNaN(value)) return "";
-  return value.toFixed(2);
+export const formatNumber = (value: number | string | null) => {
+  const numericValue = toFiniteNumber(value);
+  if (numericValue == null) return "";
+  return numericValue.toFixed(2);
 };
 
 export const clamp = (value: number, min: number, max: number) =>

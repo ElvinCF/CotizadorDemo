@@ -22,7 +22,7 @@ Aplicación React + Vite para visualizar y cotizar lotes con overlay SVG sobre p
 
 ## Modularización aplicada
 - `frontend/src/domain/`: tipos, constantes y utilidades compartidas.
-- `frontend/src/services/lotes.ts`: carga de lotes (API + fallback CSV).
+- `frontend/src/services/lotes.ts`: carga de lotes vía API.
 - `frontend/src/components/forms/ValidatedNumberField.tsx`.
 - `frontend/src/components/map/*`.
 - `frontend/src/components/drawer/CotizadorDrawer.tsx`.
@@ -52,11 +52,18 @@ npm run build
 ```
 
 ## Datos
-Fuente principal: API `/api/lotes`.
-Fallback: `frontend/public/assets/lotes.csv`.
+- Fuente unica: API `/api/lotes` conectada a Postgres/Supavisor.
+- Si API/BD falla, el frontend muestra error (no usa fallback CSV).
 
-Columnas esperadas del CSV:
-`MZ`, `LOTE`, `AREA`, `PRECIO`, `CONDICION`, `ASESOR`, `CLIENTE`, `COMENTARIO`, `ULTIMA_MODIFICACION`.
+## Migraciones y seeds por esquema
+- Copia `.env.example` a `.env` y completa claves:
+  - `SUPABASE_DB_SCHEMA` (`dev`, `devsimple` o `public`)
+  - `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_NAME`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`
+- Scripts:
+  - `npm run db:migrate:dev`
+  - `npm run db:seed:dev`
+  - `npm run db:migrate:public`
+  - `npm run db:seed:public`
 
 ## Exportaciones
 - **Imprimir**: reporte A4 de vista actual.
