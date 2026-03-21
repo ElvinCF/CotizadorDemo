@@ -24,7 +24,13 @@ type LotesSortKey = "mz" | "lote" | "area" | "precio" | "condicion";
 
 type LotesFilters = {
   mz: string;
+  loteId: string;
+  areaMin: number;
+  areaMax: number;
+  priceMin: number;
+  priceMax: number;
   estado: "TODOS" | "DISPONIBLE" | "SEPARADO" | "VENDIDO";
+  venta: "TODOS" | "CON_VENTA" | "SIN_VENTA";
 };
 
 const normalizeStatus = (value: string | undefined) => {
@@ -42,6 +48,17 @@ const numberFromInput = (value: string) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const toFiniteNumber = (value: unknown) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const clampBetween = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
 const emptyDraft: EditableFields = {
   price: "",
   estado: "DISPONIBLE",
@@ -49,20 +66,14 @@ const emptyDraft: EditableFields = {
 
 const defaultFilters: LotesFilters = {
   mz: "TODAS",
+  loteId: "TODOS",
+  areaMin: 0,
+  areaMax: 0,
+  priceMin: 0,
+  priceMax: 0,
   estado: "TODOS",
+  venta: "TODOS",
 };
-
-const IconRefresh = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path
-      d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
 
 const IconMap = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
@@ -79,8 +90,10 @@ const IconMap = () => (
 
 const IconBulk = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path d="M5 7h14M5 12h14M5 17h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    <path d="M8 5v4M12 10v4M16 15v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <circle cx="9" cy="7" r="1.7" stroke="currentColor" strokeWidth="1.4" fill="none" />
+    <circle cx="14" cy="12" r="1.7" stroke="currentColor" strokeWidth="1.4" fill="none" />
+    <circle cx="11" cy="17" r="1.7" stroke="currentColor" strokeWidth="1.4" fill="none" />
   </svg>
 );
 
@@ -160,12 +173,92 @@ function LotesTablePage() {
     [rows]
   );
 
+  const loteOptions = useMemo(
+    () =>
+      [...rows]
+        .filter((row) => row.mz === filters.mz)
+        .sort((left, right) => {
+          const byMz = left.mz.localeCompare(right.mz, "es", { sensitivity: "base" });
+          if (byMz !== 0) return byMz;
+          return left.lote - right.lote;
+        })
+        .map((row) => ({
+          id: row.id,
+          label: `${row.mz}-${row.lote}`,
+        })),
+    [filters.mz, rows]
+  );
+
+  const areaBounds = useMemo(() => {
+    const values = rows
+      .map((row) => toFiniteNumber(row.areaM2))
+      .filter((value): value is number => value != null);
+    if (values.length === 0) return { min: 0, max: 100 };
+    return {
+      min: Number(Math.min(...values).toFixed(2)),
+      max: Number(Math.max(...values).toFixed(2)),
+    };
+  }, [rows]);
+
+  const priceBounds = useMemo(() => {
+    const values = rows
+      .map((row) => toFiniteNumber(row.price))
+      .filter((value): value is number => value != null);
+    if (values.length === 0) return { min: 0, max: 1000 };
+    return {
+      min: Number(Math.min(...values).toFixed(2)),
+      max: Number(Math.max(...values).toFixed(2)),
+    };
+  }, [rows]);
+
+  useEffect(() => {
+    setFilters((current) => {
+      const nextAreaMin = Math.max(areaBounds.min, Math.min(current.areaMin || areaBounds.min, areaBounds.max));
+      const nextAreaMax = Math.min(areaBounds.max, Math.max(current.areaMax || areaBounds.max, areaBounds.min));
+      const nextPriceMin = Math.max(priceBounds.min, Math.min(current.priceMin || priceBounds.min, priceBounds.max));
+      const nextPriceMax = Math.min(priceBounds.max, Math.max(current.priceMax || priceBounds.max, priceBounds.min));
+
+      return {
+        ...current,
+        areaMin: Math.min(nextAreaMin, nextAreaMax),
+        areaMax: Math.max(nextAreaMin, nextAreaMax),
+        priceMin: Math.min(nextPriceMin, nextPriceMax),
+        priceMax: Math.max(nextPriceMin, nextPriceMax),
+      };
+    });
+  }, [areaBounds.max, areaBounds.min, priceBounds.max, priceBounds.min]);
+
+  useEffect(() => {
+    setFilters((current) => {
+      if (!current.mz || current.mz === "TODAS") {
+        if (current.loteId === "TODOS") return current;
+        return { ...current, loteId: "TODOS" };
+      }
+
+      const exists = loteOptions.some((option) => option.id === current.loteId);
+      if (current.loteId === "TODOS" || exists) return current;
+      return { ...current, loteId: "TODOS" };
+    });
+  }, [loteOptions]);
+
   const visibleRows = useMemo(() => {
     const term = query.trim().toLowerCase();
     const filtered = rows.filter((row) => {
       const byMz = filters.mz === "TODAS" || row.mz === filters.mz;
+      const byMzResolved = !filters.mz || byMz;
       const byStatus = filters.estado === "TODOS" || normalizeStatus(row.condicion) === filters.estado;
-      if (!byMz || !byStatus) return false;
+      const byLote = filters.loteId === "TODOS" || row.id === filters.loteId;
+      const areaValue = toFiniteNumber(row.areaM2);
+      if (areaValue == null) return false;
+      const byArea = areaValue >= filters.areaMin && areaValue <= filters.areaMax;
+      const priceValue = toFiniteNumber(row.price);
+      if (priceValue == null) return false;
+      const byPrice = priceValue >= filters.priceMin && priceValue <= filters.priceMax;
+      const hasSale = Boolean(salesByLoteCode[row.id]);
+      const byVenta =
+        filters.venta === "TODOS" ||
+        (filters.venta === "CON_VENTA" ? hasSale : !hasSale);
+      if (!byMzResolved || !byStatus || !byLote || !byArea || !byPrice || !byVenta) return false;
 
       if (!term) return true;
       const raw = [row.id, row.mz, String(row.lote), String(row.price ?? ""), row.condicion]
@@ -183,9 +276,9 @@ function LotesTablePage() {
         case "lote":
           return left.lote - right.lote;
         case "area":
-          return (left.areaM2 ?? -1) - (right.areaM2 ?? -1);
+          return (toFiniteNumber(left.areaM2) ?? -1) - (toFiniteNumber(right.areaM2) ?? -1);
         case "precio":
-          return (left.price ?? -1) - (right.price ?? -1);
+          return (toFiniteNumber(left.price) ?? -1) - (toFiniteNumber(right.price) ?? -1);
         case "condicion":
           return normalizeStatus(left.condicion).localeCompare(normalizeStatus(right.condicion), "es", {
             sensitivity: "base",
@@ -196,7 +289,21 @@ function LotesTablePage() {
     });
 
     return sort.direction === "asc" ? sorted : sorted.reverse();
-  }, [filters.estado, filters.mz, query, rows, sort.direction, sort.key]);
+  }, [
+    filters.areaMax,
+    filters.areaMin,
+    filters.estado,
+    filters.loteId,
+    filters.mz,
+    filters.priceMax,
+    filters.priceMin,
+    filters.venta,
+    query,
+    rows,
+    salesByLoteCode,
+    sort.direction,
+    sort.key,
+  ]);
 
   const readValue = (row: Lote, field: keyof EditableFields) => {
     const draft = drafts[row.id];
@@ -355,7 +462,14 @@ function LotesTablePage() {
     });
   };
 
-  const resetFilters = () => setFilters(defaultFilters);
+  const resetFilters = () =>
+    setFilters({
+      ...defaultFilters,
+      areaMin: areaBounds.min,
+      areaMax: areaBounds.max,
+      priceMin: priceBounds.min,
+      priceMax: priceBounds.max,
+    });
 
   const toolbarActions = (
     <>
@@ -365,10 +479,6 @@ function LotesTablePage() {
           <span className="data-table-toolbar__btn-label">Ajuste masivo</span>
         </button>
       ) : null}
-      <button type="button" className="btn ghost data-table-toolbar__btn" onClick={() => loadRows(false)}>
-        <IconRefresh />
-        <span className="data-table-toolbar__btn-label">Refrescar</span>
-      </button>
     </>
   );
 
@@ -391,7 +501,119 @@ function LotesTablePage() {
           />
         }
         filters={
-          <DataTableFilters open={filtersOpen}>
+          <DataTableFilters open={filtersOpen} className="data-table-filters--lotes">
+            <div className="data-table-filters__group data-table-filters__group--mz-lote">
+              <label className="data-table-filters__field data-table-filters__field--half">
+                <span>MZ</span>
+                <select
+                  value={filters.mz}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      mz: event.target.value,
+                      loteId: "TODOS",
+                    }))
+                }
+              >
+                  <option value="TODAS">Todas</option>
+                  {mzOptions.map((mz) => (
+                    <option key={mz} value={mz}>
+                      {mz}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="data-table-filters__field data-table-filters__field--half">
+                <span>Lote</span>
+                <select
+                  value={filters.loteId}
+                  disabled={!filters.mz || filters.mz === "TODAS"}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      loteId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="TODOS">Todos</option>
+                  {loteOptions.map((lote) => (
+                    <option key={lote.id} value={lote.id}>
+                      {lote.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="data-table-filters__field">
+              <span>{`Area m2 (${areaBounds.min} - ${areaBounds.max})`}</span>
+              <div className="data-table-filters__range-pair">
+                <input
+                  type="number"
+                  step="0.01"
+                  min={areaBounds.min}
+                  max={filters.areaMax}
+                  value={filters.areaMin}
+                  onChange={(event) => {
+                    const raw = numberFromInput(event.target.value);
+                    if (raw == null) return;
+                    const nextMin = clampBetween(raw, areaBounds.min, filters.areaMax);
+                    setFilters((current) => ({ ...current, areaMin: nextMin }));
+                  }}
+                  placeholder="Min m2"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  min={filters.areaMin}
+                  max={areaBounds.max}
+                  value={filters.areaMax}
+                  onChange={(event) => {
+                    const raw = numberFromInput(event.target.value);
+                    if (raw == null) return;
+                    const nextMax = clampBetween(raw, filters.areaMin, areaBounds.max);
+                    setFilters((current) => ({ ...current, areaMax: nextMax }));
+                  }}
+                  placeholder="Max m2"
+                />
+              </div>
+            </label>
+
+            <label className="data-table-filters__field">
+              <span>{`Precio (S/ ${priceBounds.min} - S/ ${priceBounds.max})`}</span>
+              <div className="data-table-filters__range-pair">
+                <input
+                  type="number"
+                  step="0.01"
+                  min={priceBounds.min}
+                  max={filters.priceMax}
+                  value={filters.priceMin}
+                  onChange={(event) => {
+                    const raw = numberFromInput(event.target.value);
+                    if (raw == null) return;
+                    const nextMin = clampBetween(raw, priceBounds.min, filters.priceMax);
+                    setFilters((current) => ({ ...current, priceMin: nextMin }));
+                  }}
+                  placeholder="Min S/"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  min={filters.priceMin}
+                  max={priceBounds.max}
+                  value={filters.priceMax}
+                  onChange={(event) => {
+                    const raw = numberFromInput(event.target.value);
+                    if (raw == null) return;
+                    const nextMax = clampBetween(raw, filters.priceMin, priceBounds.max);
+                    setFilters((current) => ({ ...current, priceMax: nextMax }));
+                  }}
+                  placeholder="Max S/"
+                />
+              </div>
+            </label>
+
             <label className="data-table-filters__field">
               <span>Estado</span>
               <select
@@ -411,22 +633,19 @@ function LotesTablePage() {
             </label>
 
             <label className="data-table-filters__field">
-              <span>MZ</span>
+              <span>Con venta / Sin venta</span>
               <select
-                value={filters.mz}
+                value={filters.venta}
                 onChange={(event) =>
                   setFilters((current) => ({
                     ...current,
-                    mz: event.target.value,
+                    venta: event.target.value as LotesFilters["venta"],
                   }))
                 }
               >
-                <option value="TODAS">Todas</option>
-                {mzOptions.map((mz) => (
-                  <option key={mz} value={mz}>
-                    {mz}
-                  </option>
-                ))}
+                <option value="TODOS">Todos</option>
+                <option value="CON_VENTA">Con venta</option>
+                <option value="SIN_VENTA">Sin venta</option>
               </select>
             </label>
           </DataTableFilters>
@@ -478,12 +697,12 @@ function LotesTablePage() {
                 </th>
                 <th>
                   <DataTableSortHeader
-                    label="CONDICION"
+                    label="ESTADO"
                     direction={sortDirectionFor("condicion")}
                     onToggle={() => handleSort("condicion")}
                   />
                 </th>
-                <th>ACCION</th>
+                <th>ACCIONES</th>
               </tr>
             </thead>
             <tbody>
@@ -501,6 +720,7 @@ function LotesTablePage() {
                 const currentStatus = readValue(row, "estado");
                 const dirty = isDirty(row);
                 const disabled = savingId === row.id;
+                const activeSaleId = salesByLoteCode[row.id];
                 return (
                   <tr key={row.id}>
                     <td>{row.mz}</td>
@@ -546,13 +766,12 @@ function LotesTablePage() {
                         </button>
                         <button
                           type="button"
-                          className="btn ghost"
-                          disabled={!salesByLoteCode[row.id]}
+                          className={`btn ghost seller-sale-btn${activeSaleId ? " seller-sale-btn--active" : ""}`}
                           onClick={() => openSaleFlow(row)}
-                          title={salesByLoteCode[row.id] ? "Abrir venta" : "Este lote aun no tiene venta activa"}
+                          title={activeSaleId ? "Abrir venta" : "Crear venta"}
                         >
                           <IconSale />
-                          Venta
+                          {activeSaleId ? "Venta" : "Vender"}
                         </button>
                       </div>
                     </td>

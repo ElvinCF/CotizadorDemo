@@ -88,14 +88,16 @@ export default function DataTableToolbar({
 
   return (
     <div className={`data-table-toolbar${mobileSearchOpen ? " is-search-open" : ""}`}>
-      <button
-        type="button"
-        className="btn ghost icon-only data-table-toolbar__search-toggle"
-        onClick={() => setMobileSearchOpen(true)}
-        aria-label="Buscar"
-      >
-        <IconSearch />
-      </button>
+      {!mobileSearchOpen ? (
+        <button
+          type="button"
+          className="btn ghost icon-only data-table-toolbar__search-toggle"
+          onClick={() => setMobileSearchOpen(true)}
+          aria-label="Buscar"
+        >
+          <IconSearch />
+        </button>
+      ) : null}
 
       <label className={`data-table-toolbar__search${mobileSearchOpen ? " is-open" : ""}`}>
         <span className="data-table-toolbar__search-icon" aria-hidden="true">
