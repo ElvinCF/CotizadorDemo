@@ -19,6 +19,12 @@ body {
 
 body {
   line-height: 1.5;
+  overflow: hidden;
+}
+
+#root {
+  height: 100dvh;
+  overflow: hidden;
 }
 
 img,

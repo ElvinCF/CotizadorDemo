@@ -149,6 +149,7 @@ const requestDashboardItems = async <T>(
 const toAdminFilterParams = (filters?: DashboardAdminFilters) => ({
   from: filters?.from ?? null,
   to: filters?.to ?? null,
+  manzana: filters?.manzana ?? null,
   asesorId: filters?.asesorId ?? null,
   estadoLote: filters?.estadoLote ?? null,
   estadoVenta: filters?.estadoVenta ?? null,
@@ -159,6 +160,7 @@ const toAdminFilterParams = (filters?: DashboardAdminFilters) => ({
 const toCommonFilterParams = (filters?: DashboardCommonFilters) => ({
   from: filters?.from ?? null,
   to: filters?.to ?? null,
+  manzana: filters?.manzana ?? null,
   estadoLote: filters?.estadoLote ?? null,
   estadoVenta: filters?.estadoVenta ?? null,
   page: filters?.page ?? null,
@@ -174,7 +176,15 @@ export const getAdminDashboardKpis = async (filters?: DashboardAdminFilters) =>
   );
 
 export const getAdminDashboardOverview = async (
-  filters?: DashboardAdminFilters & { groupBy?: DashboardGroupBy | null; metric?: DashboardRankingMetric | null; topN?: number | null }
+  filters?: DashboardAdminFilters & {
+    groupBy?: DashboardGroupBy | null;
+    metric?: DashboardRankingMetric | null;
+    topN?: number | null;
+    year?: number | null;
+    month?: number | null;
+    manzana?: string | null;
+    search?: string | null;
+  }
 ) =>
   requestDashboardItem<DashboardAdminOverview>(
     "admin",
@@ -184,6 +194,10 @@ export const getAdminDashboardOverview = async (
       groupBy: filters?.groupBy ?? null,
       metric: filters?.metric ?? null,
       topN: filters?.topN ?? null,
+      year: filters?.year ?? null,
+      month: filters?.month ?? null,
+      manzana: filters?.manzana ?? null,
+      search: filters?.search ?? null,
     },
     "No se pudo cargar el resumen del dashboard administrativo."
   );
