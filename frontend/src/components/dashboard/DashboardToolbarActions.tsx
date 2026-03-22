@@ -32,11 +32,11 @@ export default function DashboardToolbarActions({ onPrint, onClear }: DashboardT
     <div className="dashboard-toolbar-actions">
       <button type="button" className="btn" onClick={onPrint}>
         <IconPrint />
-        Imprimir PDF
+        <span className="dashboard-toolbar-actions__label">Imprimir PDF</span>
       </button>
       <button type="button" className="btn ghost" onClick={onClear}>
         <IconClear />
-        Limpiar
+        <span className="dashboard-toolbar-actions__label">Limpiar</span>
       </button>
     </div>
   );
