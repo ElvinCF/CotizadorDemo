@@ -1,19 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import AdminDashboardBarChart from "../../components/admin-dashboard/AdminDashboardBarChart";
 import AdminDashboardDonutChart from "../../components/admin-dashboard/AdminDashboardDonutChart";
 import AdminDashboardLineChart from "../../components/admin-dashboard/AdminDashboardLineChart";
+import AdminDashboardManzanaChart from "../../components/admin-dashboard/AdminDashboardManzanaChart";
 import AdminDashboardRanking from "../../components/admin-dashboard/AdminDashboardRanking";
 import AdminDashboardStatCard from "../../components/admin-dashboard/AdminDashboardStatCard";
+import DataTable from "../../components/data-table/DataTable";
+import DataTableSortHeader from "../../components/data-table/DataTableSortHeader";
 import DashboardFilterField from "../../components/dashboard/DashboardFilterField";
 import DashboardFilterToggle from "../../components/dashboard/DashboardFilterToggle";
 import DashboardFilterToolbar from "../../components/dashboard/DashboardFilterToolbar";
 import DashboardToolbarActions from "../../components/dashboard/DashboardToolbarActions";
+import type { SortState } from "../../components/data-table/types";
 import type {
   DashboardAdminFilters,
+  DashboardAdminExecutiveOverview,
   DashboardAdminKpis,
+  DashboardCollectionsSeriesItem,
   DashboardAdvisorSummaryItem,
   DashboardGroupBy,
   DashboardInventoryItem,
@@ -23,12 +29,19 @@ import type {
 } from "../../domain/dashboard";
 import type { AdminUser } from "../../domain/adminUsers";
 import type { SaleState } from "../../domain/ventas";
-import { formatMoney } from "../../domain/formatters";
 import { listAdminUsers } from "../../services/adminUsers";
 import {
+  getAdminDashboardCollectionsSeries,
+  getAdminDashboardAdvisorRanking,
+  getAdminDashboardInventory,
   getAdminDashboardOverview,
+  getAdminDashboardSalesSeries,
 } from "../../services/dashboard";
+import { loadLotesFromApi } from "../../services/lotes";
 import { exportElementToPdfA4 } from "../../utils/exportElementToPdfA4";
+
+type CollectionSortKey = "cliente" | "telefono" | "lote" | "fecha" | "monto";
+type ManzanaRankingMetric = "todas" | "valor_total_mz" | "valor_vendido" | "valor_cobrado";
 
 type DashboardFiltersState = {
   from: string;
@@ -39,6 +52,10 @@ type DashboardFiltersState = {
   groupBy: DashboardGroupBy;
   metric: DashboardRankingMetric;
   topN: string;
+  year: string;
+  month: string;
+  manzana: string;
+  search: string;
 };
 
 const SALE_STATE_OPTIONS: Array<{ value: "" | SaleState; label: string }> = [
@@ -58,12 +75,6 @@ const LOT_STATE_OPTIONS: Array<{ value: "" | DashboardLotState; label: string }>
   { value: "VENDIDO", label: "Vendido" },
 ];
 
-const GROUP_BY_OPTIONS: Array<{ value: DashboardGroupBy; label: string }> = [
-  { value: "day", label: "Dia" },
-  { value: "week", label: "Semana" },
-  { value: "month", label: "Mes" },
-];
-
 const RANKING_METRIC_OPTIONS: Array<{ value: DashboardRankingMetric; label: string }> = [
   { value: "monto_vendido", label: "Monto vendido" },
   { value: "monto_cobrado", label: "Monto cobrado" },
@@ -72,6 +83,29 @@ const RANKING_METRIC_OPTIONS: Array<{ value: DashboardRankingMetric; label: stri
   { value: "cantidad_ventas", label: "Cantidad de ventas" },
   { value: "cartera_activa", label: "Cartera activa" },
   { value: "mayor_venta", label: "Mayor venta" },
+];
+
+const MANZANA_RANKING_OPTIONS: Array<{ value: ManzanaRankingMetric; label: string }> = [
+  { value: "todas", label: "Todas" },
+  { value: "valor_vendido", label: "Ranking por vendido" },
+  { value: "valor_cobrado", label: "Ranking por cobrado" },
+  { value: "valor_total_mz", label: "Ranking por valor total" },
+];
+
+const MONTH_OPTIONS = [
+  { value: "TODOS", label: "Todos" },
+  { value: "1", label: "Enero" },
+  { value: "2", label: "Febrero" },
+  { value: "3", label: "Marzo" },
+  { value: "4", label: "Abril" },
+  { value: "5", label: "Mayo" },
+  { value: "6", label: "Junio" },
+  { value: "7", label: "Julio" },
+  { value: "8", label: "Agosto" },
+  { value: "9", label: "Septiembre" },
+  { value: "10", label: "Octubre" },
+  { value: "11", label: "Noviembre" },
+  { value: "12", label: "Diciembre" },
 ];
 
 const emptyKpis: DashboardAdminKpis = {
@@ -99,6 +133,57 @@ const defaultFilters: DashboardFiltersState = {
   groupBy: "month",
   metric: "monto_vendido",
   topN: "5",
+  year: String(new Date().getFullYear()),
+  month: "TODOS",
+  manzana: "",
+  search: "",
+};
+
+const emptyExecutive: DashboardAdminExecutiveOverview = {
+  period: {
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+    from: "",
+    to: "",
+  },
+  projectSummary: {
+    totalLotes: 0,
+    totalVendidos: 0,
+    totalSeparados: 0,
+    totalDisponibles: 0,
+    porcentajeAvanceVentas: 0,
+  },
+  salesMonth: {
+    cantidadVendidosMes: 0,
+    valorTotalVendidoMes: 0,
+    precioPromedioVendidoMes: 0,
+    loteMasCaroCodigo: "-",
+    precioMaxVendidoMes: 0,
+    loteMasBaratoCodigo: "-",
+    precioMinVendidoMes: 0,
+  },
+  incomeMonth: {
+    ingresoInicialMes: 0,
+    ingresoCuotasMes: 0,
+    ingresoTotalMes: 0,
+    diferenciaVendidoCobradoMes: 0,
+  },
+  monthComparison: {
+    ventasMesActual: 0,
+    ventasMesAnterior: 0,
+    ingresosMesActual: 0,
+    ingresosMesAnterior: 0,
+    variacionVentasPct: 0,
+    variacionIngresosPct: 0,
+  },
+  advisorPerformance: [],
+  manzanaSummary: [],
+  priceControl: [],
+  collections: {
+    pendingToday: [],
+    dueNext7Days: [],
+    overdue: [],
+  },
 };
 
 const IconMap = () => (
@@ -179,6 +264,27 @@ const compactMoney = (value: number) =>
     maximumFractionDigits: 1,
   }).format(value);
 
+const exactMoney = (value: number) =>
+  new Intl.NumberFormat("es-PE", {
+    style: "currency",
+    currency: "PEN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+
+const formatDatePe = (value: string) => {
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleDateString("es-PE");
+};
+
+const capitalizeName = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/\b\p{L}/gu, (match) => match.toUpperCase());
+
 const formatBucketLabel = (bucket: string) => {
   const parsed = new Date(bucket);
   if (Number.isNaN(parsed.getTime())) {
@@ -235,23 +341,57 @@ const inventoryLabel = (state: DashboardInventoryItem["estadoComercial"]) => {
   }
 };
 
+const monthRangeFromSelectors = (yearText: string, monthText: string) => {
+  const year = Number.parseInt(yearText, 10);
+  if (!Number.isInteger(year)) {
+    return { from: null, to: null };
+  }
+  if (monthText === "TODOS") {
+    return {
+      from: `${year}-01-01`,
+      to: `${year}-12-31`,
+    };
+  }
+  const month = Number.parseInt(monthText, 10);
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    return { from: null, to: null };
+  }
+  const from = `${year}-${String(month).padStart(2, "0")}-01`;
+  const endDate = new Date(year, month, 0);
+  const to = `${year}-${String(month).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+  return { from, to };
+};
+
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { loginUsername, loginPin, username } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [manzanaOptions, setManzanaOptions] = useState<string[]>([]);
   const [filters, setFilters] = useState<DashboardFiltersState>(defaultFilters);
+  const [lineGroupBy, setLineGroupBy] = useState<DashboardGroupBy>("month");
+  const [rankingMetric, setRankingMetric] = useState<DashboardRankingMetric>("monto_vendido");
+  const [manzanaRankingMetric, setManzanaRankingMetric] = useState<ManzanaRankingMetric>("todas");
   const [filtersOpen, setFiltersOpen] = useState(() =>
     typeof window === "undefined" ? true : window.innerWidth > 640
   );
   const [kpis, setKpis] = useState<DashboardAdminKpis>(emptyKpis);
   const [salesSeries, setSalesSeries] = useState<DashboardSalesSeriesItem[]>([]);
+  const [collectionsSeries, setCollectionsSeries] = useState<DashboardCollectionsSeriesItem[]>([]);
   const [inventory, setInventory] = useState<DashboardInventoryItem[]>([]);
+  const [inventoryGlobal, setInventoryGlobal] = useState<DashboardInventoryItem[]>([]);
   const [advisorSummary, setAdvisorSummary] = useState<DashboardAdvisorSummaryItem[]>([]);
   const [advisorRanking, setAdvisorRanking] = useState<DashboardAdvisorSummaryItem[]>([]);
+  const [executive, setExecutive] = useState<DashboardAdminExecutiveOverview>(emptyExecutive);
+  const [todaySort, setTodaySort] = useState<SortState<CollectionSortKey>>({ key: "fecha", direction: "asc" });
+  const [nextSort, setNextSort] = useState<SortState<CollectionSortKey>>({ key: "fecha", direction: "asc" });
+  const [overdueSort, setOverdueSort] = useState<SortState<CollectionSortKey>>({ key: "fecha", direction: "asc" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const dashboardRef = useRef<HTMLElement | null>(null);
+  const lineSeriesCacheRef = useRef(
+    new Map<string, { sales: DashboardSalesSeriesItem[]; collections: DashboardCollectionsSeriesItem[] }>()
+  );
 
   useEffect(() => {
     if (location.hash === "#usuarios") {
@@ -283,15 +423,67 @@ export default function AdminDashboardPage() {
     };
   }, [loginPin, loginUsername]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadManzanas = async () => {
+      try {
+        const lotes = await loadLotesFromApi();
+        if (cancelled) {
+          return;
+        }
+        const options = Array.from(
+          new Set(
+            lotes
+              .map((lote) => String(lote.mz ?? "").trim().toUpperCase())
+              .filter(Boolean)
+          )
+        ).sort((a, b) => a.localeCompare(b, "es"));
+        setManzanaOptions(options);
+      } catch {
+        if (!cancelled) {
+          setManzanaOptions([]);
+        }
+      }
+    };
+    void loadManzanas();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInventoryGlobal = async () => {
+      try {
+        const items = await getAdminDashboardInventory();
+        if (!cancelled) {
+          setInventoryGlobal(items);
+        }
+      } catch {
+        if (!cancelled) {
+          setInventoryGlobal([]);
+        }
+      }
+    };
+    void loadInventoryGlobal();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const requestFilters = useMemo<DashboardAdminFilters>(
-    () => ({
-      from: filters.from || null,
-      to: filters.to || null,
+    () => {
+      const monthRange = monthRangeFromSelectors(filters.year, filters.month);
+      return {
+      from: monthRange.from ?? (filters.from || null),
+      to: monthRange.to ?? (filters.to || null),
+      manzana: filters.manzana || null,
       estadoLote: filters.estadoLote || null,
       estadoVenta: filters.estadoVenta || null,
       asesorId: filters.asesorId || null,
-    }),
-    [filters.asesorId, filters.estadoLote, filters.estadoVenta, filters.from, filters.to]
+      };
+    },
+    [filters.asesorId, filters.estadoLote, filters.estadoVenta, filters.from, filters.manzana, filters.month, filters.to, filters.year]
   );
 
   useEffect(() => {
@@ -304,28 +496,32 @@ export default function AdminDashboardPage() {
       try {
         const overview = await getAdminDashboardOverview({
           ...requestFilters,
-          groupBy: filters.groupBy,
-          metric: filters.metric,
+          groupBy: "month",
+          metric: "monto_vendido",
           topN: Number.parseInt(filters.topN, 10) || 5,
+          year: Number.parseInt(filters.year, 10) || null,
+          month: filters.month === "TODOS" ? null : Number.parseInt(filters.month, 10) || null,
+          manzana: filters.manzana || null,
+          search: null,
         });
         if (cancelled) {
           return;
         }
         // Pinta KPIs primero para mejorar percepcion de carga.
         setKpis(overview.kpis);
-        setSalesSeries(overview.salesSeries);
         setInventory(overview.inventory);
         setAdvisorSummary(overview.advisorSummary);
         setAdvisorRanking(overview.advisorRanking);
+        setExecutive(overview.executive ?? emptyExecutive);
       } catch (loadError) {
         if (cancelled) {
           return;
         }
         setKpis(emptyKpis);
-        setSalesSeries([]);
         setInventory([]);
         setAdvisorSummary([]);
         setAdvisorRanking([]);
+        setExecutive(emptyExecutive);
         setError(loadError instanceof Error ? loadError.message : "No se pudo cargar KPIs.");
       }
 
@@ -337,32 +533,92 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [filters.groupBy, filters.metric, filters.topN, requestFilters]);
+  }, [filters.month, filters.year, requestFilters]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRanking = async () => {
+      try {
+        const ranking = await getAdminDashboardAdvisorRanking({
+          ...requestFilters,
+          metric: rankingMetric,
+          topN: Number.parseInt(filters.topN, 10) || 5,
+        });
+        if (!cancelled) {
+          setAdvisorRanking(ranking);
+        }
+      } catch {
+        if (!cancelled) {
+          setAdvisorRanking([]);
+        }
+      }
+    };
+
+    void loadRanking();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.topN, rankingMetric, requestFilters]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLineSeries = async () => {
+      const cacheKey = JSON.stringify({ ...requestFilters, groupBy: lineGroupBy });
+      const cached = lineSeriesCacheRef.current.get(cacheKey);
+      if (cached) {
+        setSalesSeries(cached.sales);
+        setCollectionsSeries(cached.collections);
+        return;
+      }
+
+      try {
+        const [sales, collections] = await Promise.all([
+          getAdminDashboardSalesSeries({ ...requestFilters, groupBy: lineGroupBy }),
+          getAdminDashboardCollectionsSeries({ ...requestFilters, groupBy: lineGroupBy }),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        setSalesSeries(sales);
+        setCollectionsSeries(collections);
+        lineSeriesCacheRef.current.set(cacheKey, { sales, collections });
+      } catch {
+        if (!cancelled) {
+          setSalesSeries([]);
+          setCollectionsSeries([]);
+        }
+      }
+    };
+
+    void loadLineSeries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lineGroupBy, requestFilters]);
 
   const advisors = useMemo(
     () => users.filter((user) => user.rol === "ASESOR" && user.estado === "ACTIVO"),
     [users]
   );
 
-  const topAdvisorName = useMemo(() => {
-    if (!kpis.asesorTopNombre && !kpis.asesorTopUsername) {
-      return "Sin asesor destacado";
-    }
-    return kpis.asesorTopNombre || kpis.asesorTopUsername || "Sin asesor destacado";
-  }, [kpis.asesorTopNombre, kpis.asesorTopUsername]);
-
-  const lineSeries = useMemo(
-    () =>
-      salesSeries.map((item) => ({
-        label: formatBucketLabel(item.bucket),
-        value: item.montoVendido,
-      })),
-    [salesSeries]
-  );
+  const lineSeries = useMemo(() => {
+    const collectedByBucket = new Map(
+      collectionsSeries.map((item) => [item.bucket, item.montoCobrado])
+    );
+    return salesSeries.map((item) => ({
+      label: formatBucketLabel(item.bucket),
+      sold: item.montoVendido,
+      collected: collectedByBucket.get(item.bucket) ?? 0,
+    }));
+  }, [collectionsSeries, salesSeries]);
 
   const donutSegments = useMemo(
     () =>
-      inventory.map((item) => ({
+      inventoryGlobal.map((item) => ({
         label: inventoryLabel(item.estadoComercial),
         value: item.cantidad,
         color:
@@ -372,18 +628,27 @@ export default function AdminDashboardPage() {
               ? "var(--admin-donut-separado)"
               : "var(--admin-donut-vendido)",
       })),
-    [inventory]
+    [inventoryGlobal]
   );
 
   const summaryBars = useMemo(() => {
     const sortedItems = [...advisorSummary].sort((a, b) => b.montoVendido - a.montoVendido);
-    const maxValue = Math.max(...sortedItems.map((item) => item.montoVendido), 1);
+    const maxValue = Math.max(
+      ...sortedItems.map((item) => Math.max(item.montoVendido, item.montoCobrado)),
+      1
+    );
 
     return sortedItems.map((item) => ({
       label: item.asesorNombre || item.asesorUsername || "Asesor",
       helper: `${item.cantidadVentas} ventas · cartera ${item.carteraActiva}`,
       valueLabel: compactMoney(item.montoVendido),
+      primaryLabel: "Vendido",
       ratio: item.montoVendido / maxValue,
+      primaryAmount: item.montoVendido,
+      secondaryLabel: "Cobrado",
+      secondaryValueLabel: compactMoney(item.montoCobrado),
+      secondaryRatio: item.montoCobrado / maxValue,
+      secondaryAmount: item.montoCobrado,
     }));
   }, [advisorSummary]);
 
@@ -391,16 +656,90 @@ export default function AdminDashboardPage() {
     () =>
       advisorRanking.map((item) => {
         const name = item.asesorNombre || item.asesorUsername || "Asesor";
-        const value = metricToValue(item, filters.metric);
+        const value = metricToValue(item, rankingMetric);
         return {
           name,
           detail: `${item.cantidadVentas} ventas · cobrado ${compactMoney(item.montoCobrado)}`,
-          valueLabel: filters.metric === "cantidad_ventas" || filters.metric === "cartera_activa" ? String(value) : compactMoney(value),
-          helper: metricToLabel(filters.metric),
+          valueLabel: rankingMetric === "cantidad_ventas" || rankingMetric === "cartera_activa" ? String(value) : compactMoney(value),
+          helper: metricToLabel(rankingMetric),
           initials: getInitials(name),
         };
       }),
-    [advisorRanking, filters.metric]
+    [advisorRanking, rankingMetric]
+  );
+
+  const executiveManzanaBars = useMemo(() => {
+    const sorted = [...executive.manzanaSummary].sort((a, b) => {
+      if (manzanaRankingMetric === "todas") {
+        return a.manzana.localeCompare(b.manzana, "es");
+      }
+      if (manzanaRankingMetric === "valor_total_mz") {
+        return b.valorTotalMz - a.valorTotalMz;
+      }
+      if (manzanaRankingMetric === "valor_cobrado") {
+        return b.valorCobrado - a.valorCobrado;
+      }
+      return b.valorVendido - a.valorVendido;
+    });
+    return manzanaRankingMetric === "todas" ? sorted : sorted.slice(0, 8);
+  }, [executive.manzanaSummary, manzanaRankingMetric]);
+
+  const sortDirectionForCollection = (sort: SortState<CollectionSortKey>, key: CollectionSortKey) =>
+    sort.key === key ? sort.direction : null;
+
+  const toggleCollectionSort = (
+    setSort: Dispatch<SetStateAction<SortState<CollectionSortKey>>>,
+    key: CollectionSortKey
+  ) => {
+    setSort((current) => {
+      if (current.key !== key) {
+        return { key, direction: "asc" };
+      }
+      if (current.direction === "asc") {
+        return { key, direction: "desc" };
+      }
+      return { key: null, direction: null };
+    });
+  };
+
+  const sortCollections = (
+    items: DashboardAdminExecutiveOverview["collections"]["pendingToday"],
+    sort: SortState<CollectionSortKey>
+  ) => {
+    if (!sort.key || !sort.direction) {
+      return items;
+    }
+    const multiplier = sort.direction === "asc" ? 1 : -1;
+    const copy = [...items];
+    copy.sort((a, b) => {
+      if (sort.key === "cliente") {
+        return a.clienteNombre.localeCompare(b.clienteNombre, "es") * multiplier;
+      }
+      if (sort.key === "lote") {
+        return a.loteCodigo.localeCompare(b.loteCodigo, "es") * multiplier;
+      }
+      if (sort.key === "telefono") {
+        return (a.clienteTelefono ?? "").localeCompare(b.clienteTelefono ?? "", "es") * multiplier;
+      }
+      if (sort.key === "fecha") {
+        return a.fechaVencimiento.localeCompare(b.fechaVencimiento) * multiplier;
+      }
+      return (a.montoPagar - b.montoPagar) * multiplier;
+    });
+    return copy;
+  };
+
+  const pendingTodayRows = useMemo(
+    () => sortCollections(executive.collections.pendingToday, todaySort),
+    [executive.collections.pendingToday, todaySort]
+  );
+  const dueNextRows = useMemo(
+    () => sortCollections(executive.collections.dueNext7Days, nextSort),
+    [executive.collections.dueNext7Days, nextSort]
+  );
+  const overdueRows = useMemo(
+    () => sortCollections(executive.collections.overdue, overdueSort),
+    [executive.collections.overdue, overdueSort]
   );
 
   const actions = (
@@ -458,19 +797,39 @@ export default function AdminDashboardPage() {
     >
       <section className="admin-dashboard" ref={dashboardRef}>
         <DashboardFilterToolbar id="admin-dashboard-filters" open={filtersOpen} className="admin-dashboard__filters--admin">
-          <DashboardFilterField label="Desde" icon={<IconCalendar />}>
-              <input
-                type="date"
-                value={filters.from}
-                onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
-              />
+          <DashboardFilterField label="Año" icon={<IconCalendar />}>
+            <input
+              type="number"
+              min={2000}
+              max={2100}
+              value={filters.year}
+              onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}
+            />
           </DashboardFilterField>
-          <DashboardFilterField label="Hasta" icon={<IconCalendar />}>
-              <input
-                type="date"
-                value={filters.to}
-                onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
-              />
+          <DashboardFilterField label="Mes" icon={<IconCalendar />}>
+            <select
+              value={filters.month}
+              onChange={(event) => setFilters((current) => ({ ...current, month: event.target.value }))}
+            >
+              {MONTH_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </DashboardFilterField>
+          <DashboardFilterField label="Mz" icon={<IconFilter />}>
+            <select
+              value={filters.manzana}
+              onChange={(event) => setFilters((current) => ({ ...current, manzana: event.target.value }))}
+            >
+              <option value="">Todas</option>
+              {manzanaOptions.map((mz) => (
+                <option key={mz} value={mz}>
+                  {mz}
+                </option>
+              ))}
+            </select>
           </DashboardFilterField>
           <DashboardFilterField label="Estado lote" icon={<IconFilter />}>
               <select
@@ -519,49 +878,6 @@ export default function AdminDashboardPage() {
                 ))}
               </select>
           </DashboardFilterField>
-          <DashboardFilterField label="Agrupar" icon={<IconFilter />}>
-              <select
-                value={filters.groupBy}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    groupBy: event.target.value as DashboardGroupBy,
-                  }))
-                }
-              >
-                {GROUP_BY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-          </DashboardFilterField>
-          <DashboardFilterField label="Ranking" icon={<IconRate />}>
-              <select
-                value={filters.metric}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    metric: event.target.value as DashboardRankingMetric,
-                  }))
-                }
-              >
-                {RANKING_METRIC_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-          </DashboardFilterField>
-          <DashboardFilterField label="Top N" icon={<IconLots />}>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={filters.topN}
-                onChange={(event) => setFilters((current) => ({ ...current, topN: event.target.value }))}
-              />
-          </DashboardFilterField>
           <DashboardToolbarActions onPrint={() => void printDashboard()} onClear={clearFilters} />
         </DashboardFilterToolbar>
 
@@ -569,53 +885,56 @@ export default function AdminDashboardPage() {
 
         <div className="admin-dashboard__stats">
           <AdminDashboardStatCard
-            label="Inventario total"
-            value={loading ? "..." : `${kpis.inventarioTotal}`}
-            helper={`${kpis.lotesDisponibles} disponibles`}
-            trend={`${kpis.lotesSeparados} separados · ${kpis.lotesVendidos} vendidos`}
+            label="Total lotes"
+            value={loading ? "..." : `${executive.projectSummary.totalLotes}`}
+            helper="Total del proyecto"
+            trend="Inventario global"
             tone="info"
             icon={<IconLots />}
           />
           <AdminDashboardStatCard
-            label="Ventas activas"
-            value={loading ? "..." : `${kpis.ventasActivas}`}
-            helper={topAdvisorName}
-            trend={`Top ${compactMoney(kpis.asesorTopMontoVendido)}`}
+            label="Total vendidos"
+            value={loading ? "..." : `${executive.projectSummary.totalVendidos}`}
+            helper="Lotes vendidos"
+            trend="Estado comercial"
             tone="success"
             icon={<IconSold />}
           />
           <AdminDashboardStatCard
-            label="Monto vendido"
-            value={loading ? "..." : compactMoney(kpis.montoVendido)}
-            helper={`Cobrado ${compactMoney(kpis.montoCobrado)}`}
-            trend={`Ticket ${compactMoney(kpis.ticketPromedioVenta)}`}
+            label="Total separados"
+            value={loading ? "..." : `${executive.projectSummary.totalSeparados}`}
+            helper="Lotes separados"
+            trend="Estado comercial"
             tone="warning"
             icon={<IconMoney />}
           />
           <AdminDashboardStatCard
-            label="Monto cobrado"
-            value={loading ? "..." : formatMoney(kpis.montoCobrado)}
-            helper={loading ? "..." : `Ticket promedio ${formatMoney(kpis.ticketPromedioVenta)}`}
-            trend="Cobranza acumulada"
+            label="Total disponibles"
+            value={loading ? "..." : `${executive.projectSummary.totalDisponibles}`}
+            helper="Lotes disponibles"
+            trend="Estado comercial"
             tone="warning"
             icon={<IconMoney />}
           />
           <AdminDashboardStatCard
-            label="Saldo pendiente"
-            value={loading ? "..." : compactMoney(kpis.saldoPendienteGlobal)}
-            helper={`${advisors.length} asesores activos`}
-            trend={`Filtro ${filters.estadoVenta || filters.estadoLote || "general"}`}
+            label="Avance de ventas"
+            value={loading ? "..." : `${executive.projectSummary.porcentajeAvanceVentas}%`}
+            helper="Porcentaje vendido"
+            trend={`Periodo ${filters.month === "TODOS" ? "todos" : filters.month}/${filters.year}`}
             tone="neutral"
             icon={<IconRate />}
           />
         </div>
 
+
         <div className="admin-dashboard__charts">
           <AdminDashboardLineChart
-            title="Serie de ventas"
-            subtitle="Monto vendido agrupado segun el periodo seleccionado."
-            legend={filters.groupBy}
+            title="Serie de ventas vs cobros"
+            subtitle="Comparativo por periodo con etiquetas redondeadas en K."
+            legend="Vendido vs cobrado"
             data={lineSeries}
+            groupBy={lineGroupBy}
+            onGroupByChange={setLineGroupBy}
           />
           <AdminDashboardDonutChart
             title="Distribucion de inventario"
@@ -626,17 +945,230 @@ export default function AdminDashboardPage() {
           />
         </div>
 
-        <div className="admin-dashboard__bottom">
+        <div className="admin-dashboard__bottom admin-dashboard__bottom--swapped">
+          <AdminDashboardRanking
+            title="Ranking de asesores"
+            subtitle={`Ordenado por ${metricToLabel(rankingMetric).toLowerCase()}.`}
+            items={rankingItems}
+            metric={rankingMetric}
+            metricOptions={RANKING_METRIC_OPTIONS}
+            onMetricChange={(metric) => setRankingMetric(metric as DashboardRankingMetric)}
+          />
           <AdminDashboardBarChart
             title="Resumen por asesor"
             subtitle="Resumen completo por monto vendido en el rango y filtros actuales."
             items={summaryBars}
           />
-          <AdminDashboardRanking
-            title="Ranking de asesores"
-            subtitle={`Ordenado por ${metricToLabel(filters.metric).toLowerCase()}.`}
-            items={rankingItems}
+        </div>
+
+        <div className="admin-dashboard__bottom admin-dashboard__bottom--collections">
+          <AdminDashboardManzanaChart
+            title="Estado por manzana"
+            subtitle="Comparativo de valor total, vendido y cobrado por manzana."
+            items={executiveManzanaBars}
+            metric={manzanaRankingMetric}
+            metricOptions={MANZANA_RANKING_OPTIONS}
+            onMetricChange={setManzanaRankingMetric}
           />
+          <article className="admin-dashboard-panel admin-dashboard-panel--ranking">
+            <div className="admin-dashboard-panel__head">
+              <div>
+                <h3>Cobranza y vencimientos</h3>
+                <p>Seguimiento operativo para gestión de llamadas y cobranza.</p>
+              </div>
+            </div>
+            <div className="admin-ranking admin-collections">
+              <div className="admin-collections__group">
+                <strong>Hoy ({executive.collections.pendingToday.length})</strong>
+                <DataTable className="admin-collections-table-view">
+                  <table className="sales-table admin-collections-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <DataTableSortHeader
+                            label="Cliente"
+                            direction={sortDirectionForCollection(todaySort, "cliente")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "cliente")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Lote"
+                            direction={sortDirectionForCollection(todaySort, "lote")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "lote")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Telefono"
+                            direction={sortDirectionForCollection(todaySort, "telefono")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "telefono")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Vence"
+                            direction={sortDirectionForCollection(todaySort, "fecha")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "fecha")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Monto"
+                            direction={sortDirectionForCollection(todaySort, "monto")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "monto")}
+                          />
+                        </th>
+                        <th>Venta</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingTodayRows.map((item) => (
+                        <tr key={`today-${item.ventaId}`}>
+                          <td>{capitalizeName(item.clienteNombre)}</td>
+                          <td>{item.loteCodigo}</td>
+                          <td>{item.clienteTelefono || "-"}</td>
+                          <td>{formatDatePe(item.fechaVencimiento)}</td>
+                          <td>{exactMoney(item.montoPagar)}</td>
+                          <td>
+                            <Link className="btn ghost data-table__row-action" to={`/ventas/${item.ventaId}`}>
+                              Ver venta
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </DataTable>
+              </div>
+              <div className="admin-collections__group">
+                <strong>Próximos 7 días ({executive.collections.dueNext7Days.length})</strong>
+                <DataTable className="admin-collections-table-view">
+                  <table className="sales-table admin-collections-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <DataTableSortHeader
+                            label="Cliente"
+                            direction={sortDirectionForCollection(nextSort, "cliente")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "cliente")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Lote"
+                            direction={sortDirectionForCollection(nextSort, "lote")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "lote")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Telefono"
+                            direction={sortDirectionForCollection(nextSort, "telefono")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "telefono")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Vence"
+                            direction={sortDirectionForCollection(nextSort, "fecha")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "fecha")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Monto"
+                            direction={sortDirectionForCollection(nextSort, "monto")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "monto")}
+                          />
+                        </th>
+                        <th>Venta</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dueNextRows.map((item) => (
+                        <tr key={`next-${item.ventaId}`}>
+                          <td>{capitalizeName(item.clienteNombre)}</td>
+                          <td>{item.loteCodigo}</td>
+                          <td>{item.clienteTelefono || "-"}</td>
+                          <td>{formatDatePe(item.fechaVencimiento)}</td>
+                          <td>{exactMoney(item.montoPagar)}</td>
+                          <td>
+                            <Link className="btn ghost data-table__row-action" to={`/ventas/${item.ventaId}`}>
+                              Ver venta
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </DataTable>
+              </div>
+              <div className="admin-collections__group">
+                <strong>Vencidos ({executive.collections.overdue.length})</strong>
+                <DataTable className="admin-collections-table-view">
+                  <table className="sales-table admin-collections-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <DataTableSortHeader
+                            label="Cliente"
+                            direction={sortDirectionForCollection(overdueSort, "cliente")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "cliente")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Lote"
+                            direction={sortDirectionForCollection(overdueSort, "lote")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "lote")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Telefono"
+                            direction={sortDirectionForCollection(overdueSort, "telefono")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "telefono")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Vence"
+                            direction={sortDirectionForCollection(overdueSort, "fecha")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "fecha")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Monto"
+                            direction={sortDirectionForCollection(overdueSort, "monto")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "monto")}
+                          />
+                        </th>
+                        <th>Venta</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overdueRows.map((item) => (
+                        <tr key={`overdue-${item.ventaId}`}>
+                          <td>{capitalizeName(item.clienteNombre)}</td>
+                          <td>{item.loteCodigo}</td>
+                          <td>{item.clienteTelefono || "-"}</td>
+                          <td>{formatDatePe(item.fechaVencimiento)}</td>
+                          <td>{exactMoney(item.montoPagar)}</td>
+                          <td>
+                            <Link className="btn ghost data-table__row-action" to={`/ventas/${item.ventaId}`}>
+                              Ver venta
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </DataTable>
+              </div>
+            </div>
+          </article>
         </div>
 
         {!loading && salesSeries.length === 0 && inventory.length === 0 && advisorSummary.length === 0 ? (
@@ -646,3 +1178,6 @@ export default function AdminDashboardPage() {
     </AppShell>
   );
 }
+
+
+

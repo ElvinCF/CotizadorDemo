@@ -7,6 +7,7 @@ import {
   getAdminDashboardAdvisorSummaryAsync,
   getAdminDashboardCancelledSalesAsync,
   getAdminDashboardCollectionsSeriesAsync,
+  getAdminDashboardExecutiveAsync,
   getAdminDashboardInventoryAsync,
   getAdminDashboardKpisAsync,
   getAdminDashboardOverviewAsync,
@@ -122,6 +123,21 @@ app.get("/api/dashboard/admin/kpis", async (req, res) => {
   } catch (error) {
     console.error("Error loading admin dashboard KPIs:", error);
     res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener KPIs del dashboard." });
+  }
+});
+
+app.get("/api/dashboard/admin/ejecutivo", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await getAdminDashboardExecutiveAsync(username, pin, req.query ?? {});
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading admin executive dashboard:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener ejecutivo del dashboard." });
   }
 });
 
@@ -563,7 +579,17 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Supabase API running on http://127.0.0.1:${PORT}`);
 });
+
+if (typeof server.ref === "function") {
+  server.ref();
+}
+
+// Mantiene el proceso activo en entornos donde el handle HTTP no retiene el event-loop.
+const apiKeepAlive = setInterval(() => {}, 60 * 60 * 1000);
+if (typeof apiKeepAlive.ref === "function") {
+  apiKeepAlive.ref();
+}
 

@@ -1,381 +1,308 @@
-## Dashboard v1 (SQL + Backend) - Plan de Implementacion
+﻿# Plan Maestro de Dashboards (Backlog por Fases)
 
-### Resumen
-Este documento define el plan de implementacion del dashboard v1 solo para `SQL` y `backend`.
+Fecha de actualización: 2026-03-21  
+Estado: **Plan vigente**
 
-No incluye trabajo de frontend en esta etapa.
+Este documento **reemplaza** los enfoques anteriores de planificación de dashboard y concentra:
+- producto
+- UX/UI
+- backend/SQL
+- orden de implementación por fases
 
-El dashboard se construira para dos roles:
-- `admin`
-- `asesor`
+## 1) Objetivo de negocio
 
-Nota de negocio:
-- En interfaz y conversaciones de producto puede usarse `vendedor`.
-- En backend y base de datos hoy el termino consistente es `asesor`.
+Entregar un dashboard ejecutivo-operativo que permita:
+- medir avance comercial real del proyecto
+- separar claramente `vendido` vs `cobrado`
+- evaluar rendimiento de asesores
+- detectar riesgos de cobranza y vencimientos
+- buscar información rápida de cliente/lote/asesor
 
-Regla clave ya validada:
-- El inventario de `lotes` es global.
-- Un lote no se asigna a un asesor desde el inicio.
-- La relacion `lote <-> asesor` nace cuando existe una `venta`.
+## 2) Alcance funcional (beta)
 
-Por eso:
-- Las metricas de inventario pertenecen al dashboard `admin`.
-- Las metricas del asesor salen de `ventas`, `pagos`, `clientes/personas` y su cartera activa.
+### 2.1 Resumen general del proyecto (arriba)
+- Total de lotes
+- Total vendidos
+- Total separados
+- Total disponibles
+- Porcentaje de avance de ventas
 
----
+### 2.2 Ventas del mes
+- Cantidad de lotes vendidos en el mes
+- Valor total vendido del mes (monto de venta, no cobros)
+- Precio promedio de venta por lote
+- Lote más caro vendido del mes
+- Lote más barato vendido del mes
 
-### Realidad actual del sistema
+### 2.3 Ingresos reales del mes
+- Total ingresado por iniciales
+- Total ingresado por cuotas
+- Total general ingresado
+- Diferencia entre vendido y cobrado
 
-El plan debe apoyarse en el esquema comercial nuevo ya aplicado en `dev`, no en el modelo legacy.
+### 2.4 Rendimiento de asesores
+Por asesor:
+- cantidad de lotes vendidos
+- valor vendido
+- ingreso real generado
+- precio promedio de venta
+- ranking por cantidad de ventas
 
-Tablas base relevantes:
-- `empresas`
-- `proyectos`
-- `lotes`
-- `personas`
-- `usuarios`
-- `ventas`
-- `ventas_clientes`
-- `pagos`
+Incluido en beta si hay data suficiente:
+- ranking por valor vendido
+- ranking por ingreso real generado
 
-Tambien existe `autorizaciones_admin`, pero queda fuera del alcance del dashboard v1.
+### 2.5 Control de precios y descuentos
+Mínimo beta:
+- precio promedio de venta
+- precio más alto y más bajo
+- comparación precio lista vs precio cierre por venta
 
-El backend ya cuenta con:
-- autenticacion por `/api/auth/login`
-- endpoints operativos para `lotes`
-- endpoints operativos para `ventas`
-- endpoints operativos para `pagos`
-- endpoints operativos para `usuarios`
+Opcional fase siguiente:
+- asesores que venden más cerca de lista
+- asesores que aplican más descuento
 
-Lo que falta es la capa especifica de dashboard:
-- consultas agregadas SQL
-- servicio backend para dashboard
-- endpoints `/api/dashboard/*`
-- contratos de respuesta estables para frontend
+### 2.6 Estado por manzana / zona
+- manzanas con más ventas
+- manzanas con menos ventas
+- precio promedio de venta por manzana
 
-Importante:
-- Este plan debe seguir el esquema real actual.
-- Si alguna definicion de otros documentos no coincide con el schema aplicado, prevalece el schema actual de `dev`.
+Beta: tabla ordenable.  
+Fase posterior: vista mapa/heat por zona.
 
----
+### 2.7 Cobranza y vencimientos (obligatorio beta)
+- pagos pendientes hoy
+- pagos que vencen en próximos 7 días
+- pagos vencidos
 
-### Objetivo tecnico
+Detalle por fila:
+- cliente
+- lote
+- fecha vencimiento
+- monto
+- estado: al día / por vencer / vencido
 
-Construir una capa de dashboard reusable y estable, dividida en dos niveles:
+### 2.8 Historial básico por mes
+- ventas mes actual vs mes anterior
+- ingresos mes actual vs mes anterior
+- variación simple
 
-1. `SQL`
-- responsable de agregaciones, joins, series temporales, rankings y resumenes
+### 2.9 Búsqueda rápida global
+Búsqueda por:
+- nombre cliente
+- número lote
+- nombre asesor
 
-2. `Backend`
-- responsable de autenticacion, autorizacion por rol, validacion de filtros, contratos HTTP y manejo uniforme de errores
-
-No se recomienda implementar el dashboard "solo en frontend consultando tablas" en esta etapa, porque la aplicacion ya esta montada alrededor de un backend Node propio y necesitamos un contrato estable por rol.
-
----
-
-### Definiciones que deben quedar fijas antes de implementar
-
-#### Metricas admin
-- `inventario_total`: cantidad total de lotes
-- `lotes_disponibles`: lotes con estado disponible/libre
-- `lotes_separados`: lotes en separacion o estado equivalente
-- `lotes_vendidos`: lotes vendidos o cerrados comercialmente
-- `ventas_activas`: ventas no anuladas y no cerradas como caidas
-- `monto_vendido`: suma de montos de venta validos segun filtro
-- `monto_cobrado`: suma real de `pagos`
-- `saldo_pendiente_global`: saldo vivo de ventas activas
-- `ticket_promedio_venta`: `monto_vendido / cantidad_ventas_validas`
-- `asesor_top_periodo`: asesor con mejor desempeno segun metrica definida
-
-#### Metricas asesor
-- `mis_ventas_activas`
-- `mis_separaciones`
-- `mi_monto_vendido`
-- `mi_monto_cobrado`
-- `saldo_pendiente_mi_cartera`
-- `ticket_promedio_venta`
-- `clientes_activos`
-- `mayor_venta`
-
-#### Reglas de calculo recomendadas
-- `monto_cobrado` sale de `pagos`, no de `ventas`
-- `ticket_promedio_venta` se calcula sobre ventas validas del periodo
-- `saldo_pendiente` sale de la venta viva, no de estimaciones frontend
-- `mis operaciones por etapa` se mide por cantidad de operaciones, no por monto
-
-#### Fuera de alcance v1
-- `autorizaciones_admin`
-- mora avanzada
-- vencimientos complejos
-- funnel historico por cambios de etapa si aun no existe un historial formal de estados
+### 2.10 Requisitos visuales
+- dashboard limpio, sin sobrecarga
+- cards arriba para KPIs
+- tablas abajo para detalle
+- filtros mínimos: mes, asesor, manzana
 
 ---
 
-### Plan SQL
+## 3) Decisiones cerradas
 
-#### Objetivo SQL
-Crear una capa de agregacion que permita alimentar el dashboard sin duplicar logica en backend ni en frontend.
+### 3.1 Definición de periodo “mes”
+Se manejará con:
+- `select año`
+- `select mes`
+- rango calculado automáticamente (`from`/`to`) manteniendo soporte de rango explícito
 
-#### Estrategia recomendada
-Usar una combinacion de:
-- `views` base para joins reutilizables
-- `functions` SQL parametrizadas para filtros reales de dashboard
+Regla UX:
+- modo principal: año + mes
+- modo avanzado: rango manual (si se habilita)
 
-No conviene depender solo de `views` planas, porque el dashboard necesita filtros por:
-- rango de fechas
-- proyecto
-- asesor
-- estado de lote
-- etapa de venta
-- agrupacion temporal
-- top N
+### 3.2 Fuente de “precio lista”
+Regla oficial:
+- usar `precio_lista` **guardado en la venta** cuando exista
+- si no existe, usar precio de lote como fallback de compatibilidad
 
-#### Capa SQL propuesta
+Recomendación técnica:
+- persistir snapshot de `precio_lista` en `ventas` para trazabilidad histórica
 
-##### 1. Views base reutilizables
-- `vw_dashboard_ventas_base`
-  - une `ventas`, `lotes`, `usuarios`, `proyectos`, `ventas_clientes`, `personas`
-  - expone una fila por venta con los campos necesarios para reportes
+### 3.3 Lógica de vencimiento
+Fuente principal:
+- `fecha_pago_pactada` de `ventas`
 
-- `vw_dashboard_pagos_base`
-  - une `pagos` con `ventas`, `usuarios`, `lotes`, `proyectos`
-  - expone una fila por pago con sus dimensiones principales
+Uso de fecha contrato:
+- solo como fallback si `fecha_pago_pactada` está vacía
 
-Estas views no deben resolver toda la logica del dashboard.
-Su objetivo es centralizar joins y nombres de campos.
-
-##### 2. Functions SQL para admin
-- `dashboard_admin_kpis(...)`
-- `dashboard_admin_series_ventas(...)`
-- `dashboard_admin_series_cobros(...)`
-- `dashboard_admin_ranking_asesores(...)`
-- `dashboard_admin_inventario_estado(...)`
-- `dashboard_admin_resumen_asesores(...)`
-- `dashboard_admin_ventas_activas(...)`
-- `dashboard_admin_operaciones_anuladas(...)`
-
-##### 3. Functions SQL para asesor
-- `dashboard_asesor_kpis(...)`
-- `dashboard_asesor_series_ventas(...)`
-- `dashboard_asesor_series_cobros(...)`
-- `dashboard_asesor_operaciones_por_etapa(...)`
-- `dashboard_asesor_resumen_operaciones(...)`
-- `dashboard_asesor_clientes_activos(...)`
-- `dashboard_asesor_pagos_registrados(...)`
-
-#### Filtros SQL que deben soportarse
-- `p_from`
-- `p_to`
-- `p_proyecto_id`
-- `p_asesor_id`
-- `p_estado_lote`
-- `p_etapa_venta`
-- `p_tipo_pago`
-- `p_group_by`
-- `p_top_n`
-
-#### Recomendaciones de implementacion SQL
-- Normalizar el manejo de fechas: rango inclusivo controlado desde SQL
-- Mantener outputs tipados y estables
-- Devolver arreglos o tablas ya ordenadas desde SQL cuando aplique
-- Evitar que backend tenga que rearmar agregaciones complejas
-- Reusar los triggers ya existentes para que `ventas` mantenga sus totales consistentes
-
-#### Recomendaciones de performance SQL
-- Validar indices para filtros mas usados:
-- `ventas(fecha_venta)`
-- `ventas(asesor_usuario_id)`
-- `ventas(lote_id)`
-- `ventas(proyecto_id)` si existe en la tabla o si se filtra via join
-- `ventas(etapa_venta)`
-- `pagos(fecha_pago)`
-- `pagos(venta_id)`
-- `lotes(proyecto_id)`
-- `lotes(estado_comercial)` o equivalente real del schema
-
-- Si un filtro depende siempre de join, evaluar indices compuestos en base a consultas reales
-- No crear materialized views en v1 salvo que aparezca un problema real de performance
-
-#### Entregable SQL
-Una nueva migracion orientada a analytics, por ejemplo:
-- `004_dashboard_analytics.sql`
-
-Esta migracion debe:
-- crear las views base
-- crear las functions de dashboard
-- documentar parametros esperados
-- no alterar logica comercial existente
+### 3.4 Timezone oficial
+- `America/Lima` en backend para cierres, agrupaciones por día/mes y comparativas
 
 ---
 
-### Plan Backend
+## 4) Arquitectura de datos y API
 
-#### Objetivo backend
-Exponer una API de dashboard limpia y estable, montada sobre las agregaciones SQL, con control de rol y filtros consistentes.
+## 4.1 Endpoints
+Se mantiene y prioriza endpoint agregado para eficiencia:
+- `GET /api/dashboard/admin/resumen`
 
-#### Estrategia recomendada
-El backend no debe recalcular metricas complejas.
-Debe actuar como capa de:
-- autenticacion
-- autorizacion
-- validacion
-- traduccion de query params a SQL
-- normalizacion de respuestas
+Debe devolver en un solo payload:
+- `kpis`
+- `salesSeries`
+- `inventory`
+- `advisorSummary`
+- `advisorRanking`
 
-#### Cambios backend propuestos
+Endpoints complementarios (detalle):
+- ventas activas
+- operaciones caídas
+- series cobros avanzadas
+- tablas operativas de cobranza
 
-##### 1. Nuevo servicio
-Crear un servicio dedicado, por ejemplo:
-- `backend/lib/dashboardService.mjs`
+## 4.2 Reglas backend
+- validar rol por endpoint (`ADMIN`, `ASESOR`)
+- timezone `America/Lima`
+- filtros normalizados (año/mes -> from/to)
+- fallback seguro en campos históricos (`precio_lista`, `fecha_pago_pactada`)
+- respuestas estables en `camelCase`
+- arrays vacíos y KPIs en cero cuando no hay data
 
-Responsabilidades:
-- invocar functions SQL
-- mapear filtros HTTP a parametros SQL
-- consolidar respuestas para admin y asesor
-- reutilizar `withPgClient` o `withPgTransaction` segun corresponda
-
-##### 2. Nuevos helpers de autorizacion
-Separar utilidades para:
-- extraer usuario autenticado
-- validar rol `ADMIN`
-- validar rol `ASESOR`
-- forzar que un asesor solo consulte su propia data
-
-##### 3. Nuevos endpoints
-
-###### Admin
-- `GET /api/dashboard/admin/kpis`
-- `GET /api/dashboard/admin/series-ventas`
-- `GET /api/dashboard/admin/series-cobros`
-- `GET /api/dashboard/admin/ranking-asesores`
-- `GET /api/dashboard/admin/inventario`
-- `GET /api/dashboard/admin/resumen-asesores`
-- `GET /api/dashboard/admin/ventas-activas`
-- `GET /api/dashboard/admin/operaciones-anuladas`
-
-###### Asesor
-- `GET /api/dashboard/asesor/kpis`
-- `GET /api/dashboard/asesor/series-ventas`
-- `GET /api/dashboard/asesor/series-cobros`
-- `GET /api/dashboard/asesor/operaciones-por-etapa`
-- `GET /api/dashboard/asesor/operaciones`
-- `GET /api/dashboard/asesor/clientes`
-- `GET /api/dashboard/asesor/pagos`
-
-#### Contrato de filtros HTTP
-
-Parametros recomendados:
-- `from`
-- `to`
-- `proyectoId`
-- `asesorId` solo admin
-- `estadoLote`
-- `etapaVenta`
-- `tipoPago`
-- `groupBy`
-- `topN`
-- `page`
-- `pageSize`
-
-#### Responsabilidades del backend por endpoint
-- validar formato de fechas
-- validar enums permitidos
-- asignar defaults seguros
-- impedir que asesor consulte datos globales
-- devolver errores uniformes
-
-#### Contrato de errores
-Formato uniforme recomendado:
-
-```json
-{
-  "error": "Mensaje corto",
-  "detail": "Detalle tecnico opcional",
-  "code": "CODIGO_OPCIONAL"
-}
-```
-
-#### Convenciones de respuesta
-- montos como `number`
-- fechas en ISO8601
-- arreglos siempre presentes aunque vengan vacios
-- KPIs con cero en lugar de `null` cuando aplique
+## 4.3 Performance
+- usar `Pool` PostgreSQL
+- evitar múltiples llamadas paralelas para cabecera ejecutiva
+- cargar primero KPIs y resumen crítico
+- diferir bloques secundarios si hace falta
 
 ---
 
-### Orden de implementacion recomendado
+## 5) Diseño UX/UI objetivo
 
-#### Fase 1. Cerrar definiciones
-- Validar nombres finales de estados reales del schema
-- Validar que metricas excluyen o incluyen anuladas de forma consistente
-- Confirmar si `clientes_activos` saldra de `personas` + `ventas_clientes`
+## 5.1 Estructura desktop
+- Franja 1: título + filtros compactos + acciones
+- Franja 2: cards KPI principales
+- Franja 3: gráficos principales (ventas vs cobros, inventario)
+- Franja 4: tablas operativas (asesores, cobranza)
+- Franja 5: tablas de análisis (manzana, precios/descuentos)
 
-#### Fase 2. Construir SQL base
-- Crear `vw_dashboard_ventas_base`
-- Crear `vw_dashboard_pagos_base`
-- Crear functions KPI admin y asesor
-- Crear functions de series y rankings
+## 5.2 Gráficos recomendados
+- Línea doble: `ventas vs cobros` por mes
+- Dona: distribución `disponible/separado/vendido`
+- Barras horizontales: ranking asesores
+- Tabla ordenable: manzanas y control de precios
 
-#### Fase 3. Exponer backend
-- Crear `dashboardService`
-- Registrar rutas `/api/dashboard/*`
-- Aplicar control de rol
-- Definir contratos estables
+## 5.3 Responsividad
+- Desktop: layout 12 columnas
+- Tablet: bloques en 2-3 franjas
+- Mobile: 1 columna, prioridad KPI + listas accionables
 
-#### Fase 4. Verificacion
-- Probar resultados contra el seed actual de `dev`
-- Validar que no haya NaN ni divisiones invalidas
-- Validar filtros vacios
-- Validar respuestas vacias con arrays vacios y KPIs en cero
-
----
-
-### Checklist de listo para implementar
-
-#### SQL
-- El schema actual ya tiene tablas suficientes
-- Ya existen `ventas` y `pagos`
-- Ya existen triggers de consistencia comercial
-- Falta la capa de analytics de dashboard
-
-#### Backend
-- Ya existe autenticacion basica
-- Ya existe acceso a lotes, ventas, pagos y usuarios
-- Falta el servicio y los endpoints especificos de dashboard
-
-#### Dependencias de negocio
-- La regla de "inventario global" ya esta clara
-- La regla de "el asesor se relaciona con el lote cuando nace la venta" ya esta clara
-- `autorizaciones_admin` queda fuera de v1
+## 5.4 Color semántico
+- disponible: verde
+- separado: ámbar
+- vendido/completada: azul/teal
+- por vencer: naranja
+- vencido/caída: rojo
+- cobrado: verde intenso
 
 ---
 
-### Criterios de aceptacion
+## 6) Backlog por fases
 
-#### Admin
-- Puede consultar inventario global
-- Puede consultar ventas globales
-- Puede consultar cobros globales
-- Puede filtrar por asesor, proyecto, fecha y estado
+## Fase 1 - Núcleo beta (alta prioridad)
+Objetivo: lectura ejecutiva inmediata + datos confiables.
 
-#### Asesor
-- Solo puede consultar sus propias metricas
-- Puede ver sus ventas, cobros, clientes y operaciones
-- No puede ver ranking global completo salvo decision posterior de negocio
+Historias:
+1. Cards de resumen general del proyecto
+2. Bloque ventas del mes
+3. Bloque ingresos reales del mes
+4. Historial mes actual vs anterior
+5. Filtros: año, mes, asesor, manzana
+6. Búsqueda rápida global
+7. Endpoint agregado `admin/resumen` consumido por frontend
 
-#### Integridad tecnica
-- Las metricas de cobro salen de `pagos`
-- Las metricas de venta salen de `ventas`
-- Los totales y saldos coinciden con el modelo comercial real
-- Los endpoints responden estable incluso sin datos
+Criterios de aceptación:
+- carga inicial <= 2.5s en dataset beta
+- no errores en estados vacíos
+- diferencias vendido vs cobrado visibles en UI
+
+## Fase 2 - Operación comercial y cobranza
+Objetivo: convertir dashboard en herramienta diaria.
+
+Historias:
+1. Rendimiento completo de asesores (rankings)
+2. Cobranza/vencimientos hoy + 7 días + vencidos
+3. Tabla de acciones de cobranza
+4. Estado por manzana (tabla con orden y filtros)
+
+Criterios de aceptación:
+- listas accionables por estado de vencimiento
+- ranking consistente con filtros activos
+
+## Fase 3 - Control de precios y eficiencia
+Objetivo: mejorar decisiones de precio y descuento.
+
+Historias:
+1. Precio promedio/alto/bajo
+2. Precio lista vs cierre por venta
+3. Métricas por asesor de cercanía a lista y descuento
+
+Criterios de aceptación:
+- trazabilidad por venta
+- consistencia con reglas de precio_lista
+
+## Fase 4 - Mejoras visuales y analítica extendida
+Objetivo: pulido visual y exploración avanzada.
+
+Historias:
+1. Mapa por zona con intensidad comercial (si aplica)
+2. Drill-down por manzana/asesor
+3. Exportaciones ejecutivas
 
 ---
 
-### Fuera de alcance de este documento
-- Implementacion frontend
-- librerias de graficos
-- componentes UI
-- navegacion de pantallas
-- estados visuales
+## 7) Priorización de implementación (técnica)
 
-Este plan deja lista la base para que luego frontend consuma datos consistentes y ya filtrados por rol.
+Orden sugerido:
+1. cerrar contratos de campos faltantes (`precio_lista`, `fecha_pago_pactada`)
+2. endpoint agregado + validaciones timezone/filtros
+3. construir franja KPI y ventas/cobros del mes
+4. añadir tablas de cobranza y ranking asesores
+5. cerrar control de precios/descuentos
+
+---
+
+## 8) Dependencias y coordinación
+
+Backend:
+- confirmar campos disponibles en schema actual
+- asegurar índices para consultas por fecha/asesor/manzana
+
+Frontend:
+- componentes de cards/charts/tablas reutilizables
+- estados loading/empty/error homogéneos
+- filtros unificados y persistencia opcional en URL
+
+---
+
+## 9) Riesgos vigentes
+
+1. Datos históricos incompletos de `precio_lista` en ventas antiguas
+2. Inconsistencia de `fecha_pago_pactada` en registros legacy
+3. Sobrepeso visual si se intenta meter todo en primera pantalla
+4. Tiempos de respuesta si se mezcla detalle operativo pesado en carga inicial
+
+Mitigación:
+- fallback controlado
+- carga progresiva por secciones
+- priorización estricta por fases
+
+---
+
+## 10) Definición de listo (DoD)
+
+Un bloque del dashboard se considera “listo” cuando:
+- cumple contrato backend
+- respeta filtros globales
+- funciona en desktop/tablet/mobile
+- tiene loading + empty + error
+- pasa validación manual de números con muestra real
+- no degrada tiempos de carga de pantalla completa
+
+---
+
+## 11) Notas de versionado
+
+- Este documento pasa a ser el **plan rector** de dashboards.
+- Los documentos anteriores se mantienen como histórico técnico, pero no como plan activo.

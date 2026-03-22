@@ -6,16 +6,27 @@ type RankingItem = {
   initials: string;
 };
 
+type RankingMetricOption = {
+  value: string;
+  label: string;
+};
+
 type AdminDashboardRankingProps = {
   title: string;
   subtitle: string;
   items: RankingItem[];
+  metric?: string;
+  metricOptions?: RankingMetricOption[];
+  onMetricChange?: (metric: string) => void;
 };
 
 export default function AdminDashboardRanking({
   title,
   subtitle,
   items,
+  metric,
+  metricOptions,
+  onMetricChange,
 }: AdminDashboardRankingProps) {
   return (
     <article className="admin-dashboard-panel admin-dashboard-panel--ranking">
@@ -24,6 +35,18 @@ export default function AdminDashboardRanking({
           <h3>{title}</h3>
           <p>{subtitle}</p>
         </div>
+        {metric && metricOptions && onMetricChange ? (
+          <label className="admin-ranking__metric">
+            <span className="sr-only">Metrica ranking</span>
+            <select value={metric} onChange={(event) => onMetricChange(event.target.value)}>
+              {metricOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       <div className="admin-ranking">

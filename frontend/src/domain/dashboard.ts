@@ -15,6 +15,7 @@ export type DashboardRankingMetric =
 export type DashboardCommonFilters = {
   from?: string | null;
   to?: string | null;
+  manzana?: string | null;
   estadoLote?: DashboardLotState | null;
   estadoVenta?: SaleState | null;
   page?: number | null;
@@ -108,9 +109,106 @@ export type DashboardAdvisorSummaryItem = {
 export type DashboardAdminOverview = {
   kpis: DashboardAdminKpis;
   salesSeries: DashboardSalesSeriesItem[];
+  collectionsSeries: DashboardCollectionsSeriesItem[];
   inventory: DashboardInventoryItem[];
   advisorSummary: DashboardAdvisorSummaryItem[];
   advisorRanking: DashboardAdvisorSummaryItem[];
+  executive?: DashboardAdminExecutiveOverview;
+};
+
+export type DashboardAdminExecutiveProjectSummary = {
+  totalLotes: number;
+  totalVendidos: number;
+  totalSeparados: number;
+  totalDisponibles: number;
+  porcentajeAvanceVentas: number;
+};
+
+export type DashboardAdminExecutiveSalesMonth = {
+  cantidadVendidosMes: number;
+  valorTotalVendidoMes: number;
+  precioPromedioVendidoMes: number;
+  loteMasCaroCodigo: string;
+  precioMaxVendidoMes: number;
+  loteMasBaratoCodigo: string;
+  precioMinVendidoMes: number;
+};
+
+export type DashboardAdminExecutiveIncomeMonth = {
+  ingresoInicialMes: number;
+  ingresoCuotasMes: number;
+  ingresoTotalMes: number;
+  diferenciaVendidoCobradoMes: number;
+};
+
+export type DashboardAdminExecutiveMonthComparison = {
+  ventasMesActual: number;
+  ventasMesAnterior: number;
+  ingresosMesActual: number;
+  ingresosMesAnterior: number;
+  variacionVentasPct: number;
+  variacionIngresosPct: number;
+};
+
+export type DashboardAdminExecutiveAdvisorItem = {
+  asesorId: string;
+  asesorUsername: string;
+  asesorNombre: string;
+  cantidadVentas: number;
+  montoVendido: number;
+  ingresoInicialGenerado: number;
+  precioPromedioVenta: number;
+};
+
+export type DashboardAdminExecutiveManzanaItem = {
+  manzana: string;
+  cantidadVentas: number;
+  precioPromedioVenta: number;
+  valorTotalMz: number;
+  valorVendido: number;
+  valorCobrado: number;
+};
+
+export type DashboardAdminExecutivePriceControlItem = {
+  ventaId: string;
+  loteCodigo: string;
+  asesorNombre: string;
+  precioLista: number;
+  precioCierre: number;
+  descuentoMonto: number;
+  descuentoPct: number;
+};
+
+export type DashboardAdminExecutiveCollectionItem = {
+  ventaId: string;
+  clienteNombre: string;
+  clienteTelefono?: string;
+  loteCodigo: string;
+  fechaVencimiento: string;
+  montoPagar: number;
+  montoPendiente: number;
+  estado: "HOY" | "POR_VENCER" | "VENCIDO" | "AL_DIA";
+};
+
+export type DashboardAdminExecutiveOverview = {
+  period: {
+    year: number;
+    month: number;
+    from: string;
+    to: string;
+  };
+  projectSummary: DashboardAdminExecutiveProjectSummary;
+  salesMonth: DashboardAdminExecutiveSalesMonth;
+  incomeMonth: DashboardAdminExecutiveIncomeMonth;
+  monthComparison: DashboardAdminExecutiveMonthComparison;
+  advisorPerformance: DashboardAdminExecutiveAdvisorItem[];
+  manzanaSummary: DashboardAdminExecutiveManzanaItem[];
+  priceControl: DashboardAdminExecutivePriceControlItem[];
+  collections: {
+    pendingToday: DashboardAdminExecutiveCollectionItem[];
+    dueNext7Days: DashboardAdminExecutiveCollectionItem[];
+    overdue: DashboardAdminExecutiveCollectionItem[];
+  };
 };
 
 export type DashboardSaleOperationItem = {
