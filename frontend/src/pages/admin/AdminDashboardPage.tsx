@@ -1,11 +1,10 @@
-﻿import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import AdminDashboardBarChart from "../../components/admin-dashboard/AdminDashboardBarChart";
 import AdminDashboardDonutChart from "../../components/admin-dashboard/AdminDashboardDonutChart";
 import AdminDashboardLineChart from "../../components/admin-dashboard/AdminDashboardLineChart";
-import AdminDashboardManzanaChart from "../../components/admin-dashboard/AdminDashboardManzanaChart";
 import AdminDashboardRanking from "../../components/admin-dashboard/AdminDashboardRanking";
 import AdminDashboardStatCard from "../../components/admin-dashboard/AdminDashboardStatCard";
 import DataTable from "../../components/data-table/DataTable";
@@ -37,11 +36,9 @@ import {
   getAdminDashboardOverview,
   getAdminDashboardSalesSeries,
 } from "../../services/dashboard";
-import { loadLotesFromApi } from "../../services/lotes";
 import { exportElementToPdfA4 } from "../../utils/exportElementToPdfA4";
 
-type CollectionSortKey = "cliente" | "telefono" | "lote" | "fecha" | "monto";
-type ManzanaRankingMetric = "todas" | "valor_total_mz" | "valor_vendido" | "valor_cobrado";
+type CollectionSortKey = "cliente" | "lote" | "fecha" | "monto";
 
 type DashboardFiltersState = {
   from: string;
@@ -83,13 +80,6 @@ const RANKING_METRIC_OPTIONS: Array<{ value: DashboardRankingMetric; label: stri
   { value: "cantidad_ventas", label: "Cantidad de ventas" },
   { value: "cartera_activa", label: "Cartera activa" },
   { value: "mayor_venta", label: "Mayor venta" },
-];
-
-const MANZANA_RANKING_OPTIONS: Array<{ value: ManzanaRankingMetric; label: string }> = [
-  { value: "todas", label: "Todas" },
-  { value: "valor_vendido", label: "Ranking por vendido" },
-  { value: "valor_cobrado", label: "Ranking por cobrado" },
-  { value: "valor_total_mz", label: "Ranking por valor total" },
 ];
 
 const MONTH_OPTIONS = [
@@ -264,27 +254,6 @@ const compactMoney = (value: number) =>
     maximumFractionDigits: 1,
   }).format(value);
 
-const exactMoney = (value: number) =>
-  new Intl.NumberFormat("es-PE", {
-    style: "currency",
-    currency: "PEN",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-
-const formatDatePe = (value: string) => {
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return parsed.toLocaleDateString("es-PE");
-};
-
-const capitalizeName = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/\b\p{L}/gu, (match) => match.toUpperCase());
-
 const formatBucketLabel = (bucket: string) => {
   const parsed = new Date(bucket);
   if (Number.isNaN(parsed.getTime())) {
@@ -367,11 +336,9 @@ export default function AdminDashboardPage() {
   const location = useLocation();
   const { loginUsername, loginPin, username } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [manzanaOptions, setManzanaOptions] = useState<string[]>([]);
   const [filters, setFilters] = useState<DashboardFiltersState>(defaultFilters);
   const [lineGroupBy, setLineGroupBy] = useState<DashboardGroupBy>("month");
   const [rankingMetric, setRankingMetric] = useState<DashboardRankingMetric>("monto_vendido");
-  const [manzanaRankingMetric, setManzanaRankingMetric] = useState<ManzanaRankingMetric>("todas");
   const [filtersOpen, setFiltersOpen] = useState(() =>
     typeof window === "undefined" ? true : window.innerWidth > 640
   );
@@ -425,34 +392,6 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadManzanas = async () => {
-      try {
-        const lotes = await loadLotesFromApi();
-        if (cancelled) {
-          return;
-        }
-        const options = Array.from(
-          new Set(
-            lotes
-              .map((lote) => String(lote.mz ?? "").trim().toUpperCase())
-              .filter(Boolean)
-          )
-        ).sort((a, b) => a.localeCompare(b, "es"));
-        setManzanaOptions(options);
-      } catch {
-        if (!cancelled) {
-          setManzanaOptions([]);
-        }
-      }
-    };
-    void loadManzanas();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
     const loadInventoryGlobal = async () => {
       try {
         const items = await getAdminDashboardInventory();
@@ -477,13 +416,12 @@ export default function AdminDashboardPage() {
       return {
       from: monthRange.from ?? (filters.from || null),
       to: monthRange.to ?? (filters.to || null),
-      manzana: filters.manzana || null,
       estadoLote: filters.estadoLote || null,
       estadoVenta: filters.estadoVenta || null,
       asesorId: filters.asesorId || null,
       };
     },
-    [filters.asesorId, filters.estadoLote, filters.estadoVenta, filters.from, filters.manzana, filters.month, filters.to, filters.year]
+    [filters.asesorId, filters.estadoLote, filters.estadoVenta, filters.from, filters.month, filters.to, filters.year]
   );
 
   useEffect(() => {
@@ -533,7 +471,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [filters.month, filters.year, requestFilters]);
+  }, [filters.manzana, filters.month, filters.year, requestFilters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -640,7 +578,7 @@ export default function AdminDashboardPage() {
 
     return sortedItems.map((item) => ({
       label: item.asesorNombre || item.asesorUsername || "Asesor",
-      helper: `${item.cantidadVentas} ventas · cartera ${item.carteraActiva}`,
+      helper: `${item.cantidadVentas} ventas ✪ cartera ${item.carteraActiva}`,
       valueLabel: compactMoney(item.montoVendido),
       primaryLabel: "Vendido",
       ratio: item.montoVendido / maxValue,
@@ -659,7 +597,7 @@ export default function AdminDashboardPage() {
         const value = metricToValue(item, rankingMetric);
         return {
           name,
-          detail: `${item.cantidadVentas} ventas · cobrado ${compactMoney(item.montoCobrado)}`,
+          detail: `${item.cantidadVentas} ventas ✪ cobrado ${compactMoney(item.montoCobrado)}`,
           valueLabel: rankingMetric === "cantidad_ventas" || rankingMetric === "cartera_activa" ? String(value) : compactMoney(value),
           helper: metricToLabel(rankingMetric),
           initials: getInitials(name),
@@ -669,20 +607,15 @@ export default function AdminDashboardPage() {
   );
 
   const executiveManzanaBars = useMemo(() => {
-    const sorted = [...executive.manzanaSummary].sort((a, b) => {
-      if (manzanaRankingMetric === "todas") {
-        return a.manzana.localeCompare(b.manzana, "es");
-      }
-      if (manzanaRankingMetric === "valor_total_mz") {
-        return b.valorTotalMz - a.valorTotalMz;
-      }
-      if (manzanaRankingMetric === "valor_cobrado") {
-        return b.valorCobrado - a.valorCobrado;
-      }
-      return b.valorVendido - a.valorVendido;
-    });
-    return manzanaRankingMetric === "todas" ? sorted : sorted.slice(0, 8);
-  }, [executive.manzanaSummary, manzanaRankingMetric]);
+    const items = executive.manzanaSummary.slice(0, 6);
+    const maxValue = Math.max(...items.map((item) => item.cantidadVentas), 1);
+    return items.map((item) => ({
+      label: `MZ ${item.manzana}`,
+      helper: `Promedio ${compactMoney(item.precioPromedioVenta)}`,
+      valueLabel: `${item.cantidadVentas} ventas`,
+      ratio: item.cantidadVentas / maxValue,
+    }));
+  }, [executive.manzanaSummary]);
 
   const sortDirectionForCollection = (sort: SortState<CollectionSortKey>, key: CollectionSortKey) =>
     sort.key === key ? sort.direction : null;
@@ -717,9 +650,6 @@ export default function AdminDashboardPage() {
       }
       if (sort.key === "lote") {
         return a.loteCodigo.localeCompare(b.loteCodigo, "es") * multiplier;
-      }
-      if (sort.key === "telefono") {
-        return (a.clienteTelefono ?? "").localeCompare(b.clienteTelefono ?? "", "es") * multiplier;
       }
       if (sort.key === "fecha") {
         return a.fechaVencimiento.localeCompare(b.fechaVencimiento) * multiplier;
@@ -818,18 +748,13 @@ export default function AdminDashboardPage() {
               ))}
             </select>
           </DashboardFilterField>
-          <DashboardFilterField label="Mz" icon={<IconFilter />}>
-            <select
+          <DashboardFilterField label="Manzana" icon={<IconLots />}>
+            <input
+              type="text"
               value={filters.manzana}
-              onChange={(event) => setFilters((current) => ({ ...current, manzana: event.target.value }))}
-            >
-              <option value="">Todas</option>
-              {manzanaOptions.map((mz) => (
-                <option key={mz} value={mz}>
-                  {mz}
-                </option>
-              ))}
-            </select>
+              placeholder="Ej: A"
+              onChange={(event) => setFilters((current) => ({ ...current, manzana: event.target.value.toUpperCase() }))}
+            />
           </DashboardFilterField>
           <DashboardFilterField label="Estado lote" icon={<IconFilter />}>
               <select
@@ -962,13 +887,10 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="admin-dashboard__bottom admin-dashboard__bottom--collections">
-          <AdminDashboardManzanaChart
+          <AdminDashboardBarChart
             title="Estado por manzana"
-            subtitle="Comparativo de valor total, vendido y cobrado por manzana."
+            subtitle="Manzanas con más movimiento comercial en el mes."
             items={executiveManzanaBars}
-            metric={manzanaRankingMetric}
-            metricOptions={MANZANA_RANKING_OPTIONS}
-            onMetricChange={setManzanaRankingMetric}
           />
           <article className="admin-dashboard-panel admin-dashboard-panel--ranking">
             <div className="admin-dashboard-panel__head">
@@ -1000,13 +922,6 @@ export default function AdminDashboardPage() {
                         </th>
                         <th>
                           <DataTableSortHeader
-                            label="Telefono"
-                            direction={sortDirectionForCollection(todaySort, "telefono")}
-                            onToggle={() => toggleCollectionSort(setTodaySort, "telefono")}
-                          />
-                        </th>
-                        <th>
-                          <DataTableSortHeader
                             label="Vence"
                             direction={sortDirectionForCollection(todaySort, "fecha")}
                             onToggle={() => toggleCollectionSort(setTodaySort, "fecha")}
@@ -1019,22 +934,15 @@ export default function AdminDashboardPage() {
                             onToggle={() => toggleCollectionSort(setTodaySort, "monto")}
                           />
                         </th>
-                        <th>Venta</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {pendingTodayRows.map((item) => (
+                      {pendingTodayRows.slice(0, 5).map((item) => (
                         <tr key={`today-${item.ventaId}`}>
-                          <td>{capitalizeName(item.clienteNombre)}</td>
+                          <td>{item.clienteNombre}</td>
                           <td>{item.loteCodigo}</td>
-                          <td>{item.clienteTelefono || "-"}</td>
-                          <td>{formatDatePe(item.fechaVencimiento)}</td>
-                          <td>{exactMoney(item.montoPagar)}</td>
-                          <td>
-                            <Link className="btn ghost data-table__row-action" to={`/ventas/${item.ventaId}`}>
-                              Ver venta
-                            </Link>
-                          </td>
+                          <td>{item.fechaVencimiento}</td>
+                          <td>{compactMoney(item.montoPagar)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1063,13 +971,6 @@ export default function AdminDashboardPage() {
                         </th>
                         <th>
                           <DataTableSortHeader
-                            label="Telefono"
-                            direction={sortDirectionForCollection(nextSort, "telefono")}
-                            onToggle={() => toggleCollectionSort(setNextSort, "telefono")}
-                          />
-                        </th>
-                        <th>
-                          <DataTableSortHeader
                             label="Vence"
                             direction={sortDirectionForCollection(nextSort, "fecha")}
                             onToggle={() => toggleCollectionSort(setNextSort, "fecha")}
@@ -1082,22 +983,15 @@ export default function AdminDashboardPage() {
                             onToggle={() => toggleCollectionSort(setNextSort, "monto")}
                           />
                         </th>
-                        <th>Venta</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {dueNextRows.map((item) => (
+                      {dueNextRows.slice(0, 5).map((item) => (
                         <tr key={`next-${item.ventaId}`}>
-                          <td>{capitalizeName(item.clienteNombre)}</td>
+                          <td>{item.clienteNombre}</td>
                           <td>{item.loteCodigo}</td>
-                          <td>{item.clienteTelefono || "-"}</td>
-                          <td>{formatDatePe(item.fechaVencimiento)}</td>
-                          <td>{exactMoney(item.montoPagar)}</td>
-                          <td>
-                            <Link className="btn ghost data-table__row-action" to={`/ventas/${item.ventaId}`}>
-                              Ver venta
-                            </Link>
-                          </td>
+                          <td>{item.fechaVencimiento}</td>
+                          <td>{compactMoney(item.montoPagar)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1126,13 +1020,6 @@ export default function AdminDashboardPage() {
                         </th>
                         <th>
                           <DataTableSortHeader
-                            label="Telefono"
-                            direction={sortDirectionForCollection(overdueSort, "telefono")}
-                            onToggle={() => toggleCollectionSort(setOverdueSort, "telefono")}
-                          />
-                        </th>
-                        <th>
-                          <DataTableSortHeader
                             label="Vence"
                             direction={sortDirectionForCollection(overdueSort, "fecha")}
                             onToggle={() => toggleCollectionSort(setOverdueSort, "fecha")}
@@ -1145,22 +1032,15 @@ export default function AdminDashboardPage() {
                             onToggle={() => toggleCollectionSort(setOverdueSort, "monto")}
                           />
                         </th>
-                        <th>Venta</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {overdueRows.map((item) => (
+                      {overdueRows.slice(0, 5).map((item) => (
                         <tr key={`overdue-${item.ventaId}`}>
-                          <td>{capitalizeName(item.clienteNombre)}</td>
+                          <td>{item.clienteNombre}</td>
                           <td>{item.loteCodigo}</td>
-                          <td>{item.clienteTelefono || "-"}</td>
-                          <td>{formatDatePe(item.fechaVencimiento)}</td>
-                          <td>{exactMoney(item.montoPagar)}</td>
-                          <td>
-                            <Link className="btn ghost data-table__row-action" to={`/ventas/${item.ventaId}`}>
-                              Ver venta
-                            </Link>
-                          </td>
+                          <td>{item.fechaVencimiento}</td>
+                          <td>{compactMoney(item.montoPagar)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1178,6 +1058,5 @@ export default function AdminDashboardPage() {
     </AppShell>
   );
 }
-
 
 

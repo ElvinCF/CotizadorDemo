@@ -4,7 +4,7 @@ Este documento define las reglas de negocio, el uso entre entidades/tablas y las
 
 Complementa a:
 
-- `plans&context/esquemaBD.md`
+- `plans&context/1-1_esquema_bd.md`
 
 No es una migracion SQL ni un contrato de API final. Es la definicion operativa del sistema antes de implementar el nuevo modelo comercial.
 
@@ -649,7 +649,7 @@ Cuando entren `clientes`, `ventas`, `pagos` y `venta_estado_historial`, el proye
 
 ## 17. Siguiente paso recomendado
 
-Con este documento y `esquemaBD.md` aprobados, el siguiente paso correcto es:
+Con este documento y `1-1_esquema_bd.md` aprobados, el siguiente paso correcto es:
 
 1. redactar la migracion SQL final del esquema `devsimple`
 2. definir los indices parciales exactos

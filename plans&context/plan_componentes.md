@@ -448,3 +448,25 @@ Fase F6 - Cierre y endurecimiento:
 - [ ] Migrar F4 lotes
 - [ ] Migrar F5 proforma/cotizador
 - [ ] Ejecutar F6 (hardening + pruebas)
+
+
+
+# POR CORREGIR DESPUES DE DESPLIEGUE:
+## Filtros Lotes 
+* Corregir min y max en M2
+* Aclarar iconos de ocultar/mostrar filtros y Limpiar 
+
+## Venta_id:
+Mover funciones a modal Ajustes en venta:
+* Tipo de financiamiento (reducir cuotas por defecto)
+* Fecha de primera cuoteo 
+
+Correxiones:
+* Ver error en actualización automática de Estados 
+* Mostrar Histórico de estados 
+* Quitar regla de 6k min en inicial 
+* Venta nueva con ui anterior, actualizar
+* La venta debe permitir guardado parcial y edición siempre. Sin campos obligatorios 
+
+## Permitir por mientras 
+* Llenado de ventas sin clientes y sin asesor, sin pagos y admin puede elegir asesor 
