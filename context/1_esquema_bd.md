@@ -131,19 +131,19 @@ Objetivo:
 Columnas:
 
 - `id uuid pk default gen_random_uuid()`
-- `lote_id uuid not null`
-- `cliente_id uuid not null`
+- `lote_id uuid null`
+- `cliente_id uuid null`
 - `cliente2_id uuid null`
-- `asesor_id uuid not null`
+- `asesor_id uuid null`
 - `fecha_venta timestamptz not null default now()`
 - `fecha_pago_pactada date null`
-- `precio_venta numeric not null`
+- `precio_venta numeric not null default 0`
 - `estado_venta venta_estado_enum not null default 'SEPARADA'`
-- `tipo_financiamiento tipo_financiamiento_enum not null`
+- `tipo_financiamiento tipo_financiamiento_enum not null default 'REDUCIR_CUOTA'`
 - `monto_inicial_total numeric not null`
-- `monto_financiado numeric not null`
-- `cantidad_cuotas integer not null`
-- `monto_cuota numeric not null`
+- `monto_financiado numeric not null default 0`
+- `cantidad_cuotas integer not null default 12`
+- `monto_cuota numeric not null default 0`
 - `observacion text null`
 - `created_at timestamptz not null default now()`
 - `updated_at timestamptz not null default now()`
@@ -157,6 +157,8 @@ Relaciones:
 
 Reglas:
 
+- en la captura parcial actual, `fecha_venta` es el unico minimo tecnico obligatorio
+- `lote_id`, `cliente_id` y `asesor_id` pueden quedar nulos mientras el expediente sigue incompleto
 - `monto_inicial_total` es la suma de pagos tipo `SEPARACION` + `INICIAL`
 - `monto_financiado` se calcula a partir del precio de venta menos el inicial total
 - `cliente2_id` es opcional y representa cotitular o conyuge de la venta
@@ -171,7 +173,7 @@ Restricciones sugeridas:
 - `monto_inicial_total >= 0`
 - `monto_financiado >= 0`
 - `cantidad_cuotas between 1 and 36`
-- `monto_cuota > 0`
+- `monto_cuota >= 0`
 
 Indices sugeridos:
 

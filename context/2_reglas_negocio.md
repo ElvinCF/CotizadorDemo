@@ -448,23 +448,24 @@ Debe:
 
 Campos obligatorios en ventas nuevas creadas desde frontend:
 
-- lote seleccionado
-- cliente principal:
-  - nombre
-  - dni
 - fecha de venta
+- en la etapa operativa actual, solo `fecha_venta`
+
+Campos permitidos pero no obligatorios en alta:
+
+- lote
+- cliente principal
+- cliente secundario
+- asesor
 - precio de venta
 - tipo de financiamiento
 - fecha de pago pactada
-- y segun el tipo de financiamiento:
-  - `REDUCIR_CUOTA` -> `cantidad_cuotas`
-  - `REDUCIR_MESES` -> `monto_cuota`
+- pagos iniciales
 
-Pagos obligatorios en alta:
+Regla operativa actual:
 
-- al menos un pago inicial valido:
-  - `SEPARACION`
-  - o `INICIAL`
+- si esos campos no llegan completos, la venta igual se guarda como expediente incompleto editable
+- si un cliente no tiene `dni` y `nombre` completos, no se persiste como entidad asociada todavia
 
 No debe:
 

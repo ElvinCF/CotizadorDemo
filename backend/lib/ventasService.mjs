@@ -18,6 +18,7 @@ const INITIAL_PAYMENT_TYPES = new Set(["SEPARACION", "INICIAL"]);
 
 const asTrimmed = (value) => String(value ?? "").trim();
 const asUpper = (value) => asTrimmed(value).toUpperCase();
+const hasValue = (value) => value !== null && value !== undefined && String(value).trim() !== "";
 
 const asNumber = (value, fieldName) => {
   if (value === null || value === undefined || value === "") {
@@ -43,6 +44,9 @@ const asPositiveNumber = (value, fieldName, allowZero = false) => {
 };
 
 const asInteger = (value, fieldName) => {
+  if (value === null || value === undefined || value === "") {
+    throw badRequest(`${fieldName} invalido.`);
+  }
   const parsed = Number.parseInt(String(value), 10);
   if (!Number.isFinite(parsed)) {
     throw badRequest(`${fieldName} invalido.`);
@@ -51,7 +55,9 @@ const asInteger = (value, fieldName) => {
 };
 
 const formatIso = (value, fieldName = "Fecha") => {
-  if (!value) return new Date().toISOString();
+  if (!value) {
+    throw badRequest(`${fieldName} invalida.`);
+  }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     throw badRequest(`${fieldName} invalida.`);
@@ -106,19 +112,32 @@ const calculateFinancing = ({
   montoCuota,
 }) => {
   const safeInitialTotal = Math.max(0, Number(montoInicialTotal ?? 0));
-  const safePrecioVenta = asPositiveNumber(precioVenta, "Precio de venta", true);
+  const safePrecioVenta = hasValue(precioVenta) ? asPositiveNumber(precioVenta, "Precio de venta", true) : 0;
   const montoFinanciado = Math.max(0, Number((safePrecioVenta - safeInitialTotal).toFixed(2)));
-  const financingType = normalizeFinancingType(tipoFinanciamiento);
+  const financingType = hasValue(tipoFinanciamiento) ? normalizeFinancingType(tipoFinanciamiento) : "REDUCIR_CUOTA";
 
   if (financingType === "REDUCIR_CUOTA") {
-    const cuotas = asInteger(cantidadCuotas, "Cantidad de cuotas");
-    if (cuotas < 1 || cuotas > 36) {
+    const cuotas = hasValue(cantidadCuotas) ? asInteger(cantidadCuotas, "Cantidad de cuotas") : 12;
+    if (!Number.isInteger(cuotas) || cuotas < 1 || cuotas > 36) {
       throw badRequest("Cantidad de cuotas invalida.");
     }
     return {
       montoFinanciado,
       cantidadCuotas: cuotas,
-      montoCuota: Number((montoFinanciado / cuotas).toFixed(2)),
+      montoCuota: cuotas > 0 ? Number((montoFinanciado / cuotas).toFixed(2)) : 0,
+      tipoFinanciamiento: financingType,
+    };
+  }
+
+  if (!hasValue(montoCuota)) {
+    const cuotasPorDefecto = hasValue(cantidadCuotas) ? asInteger(cantidadCuotas, "Cantidad de cuotas") : 12;
+    if (!Number.isInteger(cuotasPorDefecto) || cuotasPorDefecto < 1 || cuotasPorDefecto > 36) {
+      throw badRequest("Cantidad de cuotas invalida.");
+    }
+    return {
+      montoFinanciado,
+      cantidadCuotas: cuotasPorDefecto,
+      montoCuota: cuotasPorDefecto > 0 ? Number((montoFinanciado / cuotasPorDefecto).toFixed(2)) : 0,
       tipoFinanciamiento: financingType,
     };
   }
@@ -431,6 +450,9 @@ const insertHistoryTx = async (client, schema, ventaId, previousState, nextState
 };
 
 const syncLoteCommercialStateTx = async (client, schema, loteId, saleState) => {
+  if (!loteId) {
+    return;
+  }
   const mappedState = syncLoteStatusFromSaleState(saleState);
   await client.query(`update ${schema}.lotes set estado_comercial = $1 where id = $2`, [mappedState, loteId]);
 };
@@ -617,7 +639,9 @@ const getSaleBaseByIdTx = async (client, schema, saleId) => {
 };
 
 const buildInitialPaymentsPayload = (payments = []) =>
-  (payments || []).map((payment) => {
+  (payments || [])
+    .filter((payment) => hasValue(payment?.monto))
+    .map((payment) => {
     const tipoPago = normalizePaymentType(payment.tipoPago);
     if (!INITIAL_PAYMENT_TYPES.has(tipoPago)) {
       throw badRequest("Solo se permiten pagos iniciales de tipo SEPARACION o INICIAL al crear la venta.");
@@ -633,7 +657,7 @@ const buildInitialPaymentsPayload = (payments = []) =>
           : asInteger(payment.nroCuota, "Numero de cuota"),
       observacion: asTrimmed(payment.observacion),
     };
-  });
+    });
 
 const buildPaymentPayload = (paymentInput) => {
   const tipoPago = normalizePaymentType(paymentInput?.tipoPago);
@@ -810,14 +834,19 @@ export const createSaleAsync = async (username, pin, saleInput) => {
   let saleId;
   try {
     saleId = await withPgTransaction(async (client) => {
-      const lote = await ensureLoteAvailableForSale(client, schema, saleInput?.loteCodigo);
-      const cliente = await upsertClientByDniTx(client, schema, saleInput?.cliente ?? {});
+      const lote = hasValue(saleInput?.loteCodigo)
+        ? await ensureLoteAvailableForSale(client, schema, saleInput?.loteCodigo)
+        : null;
+      const cliente =
+        hasValue(saleInput?.cliente?.dni) && hasValue(saleInput?.cliente?.nombreCompleto)
+          ? await upsertClientByDniTx(client, schema, saleInput?.cliente ?? {})
+          : null;
       const cliente2 =
-        saleInput?.cliente2?.dni && saleInput?.cliente2?.nombreCompleto
+        hasValue(saleInput?.cliente2?.dni) && hasValue(saleInput?.cliente2?.nombreCompleto)
           ? await upsertClientByDniTx(client, schema, saleInput.cliente2)
           : null;
 
-      if (cliente2?.id && cliente2.id === cliente.id) {
+      if (cliente2?.id && cliente?.id && cliente2.id === cliente.id) {
         throw badRequest("El segundo titular debe ser distinto al titular principal.");
       }
 
@@ -836,15 +865,15 @@ export const createSaleAsync = async (username, pin, saleInput) => {
            cantidad_cuotas,
            monto_cuota,
            observacion
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          returning id`,
         [
-          lote.id,
-          cliente.id,
+          lote?.id ?? null,
+          cliente?.id ?? null,
           cliente2?.id ?? null,
-          operator.id,
+          operator.role === "admin" ? null : operator.id,
           formatIso(saleInput?.fechaVenta, "Fecha de venta"),
-          asPositiveNumber(saleInput?.precioVenta, "Precio de venta", true),
+          hasValue(saleInput?.precioVenta) ? asPositiveNumber(saleInput?.precioVenta, "Precio de venta", true) : 0,
           finalState,
           financing.tipoFinanciamiento,
           montoInicialTotal,
@@ -868,7 +897,7 @@ export const createSaleAsync = async (username, pin, saleInput) => {
       }
 
       await insertHistoryTx(client, schema, createdSale.id, null, finalState, operator.id);
-      await syncLoteCommercialStateTx(client, schema, lote.id, finalState);
+      await syncLoteCommercialStateTx(client, schema, lote?.id ?? null, finalState);
 
       return createdSale.id;
     });

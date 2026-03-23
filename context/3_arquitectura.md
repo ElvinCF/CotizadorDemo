@@ -245,6 +245,9 @@ Aqui solo se documentan patrones compartidos que ventas reutiliza:
 - inputs base
 - wrappers de formularios
 - contratos UI/API para submit, validacion y errores
+- regla actual de guardado parcial:
+  - frontend y backend bloquean solo por `fecha_venta`
+  - la persistencia parcial del resto vive en el modulo ventas
 
 ## Modulo dashboards
 

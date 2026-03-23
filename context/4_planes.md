@@ -89,6 +89,14 @@ Los backlogs funcionales hijos viven en:
 - `4-1_plan_ventas.md`
 - `4-2_plan_dashboards.md`
 
+Orden activo de ejecucion para ventas:
+
+1. backend ventas
+2. validaciones frontend de venta
+3. revision BD y restricciones reales
+4. permisos admin y asesor
+5. trazabilidad y `Ajustes`
+
 ### Fase 5. Consolidacion visual global
 
 Estado: `Pendiente`

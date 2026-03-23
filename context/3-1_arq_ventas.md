@@ -32,6 +32,7 @@ El modulo ventas cubre actualmente:
 
 - listado de ventas
 - detalle de una venta
+- alta con guardado parcial
 - edicion de datos comerciales de la venta
 - edicion de titulares por modal
 - registro de pagos por modal
@@ -56,6 +57,14 @@ Incluye:
 Pantalla de alta de venta.
 
 Actualmente forma parte del flujo comercial del proyecto.
+
+Regla actual aplicada:
+
+- permite guardar expediente incompleto
+- el unico bloqueo efectivo es `fecha_venta`
+- si lote o cliente no estan completos, la venta igual se crea
+- pagos iniciales vacios no se persisten
+- si crea un admin y no hay asesor asignado desde UI, la venta puede quedar sin asesor
 
 ### `/ventas/:ventaId`
 
@@ -106,6 +115,12 @@ Reglas vigentes:
 
 - asesor no debe editar ventas ajenas
 - admin puede operar con mayor alcance
+
+### Persistencia parcial actual
+
+- cliente principal solo se asocia si `dni` y `nombreCompleto` llegan completos
+- cliente secundario solo se asocia si `dni` y `nombreCompleto` llegan completos
+- el calculo financiero usa defaults tecnicos mientras falten datos comerciales
 
 ## Criterio de actualizacion
 

@@ -311,32 +311,18 @@ export default function SaleFormPage() {
   const findClientByDniForModal = async (dni: string) => findClientByDni(dni);
 
   const validateForm = () => {
-    const loteCodigo = String(form.loteCodigo || "").trim();
     const fechaVenta = String(form.fechaVenta || "").trim();
-    const precioVenta = Number.parseFloat(String(form.precioVenta || "").replace(",", "."));
-    const nombreCliente = String(form.cliente.nombreCompleto || "").trim();
+    const precioVentaRaw = String(form.precioVenta || "").trim();
+    const precioVenta = Number.parseFloat(precioVentaRaw.replace(",", "."));
     const dniCliente = String(form.cliente.dni || "").trim();
     const dniCliente2 = String(form.cliente2?.dni || "").trim();
-    const nombreCliente2 = String(form.cliente2?.nombreCompleto || "").trim();
-
-    if (!loteCodigo) {
-      return "Falta lote para la venta.";
-    }
 
     if (!fechaVenta || !isValidDateInput(fechaVenta)) {
       return "Completa una fecha de venta valida.";
     }
 
-    if (!nombreCliente || !dniCliente) {
-      return "Completa nombre y DNI del cliente.";
-    }
-
-    if (!/^\d{8,12}$/.test(dniCliente)) {
+    if (dniCliente && !/^\d{8,12}$/.test(dniCliente)) {
       return "El DNI del cliente debe tener entre 8 y 12 digitos.";
-    }
-
-    if (form.cliente2 && (nombreCliente2 || dniCliente2) && (!nombreCliente2 || !dniCliente2)) {
-      return "Completa nombre y DNI del segundo titular o dejalo vacio.";
     }
 
     if (dniCliente2 && !/^\d{8,12}$/.test(dniCliente2)) {
@@ -347,34 +333,22 @@ export default function SaleFormPage() {
       return "El segundo titular debe tener DNI distinto al titular principal.";
     }
 
-    if (!form.precioVenta.trim()) {
-      return "Completa el precio de venta.";
-    }
-
-    if (!Number.isFinite(precioVenta) || precioVenta <= 0) {
-      return "El precio de venta debe ser mayor que cero.";
+    if (precioVentaRaw && (!Number.isFinite(precioVenta) || precioVenta < 0)) {
+      return "El precio de venta debe ser cero o mayor.";
     }
 
     if (form.tipoFinanciamiento !== "REDUCIR_CUOTA" && form.tipoFinanciamiento !== "REDUCIR_MESES") {
       return "Tipo de financiamiento invalido.";
     }
 
-    if (form.tipoFinanciamiento === "REDUCIR_CUOTA" && !form.cantidadCuotas.trim()) {
-      return "Completa la cantidad de cuotas.";
-    }
-
-    if (form.tipoFinanciamiento === "REDUCIR_CUOTA") {
+    if (form.tipoFinanciamiento === "REDUCIR_CUOTA" && form.cantidadCuotas.trim()) {
       const cuotas = Number.parseInt(String(form.cantidadCuotas || "").trim(), 10);
       if (!Number.isInteger(cuotas) || cuotas < 1 || cuotas > 36) {
         return "La cantidad de cuotas debe estar entre 1 y 36.";
       }
     }
 
-    if (form.tipoFinanciamiento === "REDUCIR_MESES" && !form.montoCuota.trim()) {
-      return "Completa el monto de cuota.";
-    }
-
-    if (form.tipoFinanciamiento === "REDUCIR_MESES") {
+    if (form.tipoFinanciamiento === "REDUCIR_MESES" && form.montoCuota.trim()) {
       const montoCuota = Number.parseFloat(String(form.montoCuota || "").replace(",", "."));
       if (!Number.isFinite(montoCuota) || montoCuota <= 0) {
         return "El monto por cuota debe ser mayor que cero.";

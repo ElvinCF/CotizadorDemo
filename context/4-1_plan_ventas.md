@@ -28,8 +28,10 @@ La prioridad es permitir registrar, guardar y editar ventas incompletas de forma
 ## Decisiones cerradas de esta etapa
 
 - una venta sera un expediente editable incompleto, no un estado borrador separado
-- si el backend detecta JSON incompleto, devolvera alerta suave de campos por completar
 - el unico campo minimo actual para crear una venta es `fecha_venta`
+- en backend, si el payload llega incompleto, por ahora se permite guardar sin bloquear
+- la medicion visual de completitud y el `progress bar` quedan diferidos para una fase posterior
+- el unico bloqueo de BD que debe mantenerse en esta etapa es `fecha_venta`
 - la regla de inicial minima se elimina solo al registrar una venta o un pago
 - la trazabilidad debe mostrar usuario y fecha segun lo que exista en BD
 - `fecha_primera_cuota` se mantiene en la UI principal porque afecta el calculo inmediato
@@ -48,9 +50,9 @@ Este plan cubre solo la linea prioritaria aprobada:
 - permitir que admin venda como asesor
 - permitir separar con pocos datos y guardar
 - mantener la UI nueva tambien para venta nueva
-- mostrar alerta suave de incompletitud sin bloquear guardado
 - mantener visibles `tipo_financiamiento` y `fecha_primera_cuota` en la vista principal
 - mostrar trazabilidad dentro de `Ajustes`
+- diferir el `progress bar` de completitud para una fase posterior
 
 No entra todavia aqui:
 
@@ -58,12 +60,13 @@ No entra todavia aqui:
 - mejoras de filtros en `/lotes`
 - multi-lote en cotizador o venta
 - reorganizacion profunda del drawer
+- `progress bar` de completitud y alerta visual de faltantes
 
 Eso sigue en `5_correcciones_ideas.md` hasta priorizacion formal.
 
 ## Fase 1. Relajar captura operativa de ventas
 
-Estado: `Pendiente`
+Estado: `En curso`
 
 Meta:
 
@@ -78,27 +81,26 @@ Pendientes:
 - permitir guardar venta sin pagos registrados
 - permitir guardar venta sin monto inicial minimo
 - permitir separar con pocos datos y continuar despues
-- mostrar alerta suave cuando el backend detecte payload incompleto
 
 Entregables tecnicos:
 
 - frontend:
   - venta nueva y detalle aceptan guardado parcial
   - solo `fecha_venta` bloquea submit por ausencia
-  - la alerta suave no bloquea ni ensucia el flujo
 - backend:
   - acepta payload parcial
-  - responde faltantes detectados para consumo UI
   - no rechaza por ausencia de cliente, asesor o pagos
+  - no devuelve error por incompletitud mientras `fecha_venta` exista
 - BD:
   - revisar `NOT NULL`, defaults y dependencias que impidan persistencia parcial
+  - mantener `fecha_venta` como unico bloqueo tecnico obligatorio en esta etapa
 
 Criterio de cierre:
 
 - admin y asesor pueden guardar una venta incompleta sin error tecnico
 - la venta queda editable despues
 - la pantalla no obliga cliente, pagos ni asesor para persistir
-- el backend devuelve advertencia suave si faltan datos por completar
+- `fecha_venta` es el unico bloqueo efectivo en frontend, backend y BD
 
 ## Fase 2. Reglas de permisos para administracion comercial
 
@@ -195,6 +197,23 @@ Cuando estas fases se apliquen, se debe actualizar en paralelo:
 - `3_arquitectura.md`
 - `3-1_arq_ventas.md`
 - `4_planes.md` si cambia prioridad del frente general
+
+## Orden de ejecucion acordado
+
+1. backend ventas
+2. validaciones frontend de venta
+3. revision BD si hay `NOT NULL` o defaults que bloqueen
+4. permisos admin y asesor
+5. trazabilidad y `Ajustes`
+
+## Checklist de ejecucion
+
+- [x] backend ventas: aceptar guardado parcial con `fecha_venta` como unico minimo
+- [x] validaciones frontend de venta: bloquear solo por ausencia de `fecha_venta`
+- [x] revision BD: confirmar que no existan bloqueos adicionales a `fecha_venta`
+- [ ] permisos admin y asesor: permitir operacion admin sin romper restriccion de asesor ajeno
+- [ ] trazabilidad y `Ajustes`: dejarlo para la fase posterior al desbloqueo operativo
+- [ ] `progress bar` de completitud: documentado pero diferido
 
 ## Riesgos abiertos
 
