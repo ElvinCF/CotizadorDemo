@@ -25,7 +25,7 @@ Todo lo que entre aqui aun debe pasar por evaluacion.
 Solo cuando una idea se aprueba:
 
 - pasa a un `plan_*.md` si queda pendiente
-- o pasa a un `arq_*.md`, `1-1_esquema_bd.md` o `1-2_reglas_negocio.md` si ya fue aplicada
+- o pasa a un `arq_*.md`, `1_esquema_bd.md` o `2_reglas_negocio.md` si ya fue aplicada
 
 ## Estados sugeridos
 
@@ -90,7 +90,7 @@ Descripcion:
 
 Siguiente paso:
 
-- mover a `2-1-2_plan_dashboards.md` cuando se priorice
+- mover a `4-2_plan_dashboards.md` cuando se priorice
 
 ### Lotes: correccion de filtros del modulo
 
@@ -106,7 +106,7 @@ Descripcion:
 
 Siguiente paso:
 
-- mover a `2-1_plan_frontend.md` cuando se priorice
+- mover a `4_planes.md` cuando se priorice
 
 ### Venta: ajustes y trazabilidad
 
@@ -123,7 +123,7 @@ Descripcion:
 
 Siguiente paso:
 
-- definir alcance de la trazabilidad y mover a `2-1-1_plan_ventas.md` cuando se priorice
+- definir alcance de la trazabilidad y mover a `4-1_plan_ventas.md` cuando se priorice
 
 ### Venta: historico visible de estados
 
@@ -152,7 +152,7 @@ Descripcion:
 
 Siguiente paso:
 
-- resuelto en `2-1-1_plan_ventas.md`
+- resuelto en `4-1_plan_ventas.md`
 
 ### Cotizador multi-lote
 

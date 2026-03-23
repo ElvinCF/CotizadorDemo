@@ -21,7 +21,7 @@ No vive aqui:
 - ideas no aplicadas
 - fases pendientes
 
-Eso va en `2-1-2_plan_dashboards.md`.
+Eso va en `4-2_plan_dashboards.md`.
 
 ## Dashboards existentes
 
@@ -243,4 +243,4 @@ Actualizar aqui cuando cambie:
 
 No entra aqui.
 
-Debe ir a `2-1-2_plan_dashboards.md`.
+Debe ir a `4-2_plan_dashboards.md`.

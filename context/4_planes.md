@@ -1,4 +1,4 @@
-# Plan de Componentes y Frontend
+# Planes de Frontend y Modulos
 
 Actualizado: `2026-03-22`
 Rol: `Plan por fases`
@@ -14,14 +14,16 @@ Este archivo contiene solo:
 
 La fuente de verdad aplicada vive en:
 
-- `1-3_arq_frontend.md`
+- `3_arquitectura.md`
+- `3-1_arq_ventas.md`
+- `3-2_arq_dashboards.md`
 
 ## Regla de mantenimiento
 
 Cuando algo ya fue aplicado en codigo:
 
 - se elimina o marca como aplicado aqui
-- se documenta en `1-3_arq_frontend.md`
+- se documenta en `3_arquitectura.md`
 
 ## Backlog por fases
 
@@ -70,7 +72,7 @@ Pendientes:
 - unificar estados loading y disabled
 - eliminar diferencias visuales entre formularios historicos
 
-### Fase 4. Integracion con modulo ventas
+### Fase 4. Integracion con modulos dependientes
 
 Estado: `En curso`
 
@@ -82,7 +84,10 @@ Pendientes:
 
 Nota:
 
-El backlog funcional del modulo vive en `2-1-1_plan_ventas.md`.
+Los backlogs funcionales hijos viven en:
+
+- `4-1_plan_ventas.md`
+- `4-2_plan_dashboards.md`
 
 ### Fase 5. Consolidacion visual global
 
@@ -101,28 +106,28 @@ Pendientes:
 
 Actualizar:
 
-- `1-3_arq_frontend.md`
+- `3_arquitectura.md`
 
-### Si es una mejora pendiente de frontend
+### Si es una mejora pendiente transversal
 
 Actualizar:
 
-- `2-1_plan_frontend.md`
+- `4_planes.md`
 
 ### Si es una mejora pendiente propia del flujo de ventas
 
 Actualizar:
 
-- `2-1-1_plan_ventas.md`
+- `4-1_plan_ventas.md`
 
 ### Si el cambio toca base de datos
 
 Si ya fue aprobado y aplicado:
 
-- `1-1_esquema_bd.md`
-- `1-2_reglas_negocio.md` si cambia la logica
+- `1_esquema_bd.md`
+- `2_reglas_negocio.md` si cambia la logica
 
 Si aun esta propuesto o pendiente:
 
 - el plan del modulo afectado
-- y solo cuando se cierre y aplique pasa a `1-1_esquema_bd.md`
+- y solo cuando se cierre y aplique pasa a `1_esquema_bd.md`

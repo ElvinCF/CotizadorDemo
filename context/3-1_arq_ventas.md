@@ -23,8 +23,8 @@ No vive aqui:
 
 Eso va en:
 
-- `2-1-1_plan_ventas.md`
-- `3-1_correcciones_ideas.md`
+- `4-1_plan_ventas.md`
+- `5_correcciones_ideas.md`
 
 ## Alcance actual del modulo
 

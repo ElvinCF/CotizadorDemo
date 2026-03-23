@@ -14,14 +14,14 @@ Este archivo contiene solo:
 
 La fuente de verdad aplicada vive en:
 
-- `1-3-2_arq_dashboards.md`
+- `3-2_arq_dashboards.md`
 
 ## Regla de mantenimiento
 
 Cuando algo ya fue aplicado en codigo:
 
 - se elimina o marca como aplicado aqui
-- se documenta en `1-3-2_arq_dashboards.md`
+- se documenta en `3-2_arq_dashboards.md`
 
 ## Backlog por fases
 
@@ -89,22 +89,22 @@ Pendientes:
 
 Actualizar:
 
-- `1-3-2_arq_dashboards.md`
+- `3-2_arq_dashboards.md`
 
 ### Si es una mejora pendiente de dashboard
 
 Actualizar:
 
-- `2-1-2_plan_dashboards.md`
+- `4-2_plan_dashboards.md`
 
 ### Si el cambio toca base de datos para soportar analytics
 
 Si ya fue aprobado y aplicado:
 
-- `1-1_esquema_bd.md`
-- `1-2_reglas_negocio.md` si cambia la logica
-- `1-3-2_arq_dashboards.md` si cambia fuente de datos o endpoint
+- `1_esquema_bd.md`
+- `2_reglas_negocio.md` si cambia la logica
+- `3-2_arq_dashboards.md` si cambia fuente de datos o endpoint
 
 Si aun esta pendiente:
 
-- `2-1-2_plan_dashboards.md`
+- `4-2_plan_dashboards.md`
