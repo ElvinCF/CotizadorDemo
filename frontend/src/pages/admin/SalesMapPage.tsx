@@ -145,6 +145,14 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   }, [isCotizadorRoute, publicView]);
 
   useEffect(() => {
+    if (!publicView || !isCotizadorRoute) return;
+    if (selectedId) return;
+
+    setRightOpen(false);
+    navigate("/", { replace: true });
+  }, [isCotizadorRoute, navigate, publicView, selectedId]);
+
+  useEffect(() => {
     let active = true;
     const syncLotes = async () => {
       try {
