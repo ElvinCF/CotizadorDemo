@@ -1,6 +1,6 @@
 # Plan de Ventas
 
-Actualizado: `2026-03-23`
+Actualizado: `2026-03-25`
 Rol: `Plan por fases`
 
 ## Uso de este documento
@@ -112,16 +112,13 @@ Meta:
 
 Pendientes:
 
-- permitir que admin cree venta sin asesor
-- permitir que admin elija asesor al guardar o editar
 - permitir que admin venda como asesor
-- mantener restriccion de que un asesor no edite ventas ajenas
+- cerrar validacion operativa de "admin vende como asesor" en flujo real
 
 Entregables tecnicos:
 
 - frontend:
-  - selector de asesor visible solo para admin
-  - estados claros cuando la venta aun no tiene asesor
+  - validar en QA que selector admin mantiene coherencia en alta/edicion
 - backend:
   - reglas de autorizacion por rol
   - admin puede operar como admin o como asesor
@@ -211,7 +208,7 @@ Cuando estas fases se apliquen, se debe actualizar en paralelo:
 - [x] backend ventas: aceptar guardado parcial con `fecha_venta` como unico minimo
 - [x] validaciones frontend de venta: bloquear solo por ausencia de `fecha_venta`
 - [x] revision BD: confirmar que no existan bloqueos adicionales a `fecha_venta`
-- [ ] permisos admin y asesor: permitir operacion admin sin romper restriccion de asesor ajeno
+- [ ] permisos admin y asesor: validar cierre funcional del modo "admin vende como asesor" y QA final
 - [ ] trazabilidad y `Ajustes`: dejarlo para la fase posterior al desbloqueo operativo
 - [ ] `progress bar` de completitud: documentado pero diferido
 

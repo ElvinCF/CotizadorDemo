@@ -84,6 +84,7 @@ export type InitialPaymentInput = {
 
 export type SaleFormValues = {
   loteCodigo: string;
+  asesorId: string | null;
   fechaVenta: string;
   precioVenta: string;
   estadoVenta: SaleState;
@@ -97,6 +98,7 @@ export type SaleFormValues = {
 };
 
 export type SalePatchPayload = {
+  asesorId?: string | null;
   fechaVenta: string;
   precioVenta: string;
   estadoVenta: SaleState;

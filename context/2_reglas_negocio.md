@@ -417,6 +417,18 @@ Implicancias:
 - en ventas nuevas, `asesor_id` debe salir del usuario autenticado
 - solo `ADMIN` puede intervenir sobre ventas de cualquier asesor
 
+Aplicado actualmente en backend:
+
+- un asesor solo puede listar y operar ventas donde `asesor_id = usuario autenticado`
+- un asesor no puede crear ventas con `asesor_id` distinto a su usuario
+- un admin puede crear ventas sin asesor o asignar/reasignar `asesor_id` cuando corresponda
+
+Aplicado actualmente en frontend:
+
+- el selector de asesor es visible solo para `ADMIN` en alta y edicion
+- `ASESOR` no puede editar ni enviar reasignaciones de `asesor_id`
+- el admin puede elegir un asesor o dejar `Sin asesor`
+
 ## 10. Responsabilidades del frontend
 
 ### 10.1. Mapa publico

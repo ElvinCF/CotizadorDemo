@@ -1,6 +1,6 @@
 # Arquitectura de Ventas
 
-Actualizado: `2026-03-23`
+Actualizado: `2026-03-25`
 Rol: `Fuente de verdad`
 
 ## Objetivo
@@ -113,8 +113,12 @@ Reglas vigentes:
 
 ### Permisos
 
-- asesor no debe editar ventas ajenas
-- admin puede operar con mayor alcance
+- asesor solo puede operar ventas donde `asesor_id` coincide con su usuario
+- asesor no puede crear ventas asignandolas a otro asesor
+- admin puede operar con mayor alcance sobre ventas propias y ajenas
+- admin puede crear ventas sin asesor y asignar `asesor_id` en alta o edicion
+- en UI, el selector de asesor aparece solo para admin en alta y edicion de venta
+- en UI, admin puede dejar la venta como `Sin asesor` de forma explicita
 
 ### Persistencia parcial actual
 

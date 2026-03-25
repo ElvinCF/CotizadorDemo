@@ -1,5 +1,5 @@
 {
-  "name": "mvp-mapa-lotes",
+  "name": "Plano virtual - Arenas Malabrigo",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,8 +8,10 @@
     "dev": "vite --config frontend/vite.config.ts",
     "dev:full": "concurrently -k -n API,WEB -c green,cyan \"npm:api\" \"npm:dev\"",
     "db:migrate:dev": "node --env-file=.env backend/scripts/db-apply.mjs migrations dev",
+    "db:migrate:devsimple": "node --env-file=.env backend/scripts/db-apply.mjs migrations devsimple",
     "db:migrate:public": "node --env-file=.env backend/scripts/db-apply.mjs migrations public",
     "db:seed:dev": "node --env-file=.env backend/scripts/db-apply.mjs seeds dev",
+    "db:seed:devsimple": "node --env-file=.env backend/scripts/db-apply.mjs seeds devsimple",
     "db:seed:public": "node --env-file=.env backend/scripts/db-apply.mjs seeds public",
     "build": "tsc -b frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
     "lint": "eslint -c frontend/eslint.config.js frontend/src",

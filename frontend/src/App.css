@@ -5912,6 +5912,12 @@ input.is-invalid {
   align-items: start;
 }
 
+.sales-detail-column {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
 .sales-editable-card__header,
 .sales-client-card__header,
 .sales-payments-side-card__header {

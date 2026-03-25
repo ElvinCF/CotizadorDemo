@@ -349,6 +349,80 @@ const requireOperator = async (username, pin) => {
   return operator;
 };
 
+const canManageAnySale = (operator) => String(operator?.role || "").toLowerCase() === "admin";
+
+const assertOperatorOwnsSale = (operator, saleAsesorId) => {
+  if (canManageAnySale(operator)) {
+    return;
+  }
+
+  if (!saleAsesorId || String(saleAsesorId) !== String(operator.id)) {
+    throw forbidden("No puedes operar una venta asignada a otro asesor.");
+  }
+};
+
+const resolveAsesorIdForCreate = async (client, schema, operator, saleInput) => {
+  const requestedAsesorId = hasValue(saleInput?.asesorId) ? asTrimmed(saleInput.asesorId) : null;
+
+  if (!canManageAnySale(operator)) {
+    if (requestedAsesorId && requestedAsesorId !== String(operator.id)) {
+      throw forbidden("No puedes crear ventas asignadas a otro asesor.");
+    }
+    return operator.id;
+  }
+
+  if (!requestedAsesorId) {
+    return null;
+  }
+
+  const advisorResult = await client.query(
+    `select id
+       from ${schema}.usuarios
+      where id = $1
+      limit 1`,
+    [requestedAsesorId]
+  );
+
+  if (!advisorResult.rows[0]) {
+    throw badRequest("asesorId invalido.");
+  }
+
+  return requestedAsesorId;
+};
+
+const resolveAsesorIdForUpdate = async (client, schema, operator, existing, patchInput) => {
+  const hasPatchAsesor = Object.prototype.hasOwnProperty.call(patchInput || {}, "asesorId");
+  if (!hasPatchAsesor) {
+    return existing.asesor_id ?? null;
+  }
+
+  const requestedAsesorId = hasValue(patchInput?.asesorId) ? asTrimmed(patchInput.asesorId) : null;
+  if (!canManageAnySale(operator)) {
+    if (requestedAsesorId && requestedAsesorId !== String(operator.id)) {
+      throw forbidden("No puedes reasignar ventas a otro asesor.");
+    }
+    return operator.id;
+  }
+
+  if (!requestedAsesorId) {
+    return null;
+  }
+
+  const advisorResult = await client.query(
+    `select id
+       from ${schema}.usuarios
+      where id = $1
+      limit 1`,
+    [requestedAsesorId]
+  );
+
+  if (!advisorResult.rows[0]) {
+    throw badRequest("asesorId invalido.");
+  }
+
+  return requestedAsesorId;
+};
+
 const getClientByDni = async (client, schema, dni) => {
   const cleanDni = asTrimmed(dni);
   if (!cleanDni) {
@@ -717,11 +791,12 @@ export const findClientByDniAsync = async (username, pin, dni) => {
 };
 
 export const listSalesAsync = async (username, pin) => {
-  await requireOperator(username, pin);
+  const operator = await requireOperator(username, pin);
   const schema = resolveDbSchema();
 
   try {
     return await withPgClient(async (client) => {
+      const scopedByAsesor = !canManageAnySale(operator);
       const result = await client.query(
         `select
            v.id,
@@ -755,7 +830,10 @@ export const listSalesAsync = async (username, pin) => {
          left join ${schema}.lotes l on l.id = v.lote_id
          left join ${schema}.clientes c on c.id = v.cliente_id
          left join ${schema}.usuarios u on u.id = v.asesor_id
+        ${scopedByAsesor ? "where v.asesor_id = $1" : ""}
          order by v.fecha_venta desc, v.created_at desc`
+        ,
+        scopedByAsesor ? [operator.id] : []
       );
 
       return result.rows.map((row) => ({
@@ -812,8 +890,10 @@ export const listSalesAsync = async (username, pin) => {
 };
 
 export const getSaleByIdAsync = async (username, pin, saleId) => {
-  await requireOperator(username, pin);
-  return getSaleDetail(saleId);
+  const operator = await requireOperator(username, pin);
+  const sale = await getSaleDetail(saleId);
+  assertOperatorOwnsSale(operator, sale.asesor?.id ?? null);
+  return sale;
 };
 
 export const createSaleAsync = async (username, pin, saleInput) => {
@@ -871,7 +951,7 @@ export const createSaleAsync = async (username, pin, saleInput) => {
           lote?.id ?? null,
           cliente?.id ?? null,
           cliente2?.id ?? null,
-          operator.role === "admin" ? null : operator.id,
+          await resolveAsesorIdForCreate(client, schema, operator, saleInput),
           formatIso(saleInput?.fechaVenta, "Fecha de venta"),
           hasValue(saleInput?.precioVenta) ? asPositiveNumber(saleInput?.precioVenta, "Precio de venta", true) : 0,
           finalState,
@@ -916,8 +996,10 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
   try {
     updatedSaleId = await withPgTransaction(async (client) => {
       const existing = await getSaleBaseByIdTx(client, schema, saleId);
+      assertOperatorOwnsSale(operator, existing.asesor_id);
       const payments = await getSalePaymentsTx(client, schema, existing.id);
       const montoInicialTotal = getInitialTotalFromPayments(payments);
+      const asesorId = await resolveAsesorIdForUpdate(client, schema, operator, existing, patchInput);
 
       let clienteId = existing.cliente_id;
       if (patchInput?.cliente?.dni) {
@@ -956,20 +1038,22 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
 
       await client.query(
         `update ${schema}.ventas
-            set cliente_id = $2,
-                cliente2_id = $3,
-                fecha_venta = $4,
-                precio_venta = $5,
-                estado_venta = $6,
-                tipo_financiamiento = $7,
-                monto_inicial_total = $8,
-                monto_financiado = $9,
-                cantidad_cuotas = $10,
-                monto_cuota = $11,
-                observacion = $12
+            set asesor_id = $2,
+                cliente_id = $3,
+                cliente2_id = $4,
+                fecha_venta = $5,
+                precio_venta = $6,
+                estado_venta = $7,
+                tipo_financiamiento = $8,
+                monto_inicial_total = $9,
+                monto_financiado = $10,
+                cantidad_cuotas = $11,
+                monto_cuota = $12,
+                observacion = $13
           where id = $1`,
         [
           existing.id,
+          asesorId,
           clienteId,
           cliente2Id,
           patchInput?.fechaVenta ? formatIso(patchInput.fechaVenta, "Fecha de venta") : existing.fecha_venta,
@@ -1009,6 +1093,7 @@ export const addSalePaymentAsync = async (username, pin, saleId, paymentInput) =
   try {
     updatedSaleId = await withPgTransaction(async (client) => {
       const existing = await getSaleBaseByIdTx(client, schema, saleId);
+      assertOperatorOwnsSale(operator, existing.asesor_id);
       assertSaleAcceptsPayments(existing);
 
       await client.query(
@@ -1085,6 +1170,7 @@ export const updateSalePaymentAsync = async (username, pin, saleId, paymentId, p
   try {
     updatedSaleId = await withPgTransaction(async (client) => {
       const existing = await getSaleBaseByIdTx(client, schema, saleId);
+      assertOperatorOwnsSale(operator, existing.asesor_id);
       assertSaleAcceptsPayments(existing);
 
       const paymentExists = await client.query(

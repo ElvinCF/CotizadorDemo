@@ -10,6 +10,7 @@ import SalePaymentModal from "../../components/sales/SalePaymentModal";
 import SalePaymentsCard from "../../components/sales/SalePaymentsCard";
 import { printSaleDocument } from "../../components/sales/salePrint";
 import type { Lote } from "../../domain/types";
+import type { AdminUser } from "../../domain/adminUsers";
 import type {
   InitialPaymentInput,
   SalePayment,
@@ -19,6 +20,7 @@ import type {
   SaleRecord,
   SaleState,
 } from "../../domain/ventas";
+import { listAdminUsers } from "../../services/adminUsers";
 import { loadLotesFromApi } from "../../services/lotes";
 import { addSalePayment, createSale, findClientByDni, getSaleById, updateSale, updateSalePayment } from "../../services/ventas";
 
@@ -46,6 +48,7 @@ const emptyClient = {
 
 const createEmptySaleForm = (loteCodigo = "", targetState: SaleState = "SEPARADA"): SaleFormValues => ({
   loteCodigo,
+  asesorId: null,
   fechaVenta: todayInput(),
   precioVenta: "",
   estadoVenta: targetState,
@@ -58,32 +61,17 @@ const createEmptySaleForm = (loteCodigo = "", targetState: SaleState = "SEPARADA
   pagosIniciales: [defaultInitialPayment("SEPARACION"), defaultInitialPayment("INICIAL")],
 });
 
-const saleStateOptions: { value: SaleState; label: string; tone: "neutral" }[] = [
-  { value: "SEPARADA", label: "Separada", tone: "neutral" },
-  { value: "INICIAL_PAGADA", label: "Inicial pagada", tone: "neutral" },
-  { value: "CONTRATO_FIRMADO", label: "Contrato firmado", tone: "neutral" },
-  { value: "PAGANDO", label: "Pagando", tone: "neutral" },
-  { value: "COMPLETADA", label: "Completada", tone: "neutral" },
-  { value: "CAIDA", label: "Caida", tone: "neutral" },
-];
-
-const financingOptions = [
-  { value: "REDUCIR_CUOTA", label: "Reducir cuota", tone: "neutral" as const },
-  { value: "REDUCIR_MESES", label: "Reducir meses", tone: "neutral" as const },
-];
-
-const formatMoney = (value: number) =>
-  new Intl.NumberFormat("es-PE", {
-    style: "currency",
-    currency: "PEN",
-    minimumFractionDigits: 2,
-  }).format(value || 0);
-
 const asNumber = (value: string) => {
   const parsed = Number.parseFloat(String(value || "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : 0;
 };
 const isValidDateInput = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+const normalizeText = (value: string) => value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+
+const advisorLabel = (user: AdminUser) => {
+  const fullName = `${user.nombres ?? ""} ${user.apellidos ?? ""}`.trim();
+  return fullName || user.username;
+};
 
 const computeInitialTotal = (payments: InitialPaymentInput[]) =>
   payments.reduce((acc, payment) => acc + asNumber(payment.monto), 0);
@@ -169,7 +157,7 @@ export default function SaleFormPage() {
   const { id: saleId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { role, loginUsername } = useAuth();
+  const { role, loginUsername, loginPin } = useAuth();
   const isEdit = Boolean(saleId);
   const [selectedLote, setSelectedLote] = useState<Lote | null>(null);
   const [sale, setSale] = useState<SaleRecord | null>(null);
@@ -184,6 +172,8 @@ export default function SaleFormPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string>("");
+  const [advisorOptions, setAdvisorOptions] = useState<{ id: string; name: string }[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const run = async () => {
@@ -194,6 +184,7 @@ export default function SaleFormPage() {
           setSale(detail);
           setForm({
             loteCodigo: detail.lote?.codigo ?? "",
+            asesorId: detail.asesor?.id ?? null,
             fechaVenta: detail.fechaVenta.slice(0, 10),
             precioVenta: String(detail.precioVenta),
             estadoVenta: detail.estadoVenta,
@@ -254,6 +245,43 @@ export default function SaleFormPage() {
     void run();
   }, [isEdit, saleId, searchParams]);
 
+  useEffect(() => {
+    if (!loginUsername || !loginPin) return;
+
+    const run = async () => {
+      try {
+        const payload = await listAdminUsers({ username: loginUsername, pin: loginPin });
+        const users = payload.users
+          .map((user) => ({
+            id: user.id,
+            username: user.username,
+            rol: user.rol,
+            name:
+              user.estado === "INACTIVO" ? `${advisorLabel(user)} (${user.rol.toLowerCase()} inactivo)` : advisorLabel(user),
+          }))
+          .sort((left, right) => normalizeText(left.name).localeCompare(normalizeText(right.name), "es"));
+
+        const current = users.find((user) => normalizeText(user.username) === normalizeText(loginUsername));
+        setCurrentUserId(current?.id ?? null);
+
+        if (role === "admin") {
+          setAdvisorOptions(users.map(({ id, name, rol }) => ({ id, name: `${name} [${rol}]` })));
+          setForm((currentForm) => {
+            if (isEdit || currentForm.asesorId || !current?.id) return currentForm;
+            return { ...currentForm, asesorId: current.id };
+          });
+          return;
+        }
+
+        setAdvisorOptions([]);
+      } catch {
+        setNotice("No se pudo cargar la lista de usuarios para asesor.");
+      }
+    };
+
+    void run();
+  }, [isEdit, loginPin, loginUsername, role]);
+
   const preview = useMemo(() => {
     const base = computePreview({
       precioVenta: form.precioVenta,
@@ -275,11 +303,6 @@ export default function SaleFormPage() {
     };
   }, [form, isEdit, sale]);
 
-  const visibleStateOptions = useMemo(
-    () => saleStateOptions.filter((item) => role === "admin" || item.value !== "CAIDA"),
-    [role]
-  );
-
   const canEditCurrentSale = useMemo(() => {
     if (!isEdit) return true;
     if (role === "admin") return true;
@@ -289,15 +312,6 @@ export default function SaleFormPage() {
     if (!ownerUsername || !currentUsername) return false;
     return ownerUsername === currentUsername;
   }, [isEdit, loginUsername, role, sale?.asesor?.username]);
-
-  const updateClientField = (field: keyof SaleFormValues["cliente"], value: string) =>
-    setForm((current) => ({
-      ...current,
-      cliente: {
-        ...current.cliente,
-        [field]: value,
-      },
-    }));
 
   const updateInitialPayment = (index: number, field: keyof InitialPaymentInput, value: string) => {
     setForm((current) => ({
@@ -377,6 +391,7 @@ export default function SaleFormPage() {
     try {
       if (isEdit && saleId) {
         const payload: SalePatchPayload = {
+          ...(role === "admin" ? { asesorId: form.asesorId ?? null } : {}),
           fechaVenta: form.fechaVenta,
           precioVenta: form.precioVenta,
           estadoVenta: form.estadoVenta,
@@ -393,7 +408,10 @@ export default function SaleFormPage() {
         return;
       }
 
-      const created = await createSale(form);
+      const created = await createSale({
+        ...form,
+        asesorId: role === "admin" ? form.asesorId ?? currentUserId ?? null : currentUserId ?? null,
+      });
       navigate(`/ventas/${created.id}`, { replace: true });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "No se pudo guardar la venta.");
@@ -486,6 +504,42 @@ export default function SaleFormPage() {
     setNotice("");
   };
 
+  const selectedAdvisorLabel =
+    advisorOptions.find((advisor) => advisor.id === form.asesorId)?.name ??
+    (role === "asesor" ? loginUsername ?? "Asesor actual" : "Sin asesor");
+
+  const renderAdvisorCard = (disabled: boolean) => (
+    <article className="sales-form-card sales-advisor-card">
+      <header className="sales-client-card__header">
+        <h3>Asesor asignado</h3>
+      </header>
+      <div className="sales-form-fields">
+        {role === "admin" ? (
+          <label className="sales-form-fields__full">
+            Usuario responsable
+            <select
+              value={form.asesorId ?? ""}
+              disabled={disabled}
+              onChange={(event) => setForm((current) => ({ ...current, asesorId: event.target.value || null }))}
+            >
+              <option value="">Sin asesor</option>
+              {advisorOptions.map((advisor) => (
+                <option key={advisor.id} value={advisor.id}>
+                  {advisor.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label className="sales-form-fields__full">
+            Usuario responsable
+            <AdminTextInput value={selectedAdvisorLabel} disabled />
+          </label>
+        )}
+      </div>
+    </article>
+  );
+
   const renderEditView = sale ? (
     <>
       <header className="sales-form-page__head">
@@ -543,15 +597,18 @@ export default function SaleFormPage() {
       />
 
       <section className="sales-detail-grid">
-        <SaleClientCard
-          cliente={form.cliente}
-          cliente2={form.cliente2}
-          disabled={!canEditCurrentSale}
-          onEditCliente={() => openClientModal("principal")}
-          onAddCliente2={() => openClientModal("secundario")}
-          onEditCliente2={() => openClientModal("secundario")}
-          onRemoveCliente2={handleRemoveClient2}
-        />
+        <div className="sales-detail-column">
+          <SaleClientCard
+            cliente={form.cliente}
+            cliente2={form.cliente2}
+            disabled={!canEditCurrentSale}
+            onEditCliente={() => openClientModal("principal")}
+            onAddCliente2={() => openClientModal("secundario")}
+            onEditCliente2={() => openClientModal("secundario")}
+            onRemoveCliente2={handleRemoveClient2}
+          />
+          {renderAdvisorCard(!canEditCurrentSale)}
+        </div>
         <SalePaymentsCard
           sale={sale}
           disabled={!canEditCurrentSale}
@@ -566,157 +623,58 @@ export default function SaleFormPage() {
   const renderCreateView = (
     <>
       <header className="sales-form-page__head">
-        <div>
-          <h2>Registrar venta</h2>
-          <p>{selectedLote ? `Lote ${selectedLote.mz} - ${selectedLote.lote}` : "Completa el formulario de la venta."}</p>
-        </div>
-        {selectedLote ? (
-          <div className="sales-form-page__summary">
-            <span className="admin-badge admin-badge--asesor">{selectedLote.mz}</span>
-            <span className="admin-badge admin-badge--total">Lote {selectedLote.lote}</span>
+        <div className="sales-form-page__heading">
+          <div className="sales-form-page__title-row">
+            <h2>Registrar Venta</h2>
+            <span className="sales-pill is-info">{form.estadoVenta.replaceAll("_", " ")}</span>
+            {selectedLote ? (
+              <div className="sales-form-page__lote-row">
+                <span className="sales-form-page__lote-pill sales-form-page__lote-pill--mz">MZ {selectedLote.mz}</span>
+                <span className="sales-form-page__lote-pill">Lote {selectedLote.lote}</span>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </div>
+        <div className="sales-form-page__summary">
+          <button
+            type="button"
+            className="btn ghost sales-header-action sales-header-action--back"
+            onClick={() => navigate("/ventas")}
+          >
+            <IconArrowLeft />
+            <span className="sales-header-action__label">Volver</span>
+          </button>
+          <button type="button" className="btn sales-header-action sales-header-action--save" onClick={handleSubmit} disabled={saving}>
+            <IconSave />
+            <span className="sales-header-action__label">{saving ? "Guardando..." : "Crear venta"}</span>
+          </button>
+        </div>
       </header>
 
-      <div className="sales-form-grid">
-        <div className="sales-form-card">
-          <h3>Venta</h3>
-          <div className="sales-form-fields">
-            <label>
-              Fecha de venta
-              <AdminTextInput
-                type="date"
-                value={form.fechaVenta}
-                onChange={(event) => setForm((current) => ({ ...current, fechaVenta: event.target.value }))}
-              />
-            </label>
-            <label>
-              Precio de venta
-              <AdminTextInput
-                type="number"
-                step="0.01"
-                value={form.precioVenta}
-                onChange={(event) => setForm((current) => ({ ...current, precioVenta: event.target.value }))}
-              />
-            </label>
-            <label className="sales-form-fields__full">
-              Estado de venta
-              <select
-                value={form.estadoVenta}
-                onChange={(event) => setForm((current) => ({ ...current, estadoVenta: event.target.value as SaleState }))}
-              >
-                {visibleStateOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="sales-form-fields__full">
-              Tipo de financiamiento
-              <select
-                value={form.tipoFinanciamiento}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    tipoFinanciamiento: event.target.value as SaleFormValues["tipoFinanciamiento"],
-                  }))
-                }
-              >
-                {financingOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {form.tipoFinanciamiento === "REDUCIR_CUOTA" ? (
-              <label>
-                Cantidad de cuotas
-                <AdminTextInput
-                  type="number"
-                  min={1}
-                  max={36}
-                  value={form.cantidadCuotas}
-                  onChange={(event) => setForm((current) => ({ ...current, cantidadCuotas: event.target.value }))}
-                />
-              </label>
-            ) : (
-              <label>
-                Monto por cuota
-                <AdminTextInput
-                  type="number"
-                  step="0.01"
-                  value={form.montoCuota}
-                  onChange={(event) => setForm((current) => ({ ...current, montoCuota: event.target.value }))}
-                />
-              </label>
-            )}
-            <label className="sales-form-fields__full">
-              Observacion
-              <textarea
-                value={form.observacion}
-                onChange={(event) => setForm((current) => ({ ...current, observacion: event.target.value }))}
-              />
-            </label>
-          </div>
+      <SaleEditableCard
+        form={form}
+        role={role}
+        preview={preview}
+        onFormChange={(updater) => setForm((current) => updater(current))}
+      />
+
+      <section className="sales-detail-grid">
+        <div className="sales-detail-column">
+          <SaleClientCard
+            cliente={form.cliente}
+            cliente2={form.cliente2}
+            onEditCliente={() => openClientModal("principal")}
+            onAddCliente2={() => openClientModal("secundario")}
+            onEditCliente2={() => openClientModal("secundario")}
+            onRemoveCliente2={handleRemoveClient2}
+          />
+          {renderAdvisorCard(false)}
         </div>
 
-        <div className="sales-form-card">
-          <h3>Cliente titular</h3>
-          <div className="sales-form-fields">
-            <label className="sales-form-fields__dni">
-              DNI
-              <div className="sales-inline-action">
-                <AdminTextInput value={form.cliente.dni} onChange={(event) => updateClientField("dni", event.target.value)} />
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={async () => {
-                    try {
-                      const found = await findClientByDni(form.cliente.dni.trim());
-                      if (!found) {
-                        setNotice("No existe un cliente previo con ese DNI.");
-                        return;
-                      }
-                      setForm((current) => ({ ...current, cliente: found }));
-                      setNotice("Cliente existente cargado por DNI.");
-                    } catch (searchError) {
-                      setError(searchError instanceof Error ? searchError.message : "No se pudo buscar cliente.");
-                    }
-                  }}
-                >
-                  Buscar DNI
-                </button>
-              </div>
-            </label>
-            <label className="sales-form-fields__full">
-              Nombre completo
-              <AdminTextInput
-                value={form.cliente.nombreCompleto}
-                onChange={(event) => updateClientField("nombreCompleto", event.target.value)}
-              />
-            </label>
-            <label>
-              Celular
-              <AdminTextInput value={form.cliente.celular} onChange={(event) => updateClientField("celular", event.target.value)} />
-            </label>
-            <label>
-              Ocupacion
-              <AdminTextInput value={form.cliente.ocupacion} onChange={(event) => updateClientField("ocupacion", event.target.value)} />
-            </label>
-            <label className="sales-form-fields__full">
-              Direccion
-              <AdminTextInput
-                value={form.cliente.direccion}
-                onChange={(event) => updateClientField("direccion", event.target.value)}
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="sales-form-card">
-          <h3>Pagos iniciales</h3>
+        <article className="sales-form-card">
+          <header className="sales-client-card__header">
+            <h3>Pagos iniciales</h3>
+          </header>
           <div className="sales-form-fields sales-form-fields--payments">
             {form.pagosIniciales.map((payment, index) => (
               <div key={payment.tipoPago} className="sales-payment-inline">
@@ -733,42 +691,16 @@ export default function SaleFormPage() {
                   value={payment.monto}
                   onChange={(event) => updateInitialPayment(index, "monto", event.target.value)}
                 />
+                <AdminTextInput
+                  placeholder="Observacion"
+                  value={payment.observacion}
+                  onChange={(event) => updateInitialPayment(index, "observacion", event.target.value)}
+                />
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="sales-form-card sales-form-card--summary">
-          <h3>Resumen financiero</h3>
-          <div className="sales-kpi-grid">
-            <article>
-              <span>Inicial total</span>
-              <strong>{formatMoney(preview.montoInicialTotal)}</strong>
-            </article>
-            <article>
-              <span>Monto financiado</span>
-              <strong>{formatMoney(preview.montoFinanciado)}</strong>
-            </article>
-            <article>
-              <span>Cuotas</span>
-              <strong>{preview.cantidadCuotas}</strong>
-            </article>
-            <article>
-              <span>Cuota base</span>
-              <strong>{formatMoney(preview.montoCuota)}</strong>
-            </article>
-          </div>
-        </div>
-      </div>
-
-      <div className="sales-form-actions">
-        <button type="button" className="btn ghost" onClick={() => navigate("/ventas")}>
-          Volver
-        </button>
-        <button type="button" className="btn" onClick={handleSubmit} disabled={saving}>
-          {saving ? "Guardando..." : "Crear venta"}
-        </button>
-      </div>
+        </article>
+      </section>
     </>
   );
 
@@ -797,31 +729,27 @@ export default function SaleFormPage() {
 
         {!loading ? (isEdit ? renderEditView : renderCreateView) : null}
 
-        {isEdit ? (
-          <>
-            <SaleClientModal
-              open={clientModalOpen}
-              title={clientModalTarget === "principal" ? "Editar titular principal" : "Agregar / editar segundo titular"}
-              saving={saving}
-              initialValue={clientModalTarget === "principal" ? form.cliente : form.cliente2}
-              onClose={() => setClientModalOpen(false)}
-              onSave={handleSaveClientModal}
-              onFindByDni={findClientByDniForModal}
-            />
-            {paymentModalOpen ? (
-              <SalePaymentModal
-                key={editingPayment ? `edit-${editingPayment.id}` : "create-payment"}
-                open={paymentModalOpen}
-                saving={saving}
-                initialValue={editingPayment}
-                onClose={() => {
-                  setPaymentModalOpen(false);
-                  setEditingPayment(null);
-                }}
-                onSave={handleSavePayment}
-              />
-            ) : null}
-          </>
+        <SaleClientModal
+          open={clientModalOpen}
+          title={clientModalTarget === "principal" ? "Editar titular principal" : "Agregar / editar segundo titular"}
+          saving={saving}
+          initialValue={clientModalTarget === "principal" ? form.cliente : form.cliente2}
+          onClose={() => setClientModalOpen(false)}
+          onSave={handleSaveClientModal}
+          onFindByDni={findClientByDniForModal}
+        />
+        {isEdit && paymentModalOpen ? (
+          <SalePaymentModal
+            key={editingPayment ? `edit-${editingPayment.id}` : "create-payment"}
+            open={paymentModalOpen}
+            saving={saving}
+            initialValue={editingPayment}
+            onClose={() => {
+              setPaymentModalOpen(false);
+              setEditingPayment(null);
+            }}
+            onSave={handleSavePayment}
+          />
         ) : null}
       </section>
     </AppShell>
