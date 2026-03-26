@@ -193,8 +193,7 @@ function TableView({
               </span>
               <span className="table-cell table-cell--action">
                 {(() => {
-                  const status = String(lote.condicion || "").toUpperCase();
-                  const shouldShowAction = canOpenSales && (status === "SEPARADO" || status === "VENDIDO");
+                  const shouldShowAction = canOpenSales;
                   if (!shouldShowAction) return null;
 
                   const activeSaleId = salesByLoteCode[lote.id] ?? null;

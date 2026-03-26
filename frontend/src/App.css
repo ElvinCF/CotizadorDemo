@@ -587,6 +587,10 @@
   padding: 24px;
 }
 
+.modal-backdrop--payment {
+  z-index: 70;
+}
+
 .proforma-modal {
   width: min(1100px, 96vw);
   height: 90vh;
@@ -5622,7 +5626,7 @@ input.is-invalid {
 .sales-form-page__summary {
   display: inline-flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   align-items: center;
   flex: 0 0 auto;
@@ -5664,6 +5668,13 @@ input.is-invalid {
 
 .sales-header-action--print-menu {
   display: inline-flex;
+}
+
+.sales-header-action.is-disabled,
+.sales-header-print-menu__item:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .sales-header-print-menu__dropdown {
@@ -5903,12 +5914,17 @@ input.is-invalid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.sales-editable-row--finance {
+  grid-template-columns: minmax(140px, 0.9fr) minmax(180px, 1fr) minmax(112px, 0.6fr) minmax(132px, 0.7fr);
+}
+
 .sales-editable-card--finance {
   gap: 8px;
+  padding-block: 10px;
 }
 
 .sales-editable-card--finance .sales-editable-row {
-  gap: 8px;
+  gap: 6px;
 }
 
 .sales-info-grid {
@@ -5989,6 +6005,38 @@ input.is-invalid {
   word-break: break-word;
 }
 
+.sales-lot-table-wrap {
+  overflow-x: auto;
+}
+
+.sales-lot-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+}
+
+.sales-lot-table th,
+.sales-lot-table td {
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.sales-lot-table th {
+  font-size: 0.74rem;
+  color: var(--color-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.sales-lot-table td {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .sales-contract-summary {
   display: grid;
   gap: 2px;
@@ -6032,6 +6080,13 @@ input.is-invalid {
   color: var(--color-primary-strong);
   font-size: 0.8rem;
   font-weight: 700;
+}
+
+.sales-editable-row__helper {
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-muted);
 }
 
 .sales-editable-row__field--wide {
@@ -6104,6 +6159,70 @@ input.is-invalid {
   justify-content: flex-end;
 }
 
+.sales-payments-overview-card {
+  gap: 10px;
+}
+
+.sales-payments-overview-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sales-payments-overview-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sales-payments-overview-card__title h3 {
+  margin: 0;
+}
+
+.sales-payments-overview-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sales-payments-overview-card__btn {
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
+.sales-payments-overview-card__table-wrap {
+  overflow-x: auto;
+}
+
+.sales-payments-overview-card__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sales-payments-overview-card__table th,
+.sales-payments-overview-card__table td {
+  padding: 6px 6px;
+  text-align: left;
+}
+
+.sales-payments-overview-card__table th {
+  font-size: 0.74rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.sales-payments-overview-card__table td {
+  font-size: 0.88rem;
+  color: var(--color-text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .sales-payments-shell__add-btn {
   min-height: 38px;
   padding: 6px 12px;
@@ -6172,15 +6291,16 @@ input.is-invalid {
 }
 
 .sales-expediente-layout__side {
-  grid-template-rows: auto auto minmax(0, 1fr);
-  align-content: stretch;
-  height: 100%;
+  grid-template-rows: auto auto auto;
+  align-content: start;
+  height: auto;
 }
 
+.sales-expediente-layout__side > .sales-payments-overview-card,
 .sales-expediente-layout__side > .sales-payments-shell {
-  min-height: 0;
-  height: 100%;
-  align-self: stretch;
+  align-self: start;
+  height: auto;
+  min-height: auto;
 }
 
 .sales-header-action--title-back {
@@ -6232,10 +6352,23 @@ input.is-invalid {
   overflow-wrap: anywhere;
 }
 
+.sales-client-card__meta {
+  min-width: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .sales-client-card__dni {
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--color-muted);
+}
+
+.sales-client-card__separator {
+  color: var(--color-muted);
+  padding: 0 4px;
 }
 
 .sales-client-card__edit-btn {
@@ -6257,8 +6390,23 @@ input.is-invalid {
   border-radius: 10px;
 }
 
+.sales-client-card__add-btn--header {
+  margin-left: auto;
+  gap: 6px;
+}
+
+.sales-client-card__add-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.sales-client-card__add-label {
+  display: inline;
+}
+
 .sales-client-modal,
 .sales-payment-modal,
+.sales-payments-modal,
 .sales-history-modal,
 .sales-settings-modal {
   width: min(680px, calc(100vw - 34px));
@@ -6272,6 +6420,7 @@ input.is-invalid {
 
 .sales-client-modal__header,
 .sales-payment-modal__header,
+.sales-payments-modal__header,
 .sales-history-modal__header,
 .sales-settings-modal__header {
   display: flex;
@@ -6284,10 +6433,77 @@ input.is-invalid {
 
 .sales-client-modal__header h3,
 .sales-payment-modal__header h3,
+.sales-payments-modal__header h3,
 .sales-history-modal__header h3,
 .sales-settings-modal__header h3 {
   margin: 0;
   color: var(--color-primary-strong);
+}
+
+.sales-payments-modal {
+  width: min(1080px, calc(100vw - 34px));
+  max-height: min(92vh, 900px);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.sales-payments-modal__header {
+  padding: 14px 16px;
+}
+
+.sales-payments-modal__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sales-payments-modal__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sales-payments-modal__body {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 16px 12px;
+}
+
+.sales-payments-modal__body .sales-payments-shell {
+  height: 100%;
+  min-height: 0;
+}
+
+.sales-payments-shell--embedded {
+  height: 100%;
+  min-height: 0;
+}
+
+.sales-payments-modal__footer {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.sales-payments-modal__summary-item {
+  display: grid;
+  gap: 2px;
+}
+
+.sales-payments-modal__summary-item span {
+  font-size: 0.76rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sales-payments-modal__summary-item strong {
+  font-size: 0.95rem;
+  color: var(--color-text);
 }
 
 .sales-history-modal__header p,
@@ -6712,25 +6928,37 @@ input.is-invalid {
   }
 
   .sales-form-page__head {
-    flex-wrap: wrap;
-    align-items: flex-start;
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .sales-form-page__heading {
-    width: 100%;
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
   .sales-form-page__summary {
-    width: 100%;
-    justify-content: flex-start;
+    width: auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
   }
 
   .sales-header-action--print-desktop {
+    display: inline-flex;
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .sales-header-action--print-desktop .sales-header-action__label {
     display: none;
   }
 
   .sales-header-print-menu {
-    display: inline-block;
+    display: none;
   }
 
   .sales-kpi-formula {
@@ -6781,12 +7009,17 @@ input.is-invalid {
   }
 
   .sales-form-page__title-row {
-    flex-wrap: wrap;
-    row-gap: 8px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-width: 0;
   }
 
-  .sales-form-page__lote-row {
-    width: 100%;
+  .sales-form-page__head h2 {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 1.3rem;
   }
 
   .data-table-shell__head > .data-table-toolbar {
@@ -6909,6 +7142,19 @@ input.is-invalid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .sales-lot-table {
+    min-width: 0;
+  }
+
+  .sales-lot-table th,
+  .sales-lot-table td {
+    white-space: normal;
+  }
+
+  .sales-payments-modal__footer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .sales-contract-summary__row {
     grid-template-columns: 1fr;
     gap: 4px;
@@ -6919,10 +7165,11 @@ input.is-invalid {
   }
 
   .sales-form-page__summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(38px, max-content));
-    justify-content: stretch;
-    gap: 8px;
+    display: inline-flex;
+    width: auto;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: nowrap;
   }
 
   .sales-header-action,
@@ -6982,8 +7229,8 @@ input.is-invalid {
     display: none;
   }
 
-  .sales-form-page__summary {
-    grid-template-columns: repeat(auto-fit, minmax(38px, 1fr));
+  .sales-header-print-menu {
+    display: none;
   }
 
   .sales-client-card__row {
@@ -6995,12 +7242,36 @@ input.is-invalid {
     width: fit-content;
   }
 
+  .sales-client-card__add-label {
+    display: none;
+  }
+
+  .sales-client-card__add-btn--header {
+    min-width: 34px;
+    width: 34px;
+    padding-inline: 0;
+    justify-content: center;
+  }
+
   .sales-client-card__footer {
     justify-content: stretch;
   }
 
   .sales-client-card__add-btn {
     width: 100%;
+  }
+
+  .sales-payments-overview-card__actions,
+  .sales-payments-modal__header-actions {
+    width: 100%;
+  }
+
+  .sales-payments-overview-card__btn {
+    flex: 1 1 0;
+  }
+
+  .sales-payments-modal {
+    width: min(100vw - 20px, 1080px);
   }
 
   .sales-table {

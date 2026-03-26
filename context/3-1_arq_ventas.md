@@ -89,11 +89,12 @@ Incluye:
 - acciones de impresion
 - composicion desktop en dos columnas:
   - izquierda: `Datos del lote`, `Datos de la venta` y `Resumen del contrato`
-  - derecha: `Datos del cliente`, `Datos de la financiacion` y card de pagos
+  - derecha: `Datos del cliente`, `Datos de la financiacion` y resumen de pagos
 - el scroll operativo de la pagina vive en el contenedor del expediente de venta, no en el `main` global
 - header de acciones responsive:
-  - desktop con botones completos
-  - tablet/mobile con version compacta e impresion agrupada en un solo menu
+  - desktop con icono y texto
+  - tablet con reduccion visual solo en botones de impresion
+  - mobile con acciones en la misma franja del titulo y solo iconos
 
 ## Composicion actual del expediente
 
@@ -105,9 +106,13 @@ Bloques principales:
 - `Datos de la financiacion`
 - `Resumen del contrato` en formato compacto por filas
 - `Datos del cliente`
-- card de pagos
-- `Datos del lote` usa una ficha compacta, no mini-cards internas
+- resumen de pagos con acceso a modal de pagos
+- `Datos del lote` usa tabla compacta de una fila, pensada para evolucionar a venta multi-lote
 - en desktop, `Datos del lote`, `Datos de la venta` y `Datos de la financiacion` se compactan en una sola franja interna por seccion
+- en `Datos de la financiacion`, `Cantidad de cuotas` y `Monto por cuota` siempre se muestran en ese orden; uno queda editable y el otro se recalcula segun `tipo_financiamiento`
+- si el calculo deja una ultima cuota mayor por redondeo, la UI muestra un helper corto bajo `Monto por cuota`
+- en alta de venta, `Asesor asignado` vive sobre `Datos del cliente` en la columna derecha
+- en edicion, la tabla completa de pagos vive en un modal dedicado con footer resumen
 
 Reglas vigentes:
 
@@ -126,6 +131,7 @@ Reglas vigentes:
 
 - una venta activa impacta el estado comercial del lote
 - desde lotes se puede navegar a crear o ver venta
+- desde la tabla del mapa, `Crear venta` o `Ver venta` depende solo de si existe venta activa para el lote, no de `estado_comercial`
 - desde el cotizador publico, la ruta ` /cotizador/:loteCodigo ` reabre el mismo drawer y conserva sus ajustes manuales por lote
 
 ### Clientes

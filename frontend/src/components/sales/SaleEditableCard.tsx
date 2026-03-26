@@ -8,6 +8,8 @@ export type SalePreview = {
   montoFinanciado: number;
   cantidadCuotas: number;
   montoCuota: number;
+  ultimaCuota: number;
+  ultimaCuotaAjustada: boolean;
 };
 
 export type SaleLotePreview = {
@@ -69,27 +71,39 @@ const formatTextValue = (value: string | number | null | undefined) => {
 const formatStateLabel = (value: string) => value.replaceAll("_", " ");
 
 export function SaleLotCard({ lote }: SaleLotCardProps) {
-  const lotItems = [
-    { label: "Mz", value: formatTextValue(lote?.mz) },
-    { label: "Lote", value: lote ? `Lote ${lote.lote}` : "-" },
-    { label: "Area", value: formatArea(lote?.areaM2 ?? null) },
-    { label: "Estado", value: formatTextValue(lote ? formatStateLabel(lote.estadoComercial) : null) },
-    { label: "Precio ref.", value: lote?.precioReferencial != null ? formatMoney(lote.precioReferencial) : "-" },
-  ];
-
   return (
     <article className="sales-form-card sales-editable-card sales-editable-card--lot">
       <header className="sales-section-card__header">
         <h3>Datos del lote</h3>
       </header>
-      <dl className="sales-inline-summary">
-        {lotItems.map((item) => (
-          <div key={item.label} className="sales-inline-summary__item">
-            <dt>{item.label}</dt>
-            <dd>{item.value}</dd>
-          </div>
-        ))}
-      </dl>
+      <div className="sales-lot-table-wrap">
+        <table className="sales-lot-table">
+          <thead>
+            <tr>
+              <th>MZ</th>
+              <th>LOTE</th>
+              <th>AREA</th>
+              <th>ESTADO</th>
+              <th>PRECIO REF.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <span className="sales-pill is-warning">MZ {formatTextValue(lote?.mz)}</span>
+              </td>
+              <td>
+                <span className="sales-pill is-info">{lote ? `Lote ${lote.lote}` : "-"}</span>
+              </td>
+              <td>{formatArea(lote?.areaM2 ?? null)}</td>
+              <td>
+                <span className="sales-pill is-info">{formatTextValue(lote ? formatStateLabel(lote.estadoComercial) : null)}</span>
+              </td>
+              <td>{lote?.precioReferencial != null ? formatMoney(lote.precioReferencial) : "-"}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </article>
   );
 }
@@ -143,7 +157,18 @@ export function SaleDataCard({ form, role, disabled = false, onFormChange }: Sal
   );
 }
 
-export function SaleFinancingCard({ form, disabled = false, onFormChange }: SaleCardBaseProps) {
+type SaleFinancingCardProps = SaleCardBaseProps & {
+  preview: SalePreview;
+};
+
+export function SaleFinancingCard({ form, disabled = false, onFormChange, preview }: SaleFinancingCardProps) {
+  const cantidadEditable = form.tipoFinanciamiento === "REDUCIR_CUOTA";
+  const montoEditable = form.tipoFinanciamiento === "REDUCIR_MESES";
+  const ultimaCuotaLabel =
+    preview.ultimaCuotaAjustada && preview.ultimaCuota > preview.montoCuota
+      ? `Ultima cuota: ${formatMoney(preview.ultimaCuota)} por ajuste.`
+      : null;
+
   return (
     <article className="sales-form-card sales-editable-card sales-editable-card--finance">
       <header className="sales-section-card__header">
@@ -182,25 +207,29 @@ export function SaleFinancingCard({ form, disabled = false, onFormChange }: Sale
         </label>
 
         <label className="sales-editable-row__field">
-          {form.tipoFinanciamiento === "REDUCIR_CUOTA" ? "Cantidad de cuotas" : "Monto por cuota"}
-          {form.tipoFinanciamiento === "REDUCIR_CUOTA" ? (
-            <AdminTextInput
-              type="number"
-              min={1}
-              max={36}
-              value={form.cantidadCuotas}
-              disabled={disabled}
-              onChange={(event) => onFormChange((current) => ({ ...current, cantidadCuotas: event.target.value }))}
-            />
-          ) : (
-            <AdminTextInput
-              type="number"
-              step="0.01"
-              value={form.montoCuota}
-              disabled={disabled}
-              onChange={(event) => onFormChange((current) => ({ ...current, montoCuota: event.target.value }))}
-            />
-          )}
+          Cantidad de cuotas
+          <AdminTextInput
+            type="number"
+            min={1}
+            max={36}
+            value={cantidadEditable ? form.cantidadCuotas : String(preview.cantidadCuotas)}
+            disabled={disabled}
+            readOnly={!cantidadEditable}
+            onChange={(event) => onFormChange((current) => ({ ...current, cantidadCuotas: event.target.value }))}
+          />
+        </label>
+
+        <label className="sales-editable-row__field">
+          Monto por cuota
+          <AdminTextInput
+            type="number"
+            step="0.01"
+            value={montoEditable ? form.montoCuota : String(preview.montoCuota)}
+            disabled={disabled}
+            readOnly={!montoEditable}
+            onChange={(event) => onFormChange((current) => ({ ...current, montoCuota: event.target.value }))}
+          />
+          {ultimaCuotaLabel ? <span className="sales-editable-row__helper">{ultimaCuotaLabel}</span> : null}
         </label>
       </div>
     </article>

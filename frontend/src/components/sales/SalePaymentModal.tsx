@@ -83,7 +83,7 @@ export default function SalePaymentModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={saving ? undefined : onClose}>
+    <div className="modal-backdrop modal-backdrop--payment" onClick={saving ? undefined : onClose}>
       <div className="sales-payment-modal" onClick={(event) => event.stopPropagation()}>
         <header className="sales-payment-modal__header">
           <h3>{initialValue ? "Editar pago" : "Registrar pago"}</h3>

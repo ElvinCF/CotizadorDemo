@@ -13,6 +13,16 @@ type SaleClientCardProps = {
 
 const showValue = (value: string | undefined) => (value && value.trim() ? value : "-");
 
+const formatClientName = (value: string | undefined) => {
+  const text = value?.trim();
+  if (!text) return "-";
+  return text
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
 const IconEdit = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path
@@ -35,18 +45,39 @@ export default function SaleClientCard({
   onAddCliente2,
   onEditCliente2,
 }: SaleClientCardProps) {
+  const hasPrimaryClient = Boolean(cliente?.dni?.trim() || cliente?.nombreCompleto?.trim());
+  const hasSecondaryClient = Boolean(cliente2?.dni?.trim() || cliente2?.nombreCompleto?.trim());
+  const showAddButton = !hasSecondaryClient;
+  const addButtonLabel = hasPrimaryClient ? "Agregar titular" : "Agregar titular";
+  const addButtonAction = hasPrimaryClient ? onAddCliente2 : onEditCliente;
+
   return (
     <article className="sales-form-card sales-client-card">
       <header className="sales-client-card__header">
         <h3>{title}</h3>
+        {showAddButton ? (
+          <button
+            type="button"
+            className="btn ghost sales-client-card__add-btn sales-client-card__add-btn--header"
+            onClick={addButtonAction}
+            disabled={disabled}
+            title={addButtonLabel}
+            aria-label={addButtonLabel}
+          >
+            <span className="sales-client-card__add-icon">+</span>
+            <span className="sales-client-card__add-label">{addButtonLabel}</span>
+          </button>
+        ) : null}
       </header>
 
       <div className="sales-client-card__rows">
+        {hasPrimaryClient ? (
         <article className="sales-client-card__row">
           <span className="sales-pill is-info">Titular principal</span>
           <div className="sales-client-card__identity">
-            <span className="sales-client-card__dni">DNI: {showValue(cliente?.dni)}</span>
-            <strong className="sales-client-card__name">{showValue(cliente?.nombreCompleto)}</strong>
+            <strong className="sales-client-card__meta">
+              DNI: {showValue(cliente?.dni)} <span className="sales-client-card__separator">·</span> {formatClientName(cliente?.nombreCompleto)}
+            </strong>
           </div>
           <button
             type="button"
@@ -59,13 +90,15 @@ export default function SaleClientCard({
             <span>Editar</span>
           </button>
         </article>
+        ) : null}
 
-        {cliente2 ? (
+        {hasSecondaryClient ? (
           <article className="sales-client-card__row">
             <span className="sales-pill is-warning">Titular 2</span>
             <div className="sales-client-card__identity">
-              <span className="sales-client-card__dni">DNI: {showValue(cliente2.dni)}</span>
-              <strong className="sales-client-card__name">{showValue(cliente2.nombreCompleto)}</strong>
+              <strong className="sales-client-card__meta">
+                DNI: {showValue(cliente2?.dni)} <span className="sales-client-card__separator">·</span> {formatClientName(cliente2?.nombreCompleto)}
+              </strong>
             </div>
             <button
               type="button"
@@ -80,14 +113,6 @@ export default function SaleClientCard({
           </article>
         ) : null}
       </div>
-
-      {!cliente2 ? (
-        <footer className="sales-client-card__footer">
-          <button type="button" className="btn ghost sales-client-card__add-btn" onClick={onAddCliente2} disabled={disabled}>
-            + Agregar titular
-          </button>
-        </footer>
-      ) : null}
     </article>
   );
 }

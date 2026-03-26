@@ -199,8 +199,11 @@ Avance aplicado:
 - venta nueva y venta existente usan la misma jerarquia visual del expediente
 - en desktop, la pagina se compone con columna izquierda para datos editables y columna derecha para titulares y pagos
 - en desktop, la columna izquierda ya se ordena en `Datos del lote`, `Datos de la venta`, `Datos de la financiacion` y `Resumen del contrato`
+- en `Datos de la financiacion`, `Cantidad de cuotas` y `Monto por cuota` ya comparten una sola franja y se recalculan segun el tipo de financiamiento
 - el `Resumen del contrato` ya no usa mini-cards; se muestra como resumen compacto por filas
 - el bloque `Titulares` se renombra visualmente como `Datos del cliente`
+- en edicion, la vista principal ya usa resumen de pagos y mueve la tabla completa a un modal dedicado con footer resumen
+- en mapa, tabla y drawer ya usan la misma regla de venta: `Crear venta` o `Ver venta` depende solo de existencia de venta activa
 
 ## Dependencias documentales
 
