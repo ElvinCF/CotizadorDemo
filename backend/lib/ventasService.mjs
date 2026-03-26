@@ -15,6 +15,14 @@ const VALID_SALE_STATES = new Set([
 const VALID_PAYMENT_TYPES = new Set(["SEPARACION", "INICIAL", "CUOTA", "OTRO"]);
 const VALID_FINANCING_TYPES = new Set(["REDUCIR_CUOTA", "REDUCIR_MESES"]);
 const INITIAL_PAYMENT_TYPES = new Set(["SEPARACION", "INICIAL"]);
+const SALE_STATE_PRIORITY = new Map([
+  ["SEPARADA", 1],
+  ["INICIAL_PAGADA", 2],
+  ["CONTRATO_FIRMADO", 3],
+  ["PAGANDO", 4],
+  ["COMPLETADA", 5],
+  ["CAIDA", 6],
+]);
 
 const asTrimmed = (value) => String(value ?? "").trim();
 const asUpper = (value) => asTrimmed(value).toUpperCase();
@@ -166,21 +174,28 @@ const getPaymentsTotal = (payments) =>
       .toFixed(2)
   );
 
+const getStatePriority = (saleState) => SALE_STATE_PRIORITY.get(normalizeSaleState(saleState)) ?? 0;
+
 const deriveStateFromPayments = (payments, precioVenta, currentState) => {
+  const normalizedCurrentState = currentState ? normalizeSaleState(currentState) : "SEPARADA";
   const totalPaid = getPaymentsTotal(payments);
+  let derivedState = "SEPARADA";
+
   if (totalPaid >= Number(precioVenta || 0) && Number(precioVenta || 0) > 0) {
-    return "COMPLETADA";
+    derivedState = "COMPLETADA";
+  } else if ((payments || []).some((payment) => payment.tipo_pago === "CUOTA")) {
+    derivedState = "PAGANDO";
+  } else if ((payments || []).some((payment) => payment.tipo_pago === "INICIAL")) {
+    derivedState = "INICIAL_PAGADA";
   }
-  if ((payments || []).some((payment) => payment.tipo_pago === "CUOTA")) {
-    return "PAGANDO";
+
+  if (normalizedCurrentState === "CAIDA" || normalizedCurrentState === "COMPLETADA") {
+    return normalizedCurrentState;
   }
-  if ((payments || []).some((payment) => payment.tipo_pago === "INICIAL")) {
-    return "INICIAL_PAGADA";
-  }
-  if ((payments || []).some((payment) => payment.tipo_pago === "SEPARACION")) {
-    return "SEPARADA";
-  }
-  return currentState ?? "SEPARADA";
+
+  return getStatePriority(normalizedCurrentState) > getStatePriority(derivedState)
+    ? normalizedCurrentState
+    : derivedState;
 };
 
 const resolveCreateState = (requestedState, payments, precioVenta) => {
@@ -192,6 +207,9 @@ const resolveCreateState = (requestedState, payments, precioVenta) => {
   }
   if (requested === derivedState) {
     return requested;
+  }
+  if (getStatePriority(derivedState) > getStatePriority(requested)) {
+    return derivedState;
   }
   if (requested === "CONTRATO_FIRMADO" && derivedState === "INICIAL_PAGADA") {
     return requested;
@@ -271,6 +289,7 @@ const mapHistory = (row) => ({
 const mapSaleRow = (row) => ({
   id: row.id,
   fechaVenta: row.fecha_venta,
+  fechaPagoPactada: row.fecha_pago_pactada ?? null,
   precioVenta: Number(row.precio_venta ?? 0),
   estadoVenta: row.estado_venta,
   tipoFinanciamiento: row.tipo_financiamiento,
@@ -315,6 +334,7 @@ const getSaleSelect = (includeDetails = false) => {
   const base = [
     "id",
     "fecha_venta",
+    "fecha_pago_pactada",
     "precio_venta",
     "estado_venta",
     "tipo_financiamiento",
@@ -459,23 +479,6 @@ const ensureLoteAvailableForSale = async (client, schema, loteCodigo) => {
     throw notFound("Lote no encontrado.");
   }
 
-  if (String(lote.estado_comercial || "").toUpperCase() !== "DISPONIBLE") {
-    throw conflict(`El lote ${code} no esta disponible para una nueva venta.`);
-  }
-
-  const activeSaleResult = await client.query(
-    `select id
-       from ${schema}.ventas
-      where lote_id = $1
-        and estado_venta <> 'CAIDA'
-      limit 1`,
-    [lote.id]
-  );
-
-  if (activeSaleResult.rows[0]) {
-    throw conflict("Ese lote ya tiene una venta activa.");
-  }
-
   return lote;
 };
 
@@ -555,6 +558,7 @@ const getSaleDetail = async (saleId) => {
       `select
          v.id,
          v.fecha_venta,
+         v.fecha_pago_pactada,
          v.precio_venta,
          v.estado_venta,
          v.tipo_financiamiento,
@@ -629,6 +633,7 @@ const getSaleDetail = async (saleId) => {
     return {
       id: row.id,
       fechaVenta: row.fecha_venta,
+      fechaPagoPactada: row.fecha_pago_pactada ?? null,
       precioVenta: Number(row.precio_venta ?? 0),
       estadoVenta: row.estado_venta,
       tipoFinanciamiento: row.tipo_financiamiento,
@@ -698,7 +703,7 @@ const getSaleBaseByIdTx = async (client, schema, saleId) => {
 
   const result = await client.query(
     `select id, lote_id, cliente_id, cliente2_id, asesor_id, precio_venta, estado_venta, tipo_financiamiento,
-            monto_inicial_total, monto_financiado, cantidad_cuotas, monto_cuota, observacion, fecha_venta
+            monto_inicial_total, monto_financiado, cantidad_cuotas, monto_cuota, observacion, fecha_venta, fecha_pago_pactada
        from ${schema}.ventas
       where id = $1
       for update`,
@@ -839,6 +844,7 @@ export const listSalesAsync = async (username, pin) => {
       return result.rows.map((row) => ({
         id: row.id,
         fechaVenta: row.fecha_venta,
+        fechaPagoPactada: row.fecha_pago_pactada ?? null,
         precioVenta: Number(row.precio_venta ?? 0),
         estadoVenta: row.estado_venta,
         tipoFinanciamiento: row.tipo_financiamiento,
@@ -937,6 +943,7 @@ export const createSaleAsync = async (username, pin, saleInput) => {
            cliente2_id,
            asesor_id,
            fecha_venta,
+           fecha_pago_pactada,
            precio_venta,
            estado_venta,
            tipo_financiamiento,
@@ -945,14 +952,15 @@ export const createSaleAsync = async (username, pin, saleInput) => {
            cantidad_cuotas,
            monto_cuota,
            observacion
-        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-         returning id`,
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          returning id`,
         [
           lote?.id ?? null,
           cliente?.id ?? null,
           cliente2?.id ?? null,
           await resolveAsesorIdForCreate(client, schema, operator, saleInput),
           formatIso(saleInput?.fechaVenta, "Fecha de venta"),
+          hasValue(saleInput?.fechaPagoPactada) ? formatIso(saleInput?.fechaPagoPactada, "Fecha de pago pactada") : null,
           hasValue(saleInput?.precioVenta) ? asPositiveNumber(saleInput?.precioVenta, "Precio de venta", true) : 0,
           finalState,
           financing.tipoFinanciamiento,
@@ -1042,14 +1050,15 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
                 cliente_id = $3,
                 cliente2_id = $4,
                 fecha_venta = $5,
-                precio_venta = $6,
-                estado_venta = $7,
-                tipo_financiamiento = $8,
-                monto_inicial_total = $9,
-                monto_financiado = $10,
-                cantidad_cuotas = $11,
-                monto_cuota = $12,
-                observacion = $13
+                fecha_pago_pactada = $6,
+                precio_venta = $7,
+                estado_venta = $8,
+                tipo_financiamiento = $9,
+                monto_inicial_total = $10,
+                monto_financiado = $11,
+                cantidad_cuotas = $12,
+                monto_cuota = $13,
+                observacion = $14
           where id = $1`,
         [
           existing.id,
@@ -1057,6 +1066,11 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
           clienteId,
           cliente2Id,
           patchInput?.fechaVenta ? formatIso(patchInput.fechaVenta, "Fecha de venta") : existing.fecha_venta,
+          Object.prototype.hasOwnProperty.call(patchInput || {}, "fechaPagoPactada")
+            ? hasValue(patchInput?.fechaPagoPactada)
+              ? formatIso(patchInput?.fechaPagoPactada, "Fecha de pago pactada")
+              : null
+            : existing.fecha_pago_pactada,
           patchInput?.precioVenta !== undefined
             ? asPositiveNumber(patchInput.precioVenta, "Precio de venta", true)
             : Number(existing.precio_venta),

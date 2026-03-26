@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import {
@@ -23,6 +23,7 @@ import {
   defaultQuote,
   mapVars,
 } from "../../domain/constants";
+import { buildCotizadorPath, readCachedCotizadorQuote, writeCachedCotizadorQuote } from "../../domain/cotizador";
 import {
   addDays,
   clamp,
@@ -46,6 +47,7 @@ type SalesMapPageProps = {
 function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams<{ loteCodigo?: string }>();
   const { isAuthenticated } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
@@ -106,18 +108,23 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, string>>({});
   const hidePublicRestrictedActions = publicView && !isAuthenticated;
-  const isCotizadorRoute = publicView && location.pathname === "/cotizador";
+  const routeLoteCodigo = params.loteCodigo?.trim().toUpperCase() ?? "";
+  const isCotizadorRoute = publicView && location.pathname.startsWith("/cotizador");
   const DRAWER_PULSE_MS = 900;
 
   const openQuoteDrawer = useCallback(
     (loteId?: string | null) => {
-      if (loteId) {
-        setSelectedId(loteId);
+      const nextSelectedId = loteId?.trim().toUpperCase() ?? null;
+      if (nextSelectedId) {
+        setSelectedId(nextSelectedId);
       }
       setRightOpen(true);
 
-      if (publicView && location.pathname !== "/cotizador") {
-        navigate("/cotizador");
+      if (publicView) {
+        const nextPath = buildCotizadorPath(nextSelectedId);
+        if (location.pathname !== nextPath) {
+          navigate(nextPath);
+        }
       }
     },
     [location.pathname, navigate, publicView]
@@ -127,30 +134,33 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     setRightOpen(false);
     setSelectedId(null);
 
-    if (publicView && location.pathname === "/cotizador") {
+    if (publicView && isCotizadorRoute) {
       navigate("/", { replace: true });
     }
-  }, [location.pathname, navigate, publicView]);
+  }, [isCotizadorRoute, navigate, publicView]);
 
   useEffect(() => {
     if (!publicView) return;
 
     if (isCotizadorRoute) {
       setRightOpen(true);
+      if (routeLoteCodigo) {
+        setSelectedId(routeLoteCodigo);
+      }
       return;
     }
 
     setRightOpen(false);
     setSelectedId(null);
-  }, [isCotizadorRoute, publicView]);
+  }, [isCotizadorRoute, publicView, routeLoteCodigo]);
 
   useEffect(() => {
     if (!publicView || !isCotizadorRoute) return;
-    if (selectedId) return;
+    if (routeLoteCodigo) return;
 
     setRightOpen(false);
     navigate("/", { replace: true });
-  }, [isCotizadorRoute, navigate, publicView, selectedId]);
+  }, [isCotizadorRoute, navigate, publicView, routeLoteCodigo]);
 
   useEffect(() => {
     let active = true;
@@ -277,13 +287,33 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   );
 
   useEffect(() => {
-    if (selectedLote?.price != null) {
-      setQuote((current) => ({
-        ...current,
-        precio: selectedLote.price || 0,
-      }));
-    }
-  }, [selectedLote?.price]);
+    if (!selectedLote) return;
+
+    const cachedQuote = readCachedCotizadorQuote(selectedLote.id);
+    setQuote({
+      ...defaultQuote,
+      ...cachedQuote,
+      precio: selectedLote.price ?? cachedQuote?.precio ?? 0,
+    });
+  }, [selectedLote]);
+
+  useEffect(() => {
+    if (!selectedLote) return;
+    writeCachedCotizadorQuote(selectedLote.id, {
+      ...quote,
+      precio: selectedLote.price ?? quote.precio,
+    });
+  }, [quote, selectedLote]);
+
+  useEffect(() => {
+    if (!publicView || !isCotizadorRoute || !routeLoteCodigo || lotes.length === 0) return;
+    const hasSelectedLote = lotes.some((item) => item.id === routeLoteCodigo);
+    if (hasSelectedLote) return;
+
+    setRightOpen(false);
+    setSelectedId(null);
+    navigate("/", { replace: true });
+  }, [isCotizadorRoute, lotes, navigate, publicView, routeLoteCodigo]);
 
   useEffect(() => {
     if (!selectedLote) return;
@@ -372,8 +402,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           }
           return;
         }
-        setRightOpen(false);
-        setSelectedId(null);
+        closeQuoteDrawer();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -1021,6 +1050,16 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     setProformaOpen(true);
   };
 
+  const openSaleFromDrawer = () => {
+    if (!selectedLote) return;
+    const activeSaleId = salesByLoteCode[selectedLote.id];
+    if (activeSaleId) {
+      navigate(`/ventas/${activeSaleId}`);
+      return;
+    }
+    navigate(`/ventas/nueva?lote=${selectedLote.id}&target=${selectedLote.condicion}`);
+  };
+
   const mapShellClassName = rightOpen ? "map-shell has-drawer" : "map-shell";
   const MapView = (
     <section className="map-page">
@@ -1202,9 +1241,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           cuota={cuota}
           cuotaRapida={cuotaRapida}
           onOpenProforma={openProforma}
+          onOpenSale={openSaleFromDrawer}
           onClose={closeQuoteDrawer}
           onChangeQuote={setQuote}
           hideProformaButton={hidePublicRestrictedActions}
+          showSaleButton={!hidePublicRestrictedActions && Boolean(selectedLote)}
+          saleButtonLabel={selectedLote && salesByLoteCode[selectedLote.id] ? "Ver venta" : "Crear venta"}
         />
       </section>
     </section>

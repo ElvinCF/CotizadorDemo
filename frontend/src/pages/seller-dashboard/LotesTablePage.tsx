@@ -189,8 +189,16 @@ function LotesTablePage() {
     [filters.mz, rows]
   );
 
+  const boundsSourceRows = useMemo(() => {
+    return rows.filter((row) => {
+      const byMz = filters.mz === "TODAS" || row.mz === filters.mz;
+      const byLote = filters.loteId === "TODOS" || row.id === filters.loteId;
+      return byMz && byLote;
+    });
+  }, [filters.loteId, filters.mz, rows]);
+
   const areaBounds = useMemo(() => {
-    const values = rows
+    const values = boundsSourceRows
       .map((row) => toFiniteNumber(row.areaM2))
       .filter((value): value is number => value != null);
     if (values.length === 0) return { min: 0, max: 100 };
@@ -198,10 +206,10 @@ function LotesTablePage() {
       min: Number(Math.min(...values).toFixed(2)),
       max: Number(Math.max(...values).toFixed(2)),
     };
-  }, [rows]);
+  }, [boundsSourceRows]);
 
   const priceBounds = useMemo(() => {
-    const values = rows
+    const values = boundsSourceRows
       .map((row) => toFiniteNumber(row.price))
       .filter((value): value is number => value != null);
     if (values.length === 0) return { min: 0, max: 1000 };
@@ -209,7 +217,7 @@ function LotesTablePage() {
       min: Number(Math.min(...values).toFixed(2)),
       max: Number(Math.max(...values).toFixed(2)),
     };
-  }, [rows]);
+  }, [boundsSourceRows]);
 
   useEffect(() => {
     setFilters((current) => {
@@ -227,6 +235,16 @@ function LotesTablePage() {
       };
     });
   }, [areaBounds.max, areaBounds.min, priceBounds.max, priceBounds.min]);
+
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      areaMin: areaBounds.min,
+      areaMax: areaBounds.max,
+      priceMin: priceBounds.min,
+      priceMax: priceBounds.max,
+    }));
+  }, [filters.loteId, filters.mz, areaBounds.max, areaBounds.min, priceBounds.max, priceBounds.min]);
 
   useEffect(() => {
     setFilters((current) => {

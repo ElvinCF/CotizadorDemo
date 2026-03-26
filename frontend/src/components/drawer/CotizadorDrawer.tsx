@@ -14,6 +14,13 @@ const IconPlus = () => (
   </svg>
 );
 
+const IconSale = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M5 19V9M12 19V5M19 19v-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M3 19h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
 type CotizadorDrawerProps = {
   rightOpen: boolean;
   selectedLote: Lote | null;
@@ -26,8 +33,11 @@ type CotizadorDrawerProps = {
   cuotaRapida: (meses: number, inicial: number) => number;
   onClose: () => void;
   onOpenProforma: () => void;
+  onOpenSale?: () => void;
   onChangeQuote: (next: QuoteState) => void;
   hideProformaButton?: boolean;
+  showSaleButton?: boolean;
+  saleButtonLabel?: string;
 };
 
 function CotizadorDrawer({
@@ -42,8 +52,11 @@ function CotizadorDrawer({
   cuotaRapida,
   onClose,
   onOpenProforma,
+  onOpenSale,
   onChangeQuote,
   hideProformaButton = false,
+  showSaleButton = false,
+  saleButtonLabel = "Crear venta",
 }: CotizadorDrawerProps) {
   const precioLote = selectedLote?.price ?? quote.precio ?? 0;
   const loteStatusClass = statusToClass(selectedLote?.condicion);
@@ -198,6 +211,12 @@ function CotizadorDrawer({
             </div>
 
             <div className="drawer-footer-actions">
+              {showSaleButton && onOpenSale ? (
+                <button className="btn ghost drawer-footer-btn drawer-footer-btn--secondary" onClick={onOpenSale}>
+                  <IconSale />
+                  <span>{saleButtonLabel}</span>
+                </button>
+              ) : null}
               {selectedLote.condicion !== "VENDIDO" && !hideProformaButton ? (
                 <button className="btn drawer-footer-btn drawer-footer-btn--primary" onClick={onOpenProforma}>
                   <IconPlus />

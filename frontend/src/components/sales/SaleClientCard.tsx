@@ -1,6 +1,7 @@
 import type { SalesClient } from "../../domain/ventas";
 
 type SaleClientCardProps = {
+  title?: string;
   cliente: SalesClient | null;
   cliente2: SalesClient | null;
   disabled?: boolean;
@@ -26,6 +27,7 @@ const IconEdit = () => (
 );
 
 export default function SaleClientCard({
+  title = "Datos del cliente",
   cliente,
   cliente2,
   disabled = false,
@@ -36,15 +38,15 @@ export default function SaleClientCard({
   return (
     <article className="sales-form-card sales-client-card">
       <header className="sales-client-card__header">
-        <h3>Titulares</h3>
+        <h3>{title}</h3>
       </header>
 
       <div className="sales-client-card__rows">
         <article className="sales-client-card__row">
           <span className="sales-pill is-info">Titular principal</span>
           <div className="sales-client-card__identity">
-            <strong className="sales-client-card__name">{showValue(cliente?.nombreCompleto)}</strong>
             <span className="sales-client-card__dni">DNI: {showValue(cliente?.dni)}</span>
+            <strong className="sales-client-card__name">{showValue(cliente?.nombreCompleto)}</strong>
           </div>
           <button
             type="button"
@@ -62,8 +64,8 @@ export default function SaleClientCard({
           <article className="sales-client-card__row">
             <span className="sales-pill is-warning">Titular 2</span>
             <div className="sales-client-card__identity">
-              <strong className="sales-client-card__name">{showValue(cliente2.nombreCompleto)}</strong>
               <span className="sales-client-card__dni">DNI: {showValue(cliente2.dni)}</span>
+              <strong className="sales-client-card__name">{showValue(cliente2.nombreCompleto)}</strong>
             </div>
             <button
               type="button"

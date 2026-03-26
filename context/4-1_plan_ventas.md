@@ -1,6 +1,6 @@
 # Plan de Ventas
 
-Actualizado: `2026-03-25`
+Actualizado: `2026-03-26`
 Rol: `Plan por fases`
 
 ## Uso de este documento
@@ -30,7 +30,7 @@ La prioridad es permitir registrar, guardar y editar ventas incompletas de forma
 - una venta sera un expediente editable incompleto, no un estado borrador separado
 - el unico campo minimo actual para crear una venta es `fecha_venta`
 - en backend, si el payload llega incompleto, por ahora se permite guardar sin bloquear
-- la medicion visual de completitud y el `progress bar` quedan diferidos para una fase posterior
+- el `progress bar` de completitud sale del alcance de esta etapa
 - el unico bloqueo de BD que debe mantenerse en esta etapa es `fecha_venta`
 - la regla de inicial minima se elimina solo al registrar una venta o un pago
 - la trazabilidad debe mostrar usuario y fecha segun lo que exista en BD
@@ -51,8 +51,8 @@ Este plan cubre solo la linea prioritaria aprobada:
 - permitir separar con pocos datos y guardar
 - mantener la UI nueva tambien para venta nueva
 - mantener visibles `tipo_financiamiento` y `fecha_primera_cuota` en la vista principal
-- mostrar trazabilidad dentro de `Ajustes`
-- diferir el `progress bar` de completitud para una fase posterior
+- mostrar el tab `Historial` dentro de `Ajustes`
+- dejar fuera de alcance el `progress bar` de completitud
 
 No entra todavia aqui:
 
@@ -66,7 +66,7 @@ Eso sigue en `5_correcciones_ideas.md` hasta priorizacion formal.
 
 ## Fase 1. Relajar captura operativa de ventas
 
-Estado: `En curso`
+Estado: `Aplicado`
 
 Meta:
 
@@ -81,6 +81,7 @@ Pendientes:
 - permitir guardar venta sin pagos registrados
 - permitir guardar venta sin monto inicial minimo
 - permitir separar con pocos datos y continuar despues
+- permitir crear la primera venta aunque `lotes.estado_comercial` este stale en `SEPARADO` o `VENDIDO`
 
 Entregables tecnicos:
 
@@ -91,6 +92,7 @@ Entregables tecnicos:
   - acepta payload parcial
   - no rechaza por ausencia de cliente, asesor o pagos
   - no devuelve error por incompletitud mientras `fecha_venta` exista
+  - al crear venta, solo valida existencia del lote y delega unicidad de venta activa al indice parcial de BD
 - BD:
   - revisar `NOT NULL`, defaults y dependencias que impidan persistencia parcial
   - mantener `fecha_venta` como unico bloqueo tecnico obligatorio en esta etapa
@@ -101,10 +103,11 @@ Criterio de cierre:
 - la venta queda editable despues
 - la pantalla no obliga cliente, pagos ni asesor para persistir
 - `fecha_venta` es el unico bloqueo efectivo en frontend, backend y BD
+- un lote con estado comercial stale puede recibir su primera venta si no existe venta activa real
 
 ## Fase 2. Reglas de permisos para administracion comercial
 
-Estado: `Pendiente`
+Estado: `Aplicado`
 
 Meta:
 
@@ -112,26 +115,26 @@ Meta:
 
 Pendientes:
 
-- permitir que admin venda como asesor
-- cerrar validacion operativa de "admin vende como asesor" en flujo real
+- validar en QA extendido el comportamiento ya aplicado con usuarios reales
 
 Entregables tecnicos:
 
 - frontend:
-  - validar en QA que selector admin mantiene coherencia en alta/edicion
+  - selector de asesor para admin operativo en alta y edicion cuando corresponda
+  - bloqueo visual para asesor sobre ventas ajenas mantenido
 - backend:
-  - reglas de autorizacion por rol
+  - reglas de autorizacion por rol aplicadas
   - admin puede operar como admin o como asesor
   - asesor conserva restriccion sobre ventas ajenas
 
 Criterio de cierre:
 
-- admin puede registrar y reasignar comercialmente una venta
-- asesor conserva restricciones por propiedad de venta
+- [x] admin puede registrar y reasignar comercialmente una venta
+- [x] asesor conserva restricciones por propiedad de venta
 
 ## Fase 3. Ajuste de reglas de inicial y estados
 
-Estado: `Pendiente`
+Estado: `En curso`
 
 Meta:
 
@@ -149,6 +152,8 @@ Entregables tecnicos:
 - backend:
   - recalculo coherente despues de crear o editar pagos
   - transicion de estados sin dependencia fija de `6000`
+  - en alta, si los pagos registrados evidencian un estado superior al elegido en UI, la venta debe promocionarse automaticamente al estado coherente
+  - el recalculo por pagos no debe hacer retroceder estados manuales ya consolidados como `CONTRATO_FIRMADO`
 - reglas:
   - documentar como se interpreta `monto_inicial_total`
   - documentar que esta flexibilidad es operativa y no una regla general de cierre comercial
@@ -156,11 +161,13 @@ Entregables tecnicos:
 Criterio de cierre:
 
 - una venta con inicial baja no rompe guardado ni estados
+- una venta con pago `INICIAL` puede crearse como `INICIAL_PAGADA` aunque no exista `SEPARACION` previa
 - el estado comercial del lote se sincroniza bien con la venta activa
+- editar o registrar pagos no debe forzar regresion desde `CONTRATO_FIRMADO`, `PAGANDO` o `COMPLETADA`
 
 ## Fase 4. Ajustes, trazabilidad y calculo visible
 
-Estado: `Pendiente`
+Estado: `Aplicado`
 
 Meta:
 
@@ -168,22 +175,32 @@ Meta:
 
 Pendientes:
 
-- usar la UI nueva tambien para el registro de venta nueva
-- evitar bifurcacion entre formulario nuevo y formulario historico
-- crear bloque o modal `Ajustes`
-- mostrar dentro de `Ajustes` la trazabilidad de la venta
-- incluir al menos usuario y fecha en cada evento trazable
-- mantener visibles en la UI principal:
-  - `tipo_financiamiento`
-  - `fecha_primera_cuota`
-- mostrar el impacto inmediato de `fecha_primera_cuota` en el calculo comercial
-- revisar mensajes de guardado parcial y continuidad del expediente
+- QA visual final del expediente en desktop, tablet y mobile
 
 Criterio de cierre:
 
 - venta nueva y venta existente comparten el mismo modelo visual y mental
-- la trazabilidad queda accesible dentro de `Ajustes`
+- el historial queda accesible dentro de `Ajustes`
+- el llenado de la venta queda visible con iconos de estado
+- el tab `Administrativo` concentra datos de control en solo lectura
+- el tab `Administrativo` permite editar `asesor asignado` solo para admin
+- el tab `Administrativo` permite editar `fecha_pago_pactada`
 - el comercial puede explicar desde la UI principal el arranque de cuotas
+
+Avance aplicado:
+
+- la venta existente ya expone el modal `Ajustes`
+- `Ajustes` abre por defecto en el tab `Llenado de la venta`
+- `Ajustes` incluye tab `Historial` con estado anterior, estado nuevo, usuario y fecha
+- `Ajustes` incluye tab `Llenado de la venta` con checklist visual por iconos
+- `Ajustes` incluye tab `Administrativo` con datos de control en solo lectura
+- `Ajustes` permite editar `asesor asignado` solo para admin y `fecha_pago_pactada`, guardando con el submit principal
+- el boton `Ajustes` ya opera como icono en el header del expediente
+- venta nueva y venta existente usan la misma jerarquia visual del expediente
+- en desktop, la pagina se compone con columna izquierda para datos editables y columna derecha para titulares y pagos
+- en desktop, la columna izquierda ya se ordena en `Datos del lote`, `Datos de la venta`, `Datos de la financiacion` y `Resumen del contrato`
+- el `Resumen del contrato` ya no usa mini-cards; se muestra como resumen compacto por filas
+- el bloque `Titulares` se renombra visualmente como `Datos del cliente`
 
 ## Dependencias documentales
 
@@ -208,9 +225,11 @@ Cuando estas fases se apliquen, se debe actualizar en paralelo:
 - [x] backend ventas: aceptar guardado parcial con `fecha_venta` como unico minimo
 - [x] validaciones frontend de venta: bloquear solo por ausencia de `fecha_venta`
 - [x] revision BD: confirmar que no existan bloqueos adicionales a `fecha_venta`
-- [ ] permisos admin y asesor: validar cierre funcional del modo "admin vende como asesor" y QA final
-- [ ] trazabilidad y `Ajustes`: dejarlo para la fase posterior al desbloqueo operativo
-- [ ] `progress bar` de completitud: documentado pero diferido
+- [x] permisos admin y asesor: cierre funcional del modo "admin vende como asesor" aplicado
+- [x] alta de venta: no bloquear por `estado_comercial` stale del lote; el bloqueo real queda en la venta activa unica
+- [x] `Ajustes`: modal operativo con tabs `Historial`, `Llenado de la venta` y `Administrativo`
+- [x] modal de historico de venta visible en `ventaId`
+- [x] `progress bar` de completitud: retirado del alcance de esta fase
 
 ## Riesgos abiertos
 

@@ -6,6 +6,9 @@ type SalePaymentModalProps = {
   open: boolean;
   saving: boolean;
   initialValue?: SalePayment | null;
+  suggestedType?: PaymentType;
+  defaultAmount?: string;
+  suggestedInstallmentNumber?: string;
   onClose: () => void;
   onSave: (values: SalePaymentFormValues) => Promise<void>;
 };
@@ -17,13 +20,17 @@ const todayInput = () => {
   return `${now.getFullYear()}-${month}-${day}`;
 };
 
-const emptyPaymentForm: SalePaymentFormValues = {
+const buildEmptyPaymentForm = (
+  suggestedType: PaymentType = "CUOTA",
+  defaultAmount = "",
+  suggestedInstallmentNumber = ""
+): SalePaymentFormValues => ({
   fechaPago: todayInput(),
-  tipoPago: "CUOTA",
-  monto: "",
-  nroCuota: "",
+  tipoPago: suggestedType,
+  monto: suggestedType === "CUOTA" ? defaultAmount : "",
+  nroCuota: suggestedType === "CUOTA" ? suggestedInstallmentNumber : "",
   observacion: "",
-};
+});
 
 const paymentTypeOptions: { value: PaymentType; label: string }[] = [
   { value: "SEPARACION", label: "Separacion" },
@@ -32,7 +39,16 @@ const paymentTypeOptions: { value: PaymentType; label: string }[] = [
   { value: "OTRO", label: "Otro" },
 ];
 
-export default function SalePaymentModal({ open, saving, initialValue, onClose, onSave }: SalePaymentModalProps) {
+export default function SalePaymentModal({
+  open,
+  saving,
+  initialValue,
+  suggestedType = "CUOTA",
+  defaultAmount = "",
+  suggestedInstallmentNumber = "",
+  onClose,
+  onSave,
+}: SalePaymentModalProps) {
   const initialForm: SalePaymentFormValues = initialValue
     ? {
         fechaPago: initialValue.fechaPago?.slice(0, 10) || todayInput(),
@@ -41,7 +57,7 @@ export default function SalePaymentModal({ open, saving, initialValue, onClose, 
         nroCuota: initialValue.nroCuota != null ? String(initialValue.nroCuota) : "",
         observacion: initialValue.observacion ?? "",
       }
-    : emptyPaymentForm;
+    : buildEmptyPaymentForm(suggestedType, defaultAmount, suggestedInstallmentNumber);
   const [form, setForm] = useState<SalePaymentFormValues>(initialForm);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,7 +105,26 @@ export default function SalePaymentModal({ open, saving, initialValue, onClose, 
             <select
               value={form.tipoPago}
               onChange={(event) =>
-                setForm((current) => ({ ...current, tipoPago: event.target.value as SalePaymentFormValues["tipoPago"] }))
+                setForm((current) => {
+                  const nextType = event.target.value as SalePaymentFormValues["tipoPago"];
+                  if (initialValue) {
+                    return { ...current, tipoPago: nextType };
+                  }
+                  if (nextType === "CUOTA") {
+                    return {
+                      ...current,
+                      tipoPago: nextType,
+                      monto: defaultAmount,
+                      nroCuota: suggestedInstallmentNumber,
+                    };
+                  }
+                  return {
+                    ...current,
+                    tipoPago: nextType,
+                    monto: "",
+                    nroCuota: "",
+                  };
+                })
               }
             >
               {paymentTypeOptions.map((option) => (

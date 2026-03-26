@@ -1,6 +1,6 @@
 # Arquitectura de Ventas
 
-Actualizado: `2026-03-25`
+Actualizado: `2026-03-26`
 Rol: `Fuente de verdad`
 
 ## Objetivo
@@ -63,8 +63,14 @@ Regla actual aplicada:
 - permite guardar expediente incompleto
 - el unico bloqueo efectivo es `fecha_venta`
 - si lote o cliente no estan completos, la venta igual se crea
-- pagos iniciales vacios no se persisten
+- pagos iniciales vacios no se persisten ni bloquean el guardado
 - si crea un admin y no hay asesor asignado desde UI, la venta puede quedar sin asesor
+- el encabezado operativo de alta usa el copy `Nueva venta - SEPARACION / INICIAL`
+- el badge del encabezado en alta sigue mostrando el `estado_venta` actual del formulario
+- al crear una venta, el lote solo se valida por existencia; la unicidad de venta activa se apoya en el indice parcial de BD
+- un `estado_comercial` stale no bloquea la primera venta
+- si la venta nueva se abre desde el cotizador con `?lote=...`, precarga el cache local del lote para `precio_venta`, `cuotas`, `monto_cuota` e `INICIAL`
+- si los pagos cargados en alta evidencian un estado superior al seleccionado en la UI, backend promociona el estado inicial al valor coherente
 
 ### `/ventas/:ventaId`
 
@@ -72,20 +78,36 @@ Pantalla de expediente de venta.
 
 Incluye:
 
-- bloque editable de venta
+- secciones semanticas de venta y financiacion
+- resumen compacto del contrato
 - resumen de titulares
 - tabla de pagos
+- modal `Ajustes` con tabs `Historial`, `Llenado de la venta` y `Administrativo`
+- en `Administrativo`, `asesor asignado` es editable solo para admin
+- en `Administrativo`, `fecha_pago_pactada` es editable y se persiste con el guardado principal
+- el modal `Registrar pago` sugiere por defecto el siguiente `tipoPago` operativo y, para `CUOTA`, precarga `monto` con la cuota base y `nroCuota` siguiente
 - acciones de impresion
+- composicion desktop en dos columnas:
+  - izquierda: `Datos del lote`, `Datos de la venta` y `Resumen del contrato`
+  - derecha: `Datos del cliente`, `Datos de la financiacion` y card de pagos
+- el scroll operativo de la pagina vive en el contenedor del expediente de venta, no en el `main` global
+- header de acciones responsive:
+  - desktop con botones completos
+  - tablet/mobile con version compacta e impresion agrupada en un solo menu
 
 ## Composicion actual del expediente
 
 Bloques principales:
 
-- encabezado con lote y estado
-- bloque de datos editables
-- cards de calculo comercial
-- card de titulares
+- encabezado operativo con titulo y acciones
+- `Datos del lote`
+- `Datos de la venta`
+- `Datos de la financiacion`
+- `Resumen del contrato` en formato compacto por filas
+- `Datos del cliente`
 - card de pagos
+- `Datos del lote` usa una ficha compacta, no mini-cards internas
+- en desktop, `Datos del lote`, `Datos de la venta` y `Datos de la financiacion` se compactan en una sola franja interna por seccion
 
 Reglas vigentes:
 
@@ -93,6 +115,10 @@ Reglas vigentes:
 - pagos se editan por modal
 - la venta se edita en la pagina principal
 - el expediente funciona como registro vivo de la venta
+- venta nueva y venta existente comparten la misma jerarquia visual del expediente
+- el card principal de datos editables usa una malla interna compacta y responsive
+- en alta, el bloque de pagos iniciales prioriza `Observacion` sobre `Fecha` y `Monto` en ancho util
+- los mensajes de error y aviso en la pagina de venta se pueden cerrar manualmente
 
 ## Integraciones del modulo
 
@@ -100,6 +126,7 @@ Reglas vigentes:
 
 - una venta activa impacta el estado comercial del lote
 - desde lotes se puede navegar a crear o ver venta
+- desde el cotizador publico, la ruta ` /cotizador/:loteCodigo ` reabre el mismo drawer y conserva sus ajustes manuales por lote
 
 ### Clientes
 
@@ -110,6 +137,7 @@ Reglas vigentes:
 
 - pagos alimentan calculos y trazabilidad economica
 - pagos se muestran en tabla operativa dentro del expediente
+- el recalculo por pagos promueve estados por evidencia economica, pero no debe hacer retroceder hitos manuales ya consolidados como `CONTRATO_FIRMADO`
 
 ### Permisos
 

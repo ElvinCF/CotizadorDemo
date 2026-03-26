@@ -5,10 +5,12 @@ import { useAuth } from "../../app/AuthContext";
 import AdminTextInput from "../../components/admin/AdminTextInput";
 import SaleClientCard from "../../components/sales/SaleClientCard";
 import SaleClientModal from "../../components/sales/SaleClientModal";
-import SaleEditableCard from "../../components/sales/SaleEditableCard";
+import SaleEditableCard, { SaleFinancingCard } from "../../components/sales/SaleEditableCard";
 import SalePaymentModal from "../../components/sales/SalePaymentModal";
 import SalePaymentsCard from "../../components/sales/SalePaymentsCard";
+import SaleSettingsModal from "../../components/sales/SaleSettingsModal";
 import { printSaleDocument } from "../../components/sales/salePrint";
+import { readCachedCotizadorQuote } from "../../domain/cotizador";
 import type { Lote } from "../../domain/types";
 import type { AdminUser } from "../../domain/adminUsers";
 import type {
@@ -50,6 +52,7 @@ const createEmptySaleForm = (loteCodigo = "", targetState: SaleState = "SEPARADA
   loteCodigo,
   asesorId: null,
   fechaVenta: todayInput(),
+  fechaPagoPactada: "",
   precioVenta: "",
   estadoVenta: targetState,
   tipoFinanciamiento: "REDUCIR_CUOTA",
@@ -76,8 +79,28 @@ const advisorLabel = (user: AdminUser) => {
 const computeInitialTotal = (payments: InitialPaymentInput[]) =>
   payments.reduce((acc, payment) => acc + asNumber(payment.monto), 0);
 
+const filterFilledInitialPayments = (payments: InitialPaymentInput[]) =>
+  payments.filter((payment) => String(payment.monto || "").trim() !== "");
+
 const computePaidInstallments = (payments: SalePayment[]) =>
   payments.filter((payment) => payment.tipoPago === "CUOTA").reduce((acc, payment) => acc + Number(payment.monto || 0), 0);
+
+const getSuggestedNextPaymentType = (payments: SalePayment[]) => {
+  const hasSeparacion = payments.some((payment) => payment.tipoPago === "SEPARACION");
+  if (!hasSeparacion) return "SEPARACION" as const;
+  const hasInicial = payments.some((payment) => payment.tipoPago === "INICIAL");
+  if (!hasInicial) return "INICIAL" as const;
+  return "CUOTA" as const;
+};
+
+const getSuggestedNextInstallmentNumber = (payments: SalePayment[]) => {
+  const paidInstallmentNumbers = payments
+    .filter((payment) => payment.tipoPago === "CUOTA" && Number.isFinite(Number(payment.nroCuota)))
+    .map((payment) => Number(payment.nroCuota ?? 0))
+    .filter((value) => value > 0);
+
+  return String((paidInstallmentNumbers.length ? Math.max(...paidInstallmentNumbers) : 0) + 1);
+};
 
 const computePreview = (values: {
   precioVenta: string;
@@ -153,6 +176,24 @@ const IconSave = () => (
   </svg>
 );
 
+const IconSettings = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path
+      d="M12 3.5 13.8 5l2.4-.2 1 2.2 2 1.2-.5 2.3 1.3 2-1.3 2 .5 2.3-2 1.2-1 2.2-2.4-.2L12 20.5 10.2 19l-2.4.2-1-2.2-2-1.2.5-2.3-1.3-2 1.3-2-.5-2.3 2-1.2 1-2.2 2.4.2L12 3.5Z"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinejoin="round"
+    />
+    <circle cx="12" cy="12" r="3.1" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+const IconChevronDown = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export default function SaleFormPage() {
   const { id: saleId } = useParams();
   const [searchParams] = useSearchParams();
@@ -168,12 +209,21 @@ export default function SaleFormPage() {
   const [clientModalTarget, setClientModalTarget] = useState<"principal" | "secundario">("principal");
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<SalePayment | null>(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string>("");
   const [advisorOptions, setAdvisorOptions] = useState<{ id: string; name: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate("/ventas");
+  };
 
   useEffect(() => {
     const run = async () => {
@@ -186,6 +236,7 @@ export default function SaleFormPage() {
             loteCodigo: detail.lote?.codigo ?? "",
             asesorId: detail.asesor?.id ?? null,
             fechaVenta: detail.fechaVenta.slice(0, 10),
+            fechaPagoPactada: detail.fechaPagoPactada?.slice(0, 10) ?? "",
             precioVenta: String(detail.precioVenta),
             estadoVenta: detail.estadoVenta,
             tipoFinanciamiento: detail.tipoFinanciamiento,
@@ -229,11 +280,27 @@ export default function SaleFormPage() {
         const loteCode = searchParams.get("lote") || "";
         const allLotes = await loadLotesFromApi();
         const lote = allLotes.find((item) => item.id === loteCode) ?? null;
+        const cachedQuote = loteCode ? readCachedCotizadorQuote(loteCode) : null;
+        const cachedCuotas = Math.min(Math.max(Math.round(cachedQuote?.cuotas ?? 24), 1), 36);
+        const cachedInicial = Math.max(Number(cachedQuote?.inicialMonto ?? 0), 0);
+        const cachedPrecioVenta = Math.max(Number(cachedQuote?.precio ?? lote?.price ?? 0), 0);
+        const cachedMontoCuota =
+          cachedCuotas > 0 ? Number((Math.max(cachedPrecioVenta - cachedInicial, 0) / cachedCuotas).toFixed(2)) : 0;
         setSelectedLote(lote);
         setForm((current) => ({
           ...current,
           loteCodigo: loteCode,
-          precioVenta: lote?.price != null ? String(lote.price) : current.precioVenta,
+          precioVenta: String(cachedPrecioVenta || 0),
+          cantidadCuotas: String(cachedCuotas),
+          montoCuota: String(cachedMontoCuota),
+          pagosIniciales: current.pagosIniciales.map((payment) =>
+            payment.tipoPago === "INICIAL"
+              ? {
+                  ...payment,
+                  monto: cachedInicial > 0 ? String(cachedInicial) : payment.monto,
+                }
+              : payment
+          ),
         }));
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "No se pudo cargar la venta.");
@@ -335,6 +402,10 @@ export default function SaleFormPage() {
       return "Completa una fecha de venta valida.";
     }
 
+    if (form.fechaPagoPactada.trim() && !isValidDateInput(form.fechaPagoPactada)) {
+      return "Completa una fecha de pago pactada valida.";
+    }
+
     if (dniCliente && !/^\d{8,12}$/.test(dniCliente)) {
       return "El DNI del cliente debe tener entre 8 y 12 digitos.";
     }
@@ -393,6 +464,7 @@ export default function SaleFormPage() {
         const payload: SalePatchPayload = {
           ...(role === "admin" ? { asesorId: form.asesorId ?? null } : {}),
           fechaVenta: form.fechaVenta,
+          fechaPagoPactada: form.fechaPagoPactada || null,
           precioVenta: form.precioVenta,
           estadoVenta: form.estadoVenta,
           tipoFinanciamiento: form.tipoFinanciamiento,
@@ -410,6 +482,7 @@ export default function SaleFormPage() {
 
       const created = await createSale({
         ...form,
+        pagosIniciales: filterFilledInitialPayments(form.pagosIniciales),
         asesorId: role === "admin" ? form.asesorId ?? currentUserId ?? null : currentUserId ?? null,
       });
       navigate(`/ventas/${created.id}`, { replace: true });
@@ -507,6 +580,10 @@ export default function SaleFormPage() {
   const selectedAdvisorLabel =
     advisorOptions.find((advisor) => advisor.id === form.asesorId)?.name ??
     (role === "asesor" ? loginUsername ?? "Asesor actual" : "Sin asesor");
+  const suggestedNextPaymentType = sale ? getSuggestedNextPaymentType(sale.pagos) : "CUOTA";
+  const suggestedNextInstallmentNumber = sale ? getSuggestedNextInstallmentNumber(sale.pagos) : "1";
+  const suggestedDefaultPaymentAmount =
+    suggestedNextPaymentType === "CUOTA" ? String(Number(sale?.montoCuota ?? 0).toFixed(2)) : "";
 
   const renderAdvisorCard = (disabled: boolean) => (
     <article className="sales-form-card sales-advisor-card">
@@ -545,30 +622,50 @@ export default function SaleFormPage() {
       <header className="sales-form-page__head">
         <div className="sales-form-page__heading">
           <div className="sales-form-page__title-row">
+            <button
+              type="button"
+              className="btn ghost sales-header-action sales-header-action--back sales-header-action--title-back"
+              onClick={goBack}
+            >
+              <IconArrowLeft />
+              <span className="sales-header-action__label">Volver</span>
+            </button>
             <h2>Modificar Venta</h2>
-            <span className="sales-pill is-info">{form.estadoVenta.replaceAll("_", " ")}</span>
-            {selectedLote ? (
-              <div className="sales-form-page__lote-row">
-                <span className="sales-form-page__lote-pill sales-form-page__lote-pill--mz">MZ {selectedLote.mz}</span>
-                <span className="sales-form-page__lote-pill">Lote {selectedLote.lote}</span>
-              </div>
-            ) : null}
           </div>
         </div>
         <div className="sales-form-page__summary">
-          <button
-            type="button"
-            className="btn ghost sales-header-action sales-header-action--back"
-            onClick={() => navigate("/ventas")}
-          >
-            <IconArrowLeft />
-            <span className="sales-header-action__label">Volver</span>
-          </button>
-          <button type="button" className="btn ghost sales-header-action" onClick={() => handlePrint("separacion")}>
+          <details className="sales-header-print-menu sales-header-print-menu--compact">
+            <summary className="btn ghost sales-header-action sales-header-action--print-menu">
+              <IconPrinter />
+              <span className="sales-header-action__label">Imprimir</span>
+              <IconChevronDown />
+            </summary>
+            <div className="sales-header-print-menu__dropdown">
+              <button type="button" className="btn ghost sales-header-print-menu__item" onClick={() => handlePrint("separacion")}>
+                <IconPrinter />
+                <span>Separacion</span>
+              </button>
+              <button type="button" className="btn ghost sales-header-print-menu__item" onClick={() => handlePrint("contrato")}>
+                <IconPrinter />
+                <span>Contrato</span>
+              </button>
+            </div>
+          </details>
+          <button type="button" className="btn ghost sales-header-action sales-header-action--print-desktop" onClick={() => handlePrint("separacion")}>
             <IconPrinter />
             <span className="sales-header-action__label">Imprimir separacion</span>
           </button>
-          <button type="button" className="btn ghost sales-header-action" onClick={() => handlePrint("contrato")}>
+          <button
+            type="button"
+            className="btn ghost sales-header-action sales-header-action--icon-only"
+            onClick={() => setSettingsModalOpen(true)}
+            title="Ajustes"
+            aria-label="Ajustes"
+          >
+            <IconSettings />
+            <span className="sales-header-action__label">Ajustes</span>
+          </button>
+          <button type="button" className="btn ghost sales-header-action sales-header-action--print-desktop" onClick={() => handlePrint("contrato")}>
             <IconPrinter />
             <span className="sales-header-action__label">Imprimir contrato</span>
           </button>
@@ -588,17 +685,41 @@ export default function SaleFormPage() {
         <p className="admin-notice">Modo solo lectura: esta venta pertenece a otro asesor.</p>
       ) : null}
 
-      <SaleEditableCard
-        form={form}
-        role={role}
-        disabled={!canEditCurrentSale}
-        preview={preview}
-        onFormChange={(updater) => setForm((current) => updater(current))}
-      />
+      <section className="sales-expediente-layout">
+        <div className="sales-expediente-layout__main">
+          <SaleEditableCard
+            form={form}
+            role={role}
+            disabled={!canEditCurrentSale}
+            preview={preview}
+            lote={
+              sale.lote
+                ? {
+                    codigo: sale.lote.codigo,
+                    mz: sale.lote.mz,
+                    lote: sale.lote.lote,
+                    areaM2: sale.lote.areaM2,
+                    estadoComercial: sale.lote.estadoComercial,
+                    precioReferencial: sale.lote.precioReferencial,
+                  }
+                : selectedLote
+                  ? {
+                      codigo: selectedLote.id,
+                      mz: selectedLote.mz,
+                      lote: selectedLote.lote,
+                      areaM2: selectedLote.areaM2,
+                      estadoComercial: selectedLote.condicion,
+                      precioReferencial: selectedLote.price,
+                    }
+                  : null
+            }
+            onFormChange={(updater) => setForm((current) => updater(current))}
+          />
+        </div>
 
-      <section className="sales-detail-grid">
-        <div className="sales-detail-column">
+        <div className="sales-expediente-layout__side">
           <SaleClientCard
+            title="Datos del cliente"
             cliente={form.cliente}
             cliente2={form.cliente2}
             disabled={!canEditCurrentSale}
@@ -607,15 +728,20 @@ export default function SaleFormPage() {
             onEditCliente2={() => openClientModal("secundario")}
             onRemoveCliente2={handleRemoveClient2}
           />
-          {renderAdvisorCard(!canEditCurrentSale)}
+          <SaleFinancingCard
+            form={form}
+            role={role}
+            disabled={!canEditCurrentSale}
+            onFormChange={(updater) => setForm((current) => updater(current))}
+          />
+          <SalePaymentsCard
+            sale={sale}
+            disabled={!canEditCurrentSale}
+            loading={saving}
+            onAddPayment={handleOpenCreatePayment}
+            onEditPayment={handleEditPayment}
+          />
         </div>
-        <SalePaymentsCard
-          sale={sale}
-          disabled={!canEditCurrentSale}
-          loading={saving}
-          onAddPayment={handleOpenCreatePayment}
-          onEditPayment={handleEditPayment}
-        />
       </section>
     </>
   ) : null;
@@ -625,25 +751,18 @@ export default function SaleFormPage() {
       <header className="sales-form-page__head">
         <div className="sales-form-page__heading">
           <div className="sales-form-page__title-row">
-            <h2>Registrar Venta</h2>
-            <span className="sales-pill is-info">{form.estadoVenta.replaceAll("_", " ")}</span>
-            {selectedLote ? (
-              <div className="sales-form-page__lote-row">
-                <span className="sales-form-page__lote-pill sales-form-page__lote-pill--mz">MZ {selectedLote.mz}</span>
-                <span className="sales-form-page__lote-pill">Lote {selectedLote.lote}</span>
-              </div>
-            ) : null}
+            <button
+              type="button"
+              className="btn ghost sales-header-action sales-header-action--back sales-header-action--title-back"
+              onClick={goBack}
+            >
+              <IconArrowLeft />
+              <span className="sales-header-action__label">Volver</span>
+            </button>
+            <h2>Nueva venta - SEPARACION / INICIAL</h2>
           </div>
         </div>
         <div className="sales-form-page__summary">
-          <button
-            type="button"
-            className="btn ghost sales-header-action sales-header-action--back"
-            onClick={() => navigate("/ventas")}
-          >
-            <IconArrowLeft />
-            <span className="sales-header-action__label">Volver</span>
-          </button>
           <button type="button" className="btn sales-header-action sales-header-action--save" onClick={handleSubmit} disabled={saving}>
             <IconSave />
             <span className="sales-header-action__label">{saving ? "Guardando..." : "Crear venta"}</span>
@@ -651,16 +770,32 @@ export default function SaleFormPage() {
         </div>
       </header>
 
-      <SaleEditableCard
-        form={form}
-        role={role}
-        preview={preview}
-        onFormChange={(updater) => setForm((current) => updater(current))}
-      />
+      <section className="sales-expediente-layout">
+        <div className="sales-expediente-layout__main">
+          <SaleEditableCard
+            form={form}
+            role={role}
+            preview={preview}
+            lote={
+              selectedLote
+                ? {
+                    codigo: selectedLote.id,
+                    mz: selectedLote.mz,
+                    lote: selectedLote.lote,
+                    areaM2: selectedLote.areaM2,
+                    estadoComercial: selectedLote.condicion,
+                    precioReferencial: selectedLote.price,
+                  }
+                : null
+            }
+            onFormChange={(updater) => setForm((current) => updater(current))}
+          />
+          {renderAdvisorCard(false)}
+        </div>
 
-      <section className="sales-detail-grid">
-        <div className="sales-detail-column">
+        <div className="sales-expediente-layout__side">
           <SaleClientCard
+            title="Datos del cliente"
             cliente={form.cliente}
             cliente2={form.cliente2}
             onEditCliente={() => openClientModal("principal")}
@@ -668,38 +803,47 @@ export default function SaleFormPage() {
             onEditCliente2={() => openClientModal("secundario")}
             onRemoveCliente2={handleRemoveClient2}
           />
-          {renderAdvisorCard(false)}
+          <SaleFinancingCard
+            form={form}
+            role={role}
+            onFormChange={(updater) => setForm((current) => updater(current))}
+          />
+          <article className="sales-form-card">
+            <header className="sales-client-card__header">
+              <h3>Pagos iniciales</h3>
+            </header>
+            <div className="sales-form-fields sales-form-fields--payments">
+              {form.pagosIniciales.map((payment, index) => (
+                <div key={payment.tipoPago} className="sales-payment-inline">
+                  <strong>{payment.tipoPago}</strong>
+                  <div className="sales-payment-inline__date">
+                    <AdminTextInput
+                      type="date"
+                      value={payment.fechaPago}
+                      onChange={(event) => updateInitialPayment(index, "fechaPago", event.target.value)}
+                    />
+                  </div>
+                  <div className="sales-payment-inline__amount">
+                    <AdminTextInput
+                      type="number"
+                      step="0.01"
+                      placeholder="Monto"
+                      value={payment.monto}
+                      onChange={(event) => updateInitialPayment(index, "monto", event.target.value)}
+                    />
+                  </div>
+                  <div className="sales-payment-inline__note">
+                    <AdminTextInput
+                      placeholder="Observacion"
+                      value={payment.observacion}
+                      onChange={(event) => updateInitialPayment(index, "observacion", event.target.value)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
         </div>
-
-        <article className="sales-form-card">
-          <header className="sales-client-card__header">
-            <h3>Pagos iniciales</h3>
-          </header>
-          <div className="sales-form-fields sales-form-fields--payments">
-            {form.pagosIniciales.map((payment, index) => (
-              <div key={payment.tipoPago} className="sales-payment-inline">
-                <strong>{payment.tipoPago}</strong>
-                <AdminTextInput
-                  type="date"
-                  value={payment.fechaPago}
-                  onChange={(event) => updateInitialPayment(index, "fechaPago", event.target.value)}
-                />
-                <AdminTextInput
-                  type="number"
-                  step="0.01"
-                  placeholder="Monto"
-                  value={payment.monto}
-                  onChange={(event) => updateInitialPayment(index, "monto", event.target.value)}
-                />
-                <AdminTextInput
-                  placeholder="Observacion"
-                  value={payment.observacion}
-                  onChange={(event) => updateInitialPayment(index, "observacion", event.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-        </article>
       </section>
     </>
   );
@@ -724,8 +868,22 @@ export default function SaleFormPage() {
     <AppShell title={isEdit ? "Detalle de Venta" : "Nueva Venta"} actions={actions} contentClassName="main--admin">
       <section className="sales-form-page">
         {loading ? <p className="muted">Cargando venta...</p> : null}
-        {error ? <p className="admin-error">{error}</p> : null}
-        {notice ? <p className="admin-notice">{notice}</p> : null}
+        {error ? (
+          <p className="admin-error">
+            <span>{error}</span>
+            <button type="button" className="admin-error__close" onClick={() => setError(null)} aria-label="Cerrar error">
+              ×
+            </button>
+          </p>
+        ) : null}
+        {notice ? (
+          <p className="admin-notice">
+            <span>{notice}</span>
+            <button type="button" className="admin-notice__close" onClick={() => setNotice("")} aria-label="Cerrar aviso">
+              ×
+            </button>
+          </p>
+        ) : null}
 
         {!loading ? (isEdit ? renderEditView : renderCreateView) : null}
 
@@ -744,11 +902,26 @@ export default function SaleFormPage() {
             open={paymentModalOpen}
             saving={saving}
             initialValue={editingPayment}
+            suggestedType={suggestedNextPaymentType}
+            defaultAmount={suggestedDefaultPaymentAmount}
+            suggestedInstallmentNumber={suggestedNextInstallmentNumber}
             onClose={() => {
               setPaymentModalOpen(false);
               setEditingPayment(null);
             }}
             onSave={handleSavePayment}
+          />
+        ) : null}
+        {isEdit && sale ? (
+          <SaleSettingsModal
+            open={settingsModalOpen}
+            sale={sale}
+            form={form}
+            role={role}
+            advisorOptions={advisorOptions}
+            disabled={!canEditCurrentSale}
+            onFormChange={(updater) => setForm((current) => updater(current))}
+            onClose={() => setSettingsModalOpen(false)}
           />
         ) : null}
       </section>

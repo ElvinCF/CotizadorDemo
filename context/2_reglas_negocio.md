@@ -259,6 +259,16 @@ Secuencia acordada:
 
 ### 7.1. Creacion inicial de la venta
 
+Reglas vigentes en alta operativa:
+
+- la venta nueva se puede guardar con solo `fecha_venta`
+- cliente, asesor y pagos iniciales no son obligatorios para persistir
+- si en la UI de venta nueva existen filas de `SEPARACION` e `INICIAL` vacias, esas filas no bloquean el guardado
+- solo se registran como pagos iniciales las filas que tengan monto informado
+- el minimo de inicial `6000` no bloquea el registro de venta ni el registro de pago
+- si la venta nueva se abre desde el cotizador con lote seleccionado, se precargan `precio_venta`, `cuotas`, `monto_cuota` e `INICIAL` desde el cache local de ese lote
+- si los pagos iniciales registrados evidencian un estado superior al seleccionado en la UI, el backend promociona la venta automaticamente al estado coherente
+
 Al crear una venta y registrar el pago de separacion:
 
 - se crea la venta
@@ -274,6 +284,11 @@ Cuando existe al menos un pago tipo `INICIAL`:
 - `estado_venta = INICIAL_PAGADA`
 - `lote.estado_comercial = VENDIDO`
 - se inserta historial
+- no es obligatorio que exista un pago `SEPARACION` previo
+
+Regla adicional:
+
+- el recalculo por pagos no debe hacer retroceder un estado manual ya consolidado como `CONTRATO_FIRMADO`
 
 ### 7.3. Paso a `CONTRATO_FIRMADO`
 
@@ -288,6 +303,10 @@ Cuando existe al menos un pago tipo `CUOTA`:
 
 - `estado_venta = PAGANDO`
 - se inserta historial
+
+Regla adicional:
+
+- si la venta ya estaba en `PAGANDO` o `COMPLETADA`, el recalculo por pagos no debe degradarla a un estado menor
 
 ### 7.5. Paso a `COMPLETADA`
 
@@ -394,10 +413,21 @@ Esto evita:
 Regla obligatoria:
 
 - no puede existir mas de una venta activa para el mismo lote
+- al crear una venta, no se debe bloquear por `lotes.estado_comercial`
+- al crear una venta, el bloqueo real depende de la existencia de una venta activa
+- si un lote esta `SEPARADO` o `VENDIDO` pero no tiene venta activa asociada, se permite crear la primera venta y luego se resincroniza `estado_comercial`
+- la unicidad de venta activa se resuelve con el indice unico parcial de BD y su manejo de error, no con una capa previa basada en el estado visual del lote
 
 Esto debe resolverse con un indice unico parcial en BD.
 
-### 9.3. No eliminar ventas caidas
+### 9.3. Cotizador con estado navegable
+
+- la ruta publica ` /cotizador/:loteCodigo ` representa un lote seleccionado en el drawer
+- si no existe lote seleccionado en la ruta de cotizador, la navegacion debe volver a `/`
+- los ajustes manuales del cotizador se guardan en cache local por lote
+- esos ajustes locales alimentan tanto la proforma como la venta nueva del mismo lote
+
+### 9.4. No eliminar ventas caidas
 
 Una venta caida:
 
@@ -405,7 +435,7 @@ Una venta caida:
 - no se pisa
 - no desaparece del historial
 
-### 9.4. Propiedad de la venta por asesor
+### 9.5. Propiedad de la venta por asesor
 
 Reglas obligatorias:
 
@@ -512,7 +542,7 @@ El backend es la fuente de verdad de reglas y validaciones.
 Debe:
 
 - validar que el lote exista
-- validar que el lote tenga disponibilidad comercial
+- bloquear solo si ya existe una venta activa para ese lote
 - validar cliente por DNI
 - crear cliente si no existe
 - crear cliente secundario si no existe
@@ -525,6 +555,15 @@ Debe:
 - aplicar reglas de permisos
 - impedir que un asesor toque ventas ajenas
 - impedir que un asesor cree ventas para otro asesor
+
+La trazabilidad de cambios de estado:
+
+- se registra en `venta_estado_historial`
+- debe mostrar al menos estado anterior, estado nuevo, usuario y fecha
+- ya es visible desde el detalle de venta dentro de `Ajustes`, en el tab `Historial`
+- `Ajustes` abre por defecto en `Llenado de la venta` y agrega un tab `Administrativo` de solo lectura
+- dentro de `Ajustes > Administrativo`, `asesor_id` solo puede editarlo `ADMIN`
+- dentro de `Ajustes > Administrativo`, `fecha_pago_pactada` es editable y se guarda con la venta
 
 No debe delegar al frontend:
 

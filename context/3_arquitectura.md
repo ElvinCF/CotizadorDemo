@@ -125,6 +125,8 @@ Reglas vigentes:
 - el backend debe responder mensajes consumibles por UI
 - los modulos deben tolerar estados parciales cuando la operacion real lo requiera
 - el frontend no debe asumir que una regla de negocio queda cerrada solo por ocultar o deshabilitar algo
+- en el cotizador, la seleccion publica del lote vive en la URL ` /cotizador/:loteCodigo `
+- los ajustes manuales del cotizador se persisten en cache local por lote y se reutilizan al abrir proforma o venta nueva
 
 ## Sistema de tablas aplicado
 
@@ -248,6 +250,12 @@ Aqui solo se documentan patrones compartidos que ventas reutiliza:
 - regla actual de guardado parcial:
   - frontend y backend bloquean solo por `fecha_venta`
   - la persistencia parcial del resto vive en el modulo ventas
+  - en venta nueva, las filas vacias de `SEPARACION` e `INICIAL` no se envian ni bloquean el submit
+  - los errores y avisos operativos del modulo ventas deben poder cerrarse desde la UI
+  - la creacion de venta no se bloquea por `estado_comercial` del lote
+  - la unicidad de venta activa queda delegada al indice parcial de BD y a su manejo de error
+  - el detalle de venta ya expone `Ajustes` con tabs `Historial`, `Llenado de la venta` y `Administrativo`
+  - `Administrativo` concentra lectura de control y edicion de `asesor asignado` solo para admin mas `fecha_pago_pactada`
 
 ## Modulo dashboards
 

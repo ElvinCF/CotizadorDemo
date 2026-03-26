@@ -24,6 +24,10 @@ export const appRouter = createBrowserRouter([
     element: <SalesMapPage publicView />,
   },
   {
+    path: "/cotizador/:loteCodigo",
+    element: <SalesMapPage publicView />,
+  },
+  {
     path: "/lotes",
     element: (
       <ProtectedRoute allowedRoles={["admin", "asesor"]}>

@@ -59,6 +59,7 @@ export type SaleHistoryItem = {
 export type SaleRecord = {
   id: string;
   fechaVenta: string;
+  fechaPagoPactada: string | null;
   precioVenta: number;
   estadoVenta: SaleState;
   tipoFinanciamiento: FinancingType;
@@ -86,6 +87,7 @@ export type SaleFormValues = {
   loteCodigo: string;
   asesorId: string | null;
   fechaVenta: string;
+  fechaPagoPactada: string;
   precioVenta: string;
   estadoVenta: SaleState;
   tipoFinanciamiento: FinancingType;
@@ -100,6 +102,7 @@ export type SaleFormValues = {
 export type SalePatchPayload = {
   asesorId?: string | null;
   fechaVenta: string;
+  fechaPagoPactada?: string | null;
   precioVenta: string;
   estadoVenta: SaleState;
   tipoFinanciamiento: FinancingType;
