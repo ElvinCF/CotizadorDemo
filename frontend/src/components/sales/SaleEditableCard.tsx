@@ -42,7 +42,6 @@ const saleStateOptions: { value: SaleState; label: string; tone: "neutral" }[] =
   { value: "CONTRATO_FIRMADO", label: "Contrato firmado", tone: "neutral" },
   { value: "PAGANDO", label: "Pagando", tone: "neutral" },
   { value: "COMPLETADA", label: "Completada", tone: "neutral" },
-  { value: "CAIDA", label: "Caida", tone: "neutral" },
 ];
 
 const financingOptions = [
@@ -98,10 +97,10 @@ export function SaleLotCard({ lote }: SaleLotCardProps) {
           <tbody>
             <tr>
               <td>
-                <span className="sales-pill is-warning">MZ {formatTextValue(lote?.mz)}</span>
+                <span className="sales-pill is-warning">{formatTextValue(lote?.mz)}</span>
               </td>
               <td>
-                <span className="sales-pill is-info">{lote ? `Lote ${lote.lote}` : "-"}</span>
+                <span className="sales-pill is-info">{lote ? formatTextValue(lote.lote) : "-"}</span>
               </td>
               <td>{formatArea(lote?.areaM2 ?? null)}</td>
               <td>
@@ -116,9 +115,7 @@ export function SaleLotCard({ lote }: SaleLotCardProps) {
   );
 }
 
-export function SaleDataCard({ form, role, disabled = false, onFormChange }: SaleCardBaseProps) {
-  const visibleStateOptions = saleStateOptions.filter((item) => role === "admin" || item.value !== "CAIDA");
-
+export function SaleDataCard({ form, disabled = false, onFormChange }: SaleCardBaseProps) {
   return (
     <article className="sales-form-card sales-editable-card">
       <header className="sales-section-card__header">
@@ -144,7 +141,7 @@ export function SaleDataCard({ form, role, disabled = false, onFormChange }: Sal
               onFormChange((current) => ({ ...current, estadoVenta: event.target.value as SaleState }))
             }
           >
-            {visibleStateOptions.map((option) => (
+            {saleStateOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

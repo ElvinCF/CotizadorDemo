@@ -49,7 +49,7 @@ export default function SaleClientCard({
   const hasSecondaryClient = Boolean(cliente2?.dni?.trim() || cliente2?.nombreCompleto?.trim());
   const hasAnyClient = hasPrimaryClient || hasSecondaryClient;
   const showAddButton = !hasSecondaryClient;
-  const addButtonLabel = hasPrimaryClient ? "Agregar titular" : "Agregar titular";
+  const addButtonLabel = "Agregar titular";
   const addButtonAction = hasPrimaryClient ? onAddCliente2 : onEditCliente;
 
   return (
@@ -73,40 +73,41 @@ export default function SaleClientCard({
 
       <div className="sales-client-card__rows">
         {!hasAnyClient ? <p className="sales-client-card__empty">Aun no se registran titulares.</p> : null}
+
         {hasPrimaryClient ? (
-        <article className="sales-client-card__row">
-          <span className="sales-pill is-info">Titular principal</span>
-          <div className="sales-client-card__identity">
-            <strong className="sales-client-card__meta">
-              DNI: {showValue(cliente?.dni)} <span className="sales-client-card__separator">·</span> {formatClientName(cliente?.nombreCompleto)}
-            </strong>
-          </div>
-          <button
-            type="button"
-            className="btn ghost sales-client-card__edit-btn"
-            onClick={onEditCliente}
-            title="Editar titular principal"
-            disabled={disabled}
-          >
-            <IconEdit />
-            <span>Editar</span>
-          </button>
-        </article>
+          <article className="sales-client-card__row">
+            <span className="sales-pill is-info">Titular 1</span>
+            <div className="sales-client-card__identity">
+              <span className="sales-client-card__dni">DNI: {showValue(cliente?.dni)}</span>
+              <strong className="sales-client-card__meta">{formatClientName(cliente?.nombreCompleto)}</strong>
+            </div>
+            <button
+              type="button"
+              className="btn ghost sales-client-card__edit-btn"
+              onClick={onEditCliente}
+              title="Editar titular 1"
+              aria-label="Editar titular 1"
+              disabled={disabled}
+            >
+              <IconEdit />
+              <span>Editar</span>
+            </button>
+          </article>
         ) : null}
 
         {hasSecondaryClient ? (
           <article className="sales-client-card__row">
             <span className="sales-pill is-warning">Titular 2</span>
             <div className="sales-client-card__identity">
-              <strong className="sales-client-card__meta">
-                DNI: {showValue(cliente2?.dni)} <span className="sales-client-card__separator">·</span> {formatClientName(cliente2?.nombreCompleto)}
-              </strong>
+              <span className="sales-client-card__dni">DNI: {showValue(cliente2?.dni)}</span>
+              <strong className="sales-client-card__meta">{formatClientName(cliente2?.nombreCompleto)}</strong>
             </div>
             <button
               type="button"
               className="btn ghost sales-client-card__edit-btn"
               onClick={onEditCliente2}
-              title="Editar segundo titular"
+              title="Editar titular 2"
+              aria-label="Editar titular 2"
               disabled={disabled}
             >
               <IconEdit />

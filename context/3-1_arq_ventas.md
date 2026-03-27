@@ -124,6 +124,7 @@ Reglas vigentes:
 - la venta se edita en la pagina principal
 - el expediente funciona como registro vivo de la venta
 - venta nueva y venta existente comparten la misma jerarquia visual del expediente
+- venta nueva y venta existente comparten un mismo template de expediente; las diferencias viven en flags y slots de acciones, asesor y pagos
 - el card principal de datos editables usa una malla interna compacta y responsive
 - en alta, el bloque de pagos iniciales prioriza `Observacion` sobre `Fecha` y `Monto` en ancho util
 - los mensajes de error y aviso en la pagina de venta se pueden cerrar manualmente
@@ -172,3 +173,4 @@ Actualizar este documento solo cuando el flujo de ventas ya este aplicado en cod
 - Para mapa, tabla del mapa, `/lotes` y `/ventas`, una venta con estado `CAIDA` se trata como no activa.
 - Si el lote solo tiene una venta `CAIDA`, la UI debe ofrecer `Crear venta` y no `Ver venta`.
 - La venta `CAIDA` sigue existiendo como historial, pero no bloquea el inicio de una nueva venta sobre el mismo lote.
+- En la vista de venta, `CAIDA` no se edita desde el bloque principal de estado; se gestiona solo en `Ajustes > Administrativo` y solo para `admin`.

@@ -707,3 +707,8 @@ Con este documento y `1_esquema_bd.md` aprobados, el siguiente paso correcto es:
 2. definir los indices parciales exactos
 3. definir el flujo backend transaccional real
 4. despues adaptar frontend para separacion, ventas y pagos
+# Estado caida
+
+- La transicion a `CAIDA` es una accion administrativa.
+- Solo un usuario con rol `admin` puede verla y aplicarla desde `Ajustes > Administrativo`.
+- El select principal de estado en la vista de venta no expone la opcion `CAIDA`.

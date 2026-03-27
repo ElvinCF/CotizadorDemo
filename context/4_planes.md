@@ -1,6 +1,6 @@
 # Planes de Frontend y Modulos
 
-Actualizado: `2026-03-22`
+Actualizado: `2026-03-27`
 Rol: `Plan por fases`
 
 ## Uso de este documento
@@ -96,6 +96,11 @@ Orden activo de ejecucion para ventas:
 3. revision BD y restricciones reales
 4. permisos admin y asesor
 5. trazabilidad y `Ajustes`
+
+Siguiente backlog funcional de ventas:
+
+1. multi-lote en cotizador y venta
+2. documentos e impresion del expediente
 
 ### Fase 5. Consolidacion visual global
 

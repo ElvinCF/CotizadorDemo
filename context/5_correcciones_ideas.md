@@ -1,6 +1,6 @@
 # Correcciones e Ideas
 
-Actualizado: `2026-03-22`
+Actualizado: `2026-03-27`
 Rol: `Exploracion previa`
 
 ## Uso de este documento
@@ -156,7 +156,7 @@ Siguiente paso:
 
 ### Cotizador multi-lote
 
-Estado: `Idea`
+Estado: `Movido a plan`
 Modulo: `Ventas`
 Impacto: `Alto`
 
@@ -167,5 +167,20 @@ Descripcion:
 
 Siguiente paso:
 
-- no priorizar en la fase operativa inmediata
-- revisar primero impacto en modelo de datos, pagos y contratos
+- desarrollado ahora en `4-1_plan_ventas.md` como Fase 5
+
+### Documentos de venta e impresion
+
+Estado: `Movido a plan`
+Modulo: `Ventas`
+Impacto: `Alto`
+
+Descripcion:
+
+- consolidar formatos de impresion del expediente
+- incluir ficha de separacion, contrato, venta e historial de pagos
+- usar datos existentes en la venta
+
+Siguiente paso:
+
+- desarrollado ahora en `4-1_plan_ventas.md` como Fase 6

@@ -14,7 +14,6 @@ import {
 import SalePaymentModal from "../../components/sales/SalePaymentModal";
 import { SalePaymentsModal, SalePaymentsOverviewCard } from "../../components/sales/SalePaymentsCard";
 import SaleSettingsModal from "../../components/sales/SaleSettingsModal";
-import { printSaleDocument } from "../../components/sales/salePrint";
 import { readCachedCotizadorQuote } from "../../domain/cotizador";
 import type { Lote } from "../../domain/types";
 import type { AdminUser } from "../../domain/adminUsers";
@@ -222,6 +221,31 @@ type MobileAccordionSectionProps = {
   children: ReactNode;
 };
 
+type ExpedienteSection = {
+  key: string;
+  title: string;
+  node: ReactNode;
+  defaultOpen?: boolean;
+};
+
+type SaleExpedienteTemplateProps = {
+  heading: string;
+  status: SaleState;
+  saving: boolean;
+  saveDisabled: boolean;
+  saveLongLabel: string;
+  saveShortLabel: string;
+  readOnlyNotice?: string | null;
+  showSettings?: boolean;
+  showMobilePaymentAction?: boolean;
+  onBack: () => void;
+  onSave: () => void;
+  onOpenSettings?: () => void;
+  onMobilePayment?: () => void;
+  mainSections: ExpedienteSection[];
+  sideSections: ExpedienteSection[];
+};
+
 function MobileAccordionSection({ title, defaultOpen = true, children }: MobileAccordionSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -238,6 +262,168 @@ function MobileAccordionSection({ title, defaultOpen = true, children }: MobileA
       </button>
       <div className="sales-mobile-section__content">{children}</div>
     </section>
+  );
+}
+
+function SaleExpedienteTemplate({
+  heading,
+  status,
+  saving,
+  saveDisabled,
+  saveLongLabel,
+  saveShortLabel,
+  readOnlyNotice,
+  showSettings = false,
+  showMobilePaymentAction = false,
+  onBack,
+  onSave,
+  onOpenSettings,
+  onMobilePayment,
+  mainSections,
+  sideSections,
+}: SaleExpedienteTemplateProps) {
+  return (
+    <>
+      <header className="sales-form-page__head">
+        <div className="sales-form-page__heading">
+          <div className="sales-form-page__title-row">
+            <button
+              type="button"
+              className="btn ghost sales-header-action sales-header-action--back sales-header-action--title-back"
+              onClick={onBack}
+            >
+              <IconArrowLeft />
+              <span className="sales-header-action__label">Volver</span>
+            </button>
+            <h2>{heading}</h2>
+            <span className="sales-form-page__status-badge">{formatSaleStateBadge(status)}</span>
+          </div>
+        </div>
+        <div className="sales-form-page__summary">
+          <DisabledPrintMenu />
+          {showSettings ? (
+            <button
+              type="button"
+              className="btn ghost sales-header-action"
+              onClick={onOpenSettings}
+              title="Ajustes"
+              aria-label="Ajustes"
+            >
+              <IconSettings />
+              <span className="sales-header-action__label">Ajustes</span>
+            </button>
+          ) : null}
+          <button type="button" className="btn sales-header-action sales-header-action--save" onClick={onSave} disabled={saveDisabled}>
+            {saving ? <IconSpinner /> : <IconSave />}
+            <span className="sales-header-action__label sales-header-action__label--long">{saveLongLabel}</span>
+            <span className="sales-header-action__label sales-header-action__label--short">{saveShortLabel}</span>
+          </button>
+        </div>
+      </header>
+
+      {readOnlyNotice ? <p className="admin-notice">{readOnlyNotice}</p> : null}
+
+      <section className="sales-expediente-layout">
+        <div className="sales-expediente-layout__main">
+          {mainSections.map((section) => (
+            <MobileAccordionSection key={section.key} title={section.title} defaultOpen={section.defaultOpen}>
+              {section.node}
+            </MobileAccordionSection>
+          ))}
+        </div>
+
+        <div className="sales-expediente-layout__side">
+          {sideSections.map((section) => (
+            <MobileAccordionSection key={section.key} title={section.title} defaultOpen={section.defaultOpen}>
+              {section.node}
+            </MobileAccordionSection>
+          ))}
+        </div>
+      </section>
+
+      <div className="sales-mobile-footer" role="toolbar" aria-label="Acciones principales de venta">
+        {showMobilePaymentAction ? (
+          <button
+            type="button"
+            className="btn ghost sales-mobile-footer__action sales-mobile-footer__action--payment"
+            onClick={onMobilePayment}
+          >
+            <span>+</span>
+            <span className="sales-mobile-footer__label">Pago</span>
+          </button>
+        ) : (
+          <span className="sales-mobile-footer__spacer" aria-hidden="true" />
+        )}
+        <button type="button" className="btn sales-mobile-footer__action sales-mobile-footer__action--save" onClick={onSave} disabled={saveDisabled}>
+          {saving ? <IconSpinner /> : <IconSave />}
+          <span className="sales-mobile-footer__label">{saveShortLabel}</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
+function SaleInitialPaymentsCard({
+  payments,
+  onChange,
+}: {
+  payments: InitialPaymentInput[];
+  onChange: (index: number, field: keyof InitialPaymentInput, value: string) => void;
+}) {
+  return (
+    <article className="sales-form-card">
+      <header className="sales-client-card__header">
+        <h3>Pagos iniciales</h3>
+      </header>
+      <div className="sales-form-fields sales-form-fields--payments">
+        {payments.map((payment, index) => (
+          <div key={payment.tipoPago} className="sales-payment-inline">
+            <strong>{payment.tipoPago}</strong>
+            <div className="sales-payment-inline__date">
+              <AdminTextInput type="date" value={payment.fechaPago} onChange={(event) => onChange(index, "fechaPago", event.target.value)} />
+            </div>
+            <div className="sales-payment-inline__amount">
+              <AdminTextInput
+                type="number"
+                step="0.01"
+                placeholder="Monto"
+                value={payment.monto}
+                onChange={(event) => onChange(index, "monto", event.target.value)}
+              />
+            </div>
+            <div className="sales-payment-inline__note">
+              <AdminTextInput
+                placeholder="Observacion"
+                value={payment.observacion}
+                onChange={(event) => onChange(index, "observacion", event.target.value)}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function DisabledPrintMenu() {
+  return (
+    <details className="sales-header-print-menu">
+      <summary className="btn ghost sales-header-action sales-header-action--print-menu is-disabled" aria-disabled="true">
+        <IconPrinter />
+        <span className="sales-header-action__label">Imprimir</span>
+        <IconChevronDown />
+      </summary>
+      <div className="sales-header-print-menu__dropdown">
+        <button type="button" className="btn ghost sales-header-print-menu__item" disabled>
+          <IconPrinter />
+          <span>Separacion</span>
+        </button>
+        <button type="button" className="btn ghost sales-header-print-menu__item" disabled>
+          <IconPrinter />
+          <span>Contrato</span>
+        </button>
+      </div>
+    </details>
   );
 }
 
@@ -662,16 +848,6 @@ export default function SaleFormPage() {
     setNotice("Segundo titular eliminado de la venta.");
   };
 
-  const handlePrint = (kind: "separacion" | "contrato") => {
-    if (!sale) return;
-    printSaleDocument({
-      kind,
-      sale,
-      cliente: form.cliente,
-      cliente2: form.cliente2,
-    });
-  };
-
   const handleOpenCreatePayment = () => {
     if (!canEditCurrentSale) return;
     setEditingPayment(null);
@@ -745,219 +921,95 @@ export default function SaleFormPage() {
     </article>
   );
 
-  const renderEditView = sale ? (
-    <>
-      <header className="sales-form-page__head">
-        <div className="sales-form-page__heading">
-          <div className="sales-form-page__title-row">
-            <button
-              type="button"
-              className="btn ghost sales-header-action sales-header-action--back sales-header-action--title-back"
-              onClick={goBack}
-            >
-              <IconArrowLeft />
-              <span className="sales-header-action__label">Volver</span>
-            </button>
-            <h2>Modificar Venta</h2>
-            <span className="sales-form-page__status-badge">{formatSaleStateBadge(form.estadoVenta)}</span>
-          </div>
-        </div>
-        <div className="sales-form-page__summary">
-            <details className="sales-header-print-menu sales-header-print-menu--compact">
-              <summary className="btn ghost sales-header-action sales-header-action--print-menu is-disabled" aria-disabled="true">
-                <IconPrinter />
-                <span className="sales-header-action__label">Imprimir</span>
-                <IconChevronDown />
-              </summary>
-              <div className="sales-header-print-menu__dropdown">
-                <button type="button" className="btn ghost sales-header-print-menu__item" onClick={() => handlePrint("separacion")} disabled>
-                  <IconPrinter />
-                  <span>Separacion</span>
-                </button>
-                <button type="button" className="btn ghost sales-header-print-menu__item" onClick={() => handlePrint("contrato")} disabled>
-                  <IconPrinter />
-                  <span>Contrato</span>
-                </button>
-              </div>
-            </details>
-          <button type="button" className="btn ghost sales-header-action sales-header-action--print-desktop" onClick={() => handlePrint("separacion")} disabled>
-              <IconPrinter />
-              <span className="sales-header-action__label">Imprimir separacion</span>
-            </button>
-          <button
-            type="button"
-            className="btn ghost sales-header-action sales-header-action--icon-only"
-            onClick={() => setSettingsModalOpen(true)}
-            title="Ajustes"
-            aria-label="Ajustes"
-          >
-            <IconSettings />
-            <span className="sales-header-action__label">Ajustes</span>
-          </button>
-          <button type="button" className="btn ghost sales-header-action sales-header-action--print-desktop" onClick={() => handlePrint("contrato")} disabled>
-              <IconPrinter />
-              <span className="sales-header-action__label">Imprimir contrato</span>
-            </button>
-          <button
-            type="button"
-            className="btn sales-header-action sales-header-action--save"
-            onClick={handleSubmit}
-            disabled={saving || !canEditCurrentSale || !hasPendingChanges}
-          >
-            {saving ? <IconSpinner /> : <IconSave />}
-            <span className="sales-header-action__label sales-header-action__label--long">Guardar cambios</span>
-            <span className="sales-header-action__label sales-header-action__label--short">Guardar</span>
-          </button>
-        </div>
-      </header>
+  const baseMainSections: ExpedienteSection[] = [
+    {
+      key: "lot",
+      title: "Datos del lote",
+      node: <SaleLotCard lote={lotPreview} />,
+    },
+    {
+      key: "sale",
+      title: "Datos de la venta",
+      node: (
+        <SaleDataCard
+          form={form}
+          role={role}
+          disabled={isEdit ? !canEditCurrentSale : false}
+          onFormChange={(updater) => setForm((current) => updater(current))}
+        />
+      ),
+    },
+    {
+      key: "summary",
+      title: "Resumen del contrato",
+      node: <SaleContractSummaryCard preview={preview} />,
+    },
+  ];
 
-      {!canEditCurrentSale ? (
-        <p className="admin-notice">Modo solo lectura: esta venta pertenece a otro asesor.</p>
-      ) : null}
+  const baseClientSection: ExpedienteSection = {
+    key: "clients",
+    title: "Datos del cliente",
+    node: (
+      <SaleClientCard
+        title="Datos del cliente"
+        cliente={form.cliente}
+        cliente2={form.cliente2}
+        disabled={isEdit ? !canEditCurrentSale : false}
+        onEditCliente={() => openClientModal("principal")}
+        onAddCliente2={() => openClientModal("secundario")}
+        onEditCliente2={() => openClientModal("secundario")}
+        onRemoveCliente2={handleRemoveClient2}
+      />
+    ),
+  };
 
-      <section className="sales-expediente-layout">
-        <div className="sales-expediente-layout__main">
-          <MobileAccordionSection title="Datos del lote">
-            <SaleLotCard lote={lotPreview} />
-          </MobileAccordionSection>
-          <MobileAccordionSection title="Datos de la venta">
-            <SaleDataCard form={form} role={role} disabled={!canEditCurrentSale} onFormChange={(updater) => setForm((current) => updater(current))} />
-          </MobileAccordionSection>
-          <MobileAccordionSection title="Resumen del contrato">
-            <SaleContractSummaryCard preview={preview} />
-          </MobileAccordionSection>
-        </div>
+  const baseFinancingSection: ExpedienteSection = {
+    key: "finance",
+    title: "Datos de la financiacion",
+    node: (
+      <SaleFinancingCard
+        form={form}
+        role={role}
+        preview={preview}
+        disabled={isEdit ? !canEditCurrentSale : false}
+        onFormChange={(updater) => setForm((current) => updater(current))}
+      />
+    ),
+  };
 
-        <div className="sales-expediente-layout__side">
-          <MobileAccordionSection title="Datos del cliente">
-            <SaleClientCard
-              title="Datos del cliente"
-              cliente={form.cliente}
-              cliente2={form.cliente2}
+  const editSideSections: ExpedienteSection[] = sale
+    ? [
+        baseClientSection,
+        baseFinancingSection,
+        {
+          key: "payments",
+          title: "Pagos",
+          node: (
+            <SalePaymentsOverviewCard
+              sale={sale}
               disabled={!canEditCurrentSale}
-              onEditCliente={() => openClientModal("principal")}
-              onAddCliente2={() => openClientModal("secundario")}
-              onEditCliente2={() => openClientModal("secundario")}
-              onRemoveCliente2={handleRemoveClient2}
+              onOpenPayments={() => setPaymentsListModalOpen(true)}
+              onAddPayment={handleOpenCreatePayment}
             />
-          </MobileAccordionSection>
-          <MobileAccordionSection title="Datos de la financiacion">
-            <SaleFinancingCard
-              form={form}
-              role={role}
-              preview={preview}
-              disabled={!canEditCurrentSale}
-              onFormChange={(updater) => setForm((current) => updater(current))}
-            />
-          </MobileAccordionSection>
-          <MobileAccordionSection title="Pagos">
-            <SalePaymentsOverviewCard sale={sale} disabled={!canEditCurrentSale} onOpenPayments={() => setPaymentsListModalOpen(true)} onAddPayment={handleOpenCreatePayment} />
-          </MobileAccordionSection>
-        </div>
-      </section>
-    </>
-  ) : null;
+          ),
+        },
+      ]
+    : [];
 
-  const renderCreateView = (
-    <>
-      <header className="sales-form-page__head">
-        <div className="sales-form-page__heading">
-          <div className="sales-form-page__title-row">
-            <button
-              type="button"
-              className="btn ghost sales-header-action sales-header-action--back sales-header-action--title-back"
-              onClick={goBack}
-            >
-              <IconArrowLeft />
-              <span className="sales-header-action__label">Volver</span>
-            </button>
-            <h2>Nueva venta - SEPARACION / INICIAL</h2>
-            <span className="sales-form-page__status-badge">{formatSaleStateBadge(form.estadoVenta)}</span>
-          </div>
-        </div>
-        <div className="sales-form-page__summary">
-          <button type="button" className="btn sales-header-action sales-header-action--save" onClick={handleSubmit} disabled={saving}>
-            {saving ? <IconSpinner /> : <IconSave />}
-            <span className="sales-header-action__label">{saving ? "Guardando..." : "Crear venta"}</span>
-          </button>
-        </div>
-      </header>
-
-      <section className="sales-expediente-layout">
-        <div className="sales-expediente-layout__main">
-          <MobileAccordionSection title="Datos del lote">
-            <SaleLotCard lote={lotPreview} />
-          </MobileAccordionSection>
-          <MobileAccordionSection title="Datos de la venta">
-            <SaleDataCard form={form} role={role} onFormChange={(updater) => setForm((current) => updater(current))} />
-          </MobileAccordionSection>
-          <MobileAccordionSection title="Resumen del contrato">
-            <SaleContractSummaryCard preview={preview} />
-          </MobileAccordionSection>
-        </div>
-
-        <div className="sales-expediente-layout__side">
-          {renderAdvisorCard(false)}
-          <MobileAccordionSection title="Datos del cliente">
-            <SaleClientCard
-              title="Datos del cliente"
-              cliente={form.cliente}
-              cliente2={form.cliente2}
-              onEditCliente={() => openClientModal("principal")}
-              onAddCliente2={() => openClientModal("secundario")}
-              onEditCliente2={() => openClientModal("secundario")}
-              onRemoveCliente2={handleRemoveClient2}
-            />
-          </MobileAccordionSection>
-          <MobileAccordionSection title="Datos de la financiacion">
-            <SaleFinancingCard
-              form={form}
-              role={role}
-              preview={preview}
-              onFormChange={(updater) => setForm((current) => updater(current))}
-            />
-          </MobileAccordionSection>
-          <MobileAccordionSection title="Pagos iniciales">
-            <article className="sales-form-card">
-              <header className="sales-client-card__header">
-                <h3>Pagos iniciales</h3>
-              </header>
-              <div className="sales-form-fields sales-form-fields--payments">
-                {form.pagosIniciales.map((payment, index) => (
-                  <div key={payment.tipoPago} className="sales-payment-inline">
-                    <strong>{payment.tipoPago}</strong>
-                    <div className="sales-payment-inline__date">
-                      <AdminTextInput
-                        type="date"
-                        value={payment.fechaPago}
-                        onChange={(event) => updateInitialPayment(index, "fechaPago", event.target.value)}
-                      />
-                    </div>
-                    <div className="sales-payment-inline__amount">
-                      <AdminTextInput
-                        type="number"
-                        step="0.01"
-                        placeholder="Monto"
-                        value={payment.monto}
-                        onChange={(event) => updateInitialPayment(index, "monto", event.target.value)}
-                      />
-                    </div>
-                    <div className="sales-payment-inline__note">
-                      <AdminTextInput
-                        placeholder="Observacion"
-                        value={payment.observacion}
-                        onChange={(event) => updateInitialPayment(index, "observacion", event.target.value)}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </MobileAccordionSection>
-        </div>
-      </section>
-    </>
-  );
+  const createSideSections: ExpedienteSection[] = [
+    {
+      key: "advisor",
+      title: "Asesor asignado",
+      node: renderAdvisorCard(false),
+    },
+    baseClientSection,
+    baseFinancingSection,
+    {
+      key: "initial-payments",
+      title: "Pagos iniciales",
+      node: <SaleInitialPaymentsCard payments={form.pagosIniciales} onChange={updateInitialPayment} />,
+    },
+  ];
 
   const actions = (
     <nav className="topbar-nav">
@@ -996,7 +1048,42 @@ export default function SaleFormPage() {
           </p>
         ) : null}
 
-        {!loading ? (isEdit ? renderEditView : renderCreateView) : null}
+        {!loading
+          ? isEdit && sale
+            ? (
+              <SaleExpedienteTemplate
+                heading="Modificar Venta"
+                status={form.estadoVenta}
+                saving={saving}
+                saveDisabled={saving || !canEditCurrentSale || !hasPendingChanges}
+                saveLongLabel="Guardar cambios"
+                saveShortLabel="Guardar"
+                readOnlyNotice={!canEditCurrentSale ? "Modo solo lectura: esta venta pertenece a otro asesor." : null}
+                showSettings
+                showMobilePaymentAction={canEditCurrentSale}
+                onBack={goBack}
+                onSave={handleSubmit}
+                onOpenSettings={() => setSettingsModalOpen(true)}
+                onMobilePayment={handleOpenCreatePayment}
+                mainSections={baseMainSections}
+                sideSections={editSideSections}
+              />
+              )
+            : (
+              <SaleExpedienteTemplate
+                heading="Nueva venta - SEPARACION / INICIAL"
+                status={form.estadoVenta}
+                saving={saving}
+                saveDisabled={saving}
+                saveLongLabel={saving ? "Guardando..." : "Crear venta"}
+                saveShortLabel="Guardar"
+                onBack={goBack}
+                onSave={handleSubmit}
+                mainSections={baseMainSections}
+                sideSections={createSideSections}
+              />
+              )
+          : null}
 
         <SaleClientModal
           open={clientModalOpen}
@@ -1033,18 +1120,6 @@ export default function SaleFormPage() {
             onAddPayment={handleOpenCreatePayment}
             onEditPayment={handleEditPayment}
           />
-        ) : null}
-        {isEdit && canEditCurrentSale ? (
-          <button
-            type="button"
-            className="btn sales-floating-payment-btn"
-            onClick={handleOpenCreatePayment}
-            title="Registrar pago"
-            aria-label="Registrar pago"
-          >
-            <span>+</span>
-            <span className="sales-floating-payment-btn__label">Pago</span>
-          </button>
         ) : null}
         {isEdit && sale ? (
           <SaleSettingsModal

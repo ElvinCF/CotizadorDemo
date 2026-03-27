@@ -1,6 +1,6 @@
 # Plan de Ventas
 
-Actualizado: `2026-03-26`
+Actualizado: `2026-03-27`
 Rol: `Plan por fases`
 
 ## Uso de este documento
@@ -58,7 +58,6 @@ No entra todavia aqui:
 
 - mejoras visuales de dashboard
 - mejoras de filtros en `/lotes`
-- multi-lote en cotizador o venta
 - reorganizacion profunda del drawer
 - `progress bar` de completitud y alerta visual de faltantes
 
@@ -206,6 +205,150 @@ Avance aplicado:
 - en mapa, tabla y drawer ya usan la misma regla de venta: `Crear venta` o `Ver venta` depende solo de existencia de venta activa
 - el header del expediente ya muestra badge pequeno de estado, acciones responsive y bloqueo de guardado cuando no hay cambios
 - en mobile, las secciones del expediente ya operan como acordeones y el alta/edicion comparten esa logica
+- alta y edicion ya usan un mismo template de expediente; solo cambian slots de pagos, ajustes, asesor y permisos
+
+## Fase 5. Multi-lote en cotizador y venta
+
+Estado: `Pendiente`
+
+Meta:
+
+- permitir seleccionar varios lotes y tratarlos como un solo expediente comercial
+
+Pendientes:
+
+- seleccionar varios lotes en mapa
+- ver los lotes seleccionados en el drawer cotizador
+- mantener la seleccion visible en proforma abierta
+- mantener la seleccion visible en venta nueva y en edicion
+- cotizar varios lotes como un solo expediente
+- facilitar calculos en inputs para el agregado multi-lote
+- mantener la regla actual de maximo `2` titulares por expediente completo
+
+Decisiones cerradas:
+
+- una venta multi-lote se implementara con tabla nueva `venta_lotes`
+- no se resolvera agrupando varias ventas separadas solo en frontend o backend
+- `ventas` seguira siendo el expediente padre
+- pagos, historial, titulares y documentos seguiran viviendo a nivel expediente
+- la proforma, la venta nueva y `ventaId` deben poder agregar y quitar lotes visualmente sin depender solo del mapa
+
+Estrategia de no-ruptura:
+
+- cualquier cambio de BD para esta fase se valida primero en entorno de prueba
+- si se usa schema alterno o branch de pruebas, la migracion multi-lote se rompe y valida ahi primero
+- la migracion en produccion debe ser compatible hacia atras
+- durante la transicion, `ventas.lote_id` se mantiene activo como campo legado
+- en paralelo se crea `venta_lotes` como detalle real de lotes por expediente
+- en una primera etapa, cada venta existente de un lote genera una fila espejo en `venta_lotes` con el mismo `venta_id` y `lote_id`
+- mientras exista compatibilidad, backend puede seguir leyendo primero `ventas.lote_id` y luego `venta_lotes` cuando corresponda
+- una vez migradas las lecturas y escrituras del modulo, la UI deja de mostrar `ventas.lote_id` como fuente principal y pasa a mostrar la coleccion de `venta_lotes`
+- solo cuando todo el flujo dependa de `venta_lotes`, `ventas.lote_id` puede marcarse para retiro
+- en consolidacion heredada, varias filas de `venta_lotes` pueden compartir el mismo `venta_id` para representar un solo expediente multi-lote
+- esas filas compartidas deben corresponder a ventas heredadas del mismo cliente o del mismo par `cliente_id` + `cliente2_id`
+- la meta de esa consolidacion es que dejen de existir como ventas separadas y pasen a pertenecer a una sola venta padre
+- si durante la consolidacion aparecen ventas con clientes repetidos pero financiacion, pagos o estado claramente incompatibles, no se fusionan automaticamente: se marcan para depuracion manual antes de eliminar duplicados
+
+Modelo de transicion propuesto:
+
+- etapa 1:
+  - crear `venta_lotes`
+  - mantener `ventas.lote_id`
+  - para cada venta existente, crear una fila en `venta_lotes` con el mismo lote
+- etapa 2:
+  - backend empieza a escribir siempre en `venta_lotes`
+  - backend sigue leyendo con compatibilidad mixta
+- etapa 3:
+  - frontend deja de renderizar un lote unico como fuente principal y pasa a consumir la lista de lotes del expediente
+- etapa 4:
+  - una vez estabilizado el modulo, evaluar eliminar `ventas.lote_id`
+
+Consolidacion de ventas heredadas:
+
+- si varias ventas existentes pertenecen al mismo cliente o al mismo par de titulares y representan una sola operacion comercial, deben consolidarse bajo un solo `venta_id`
+- en esa consolidacion, `venta_lotes` tendra varias filas con el mismo `venta_id` y distintos `lote_id`
+- la venta padre resultante sera la unica visible como expediente
+- las ventas separadas originales pasaran a estado de depuracion o eliminacion controlada solo despues de validar:
+  - misma logica comercial
+  - financiacion compatible
+  - pagos compatibles
+  - estado consolidable
+- si la financiacion es muy distinta o los pagos no son reconciliables, esas ventas no deben fusionarse automaticamente
+
+Entregables tecnicos:
+
+- frontend:
+  - seleccion multiple en mapa
+  - drawer cotizador con lista o tabla de lotes seleccionados
+  - proforma abierta reutilizando la misma seleccion multiple
+  - vista de venta con `Datos del lote` en tabla cuando haya mas de un lote
+- backend:
+  - definir asociacion de varios lotes a un mismo expediente de venta
+  - mantener unicidad de venta activa por lote
+- BD:
+  - crear `venta_lotes`
+  - poblar filas espejo desde ventas existentes
+  - mantener compatibilidad temporal con `ventas.lote_id`
+- reglas:
+  - un expediente multi-lote no puede tener mas de `2` titulares
+  - los calculos de precio, inicial, financiado y cuotas se hacen sobre el total agregado
+  - un lote con venta activa no-caida no puede entrar al nuevo expediente
+
+Decisiones por cerrar antes de construir:
+
+- comportamiento al quitar un lote de un expediente ya creado
+- sincronizacion de estado comercial por lote dentro del expediente multi-lote
+- si impresion y pagos se emiten por expediente o por lote
+- mecanismo exacto de despliegue seguro:
+  - schema de pruebas
+  - branch de BD
+  - o ambas
+
+Criterio de cierre:
+
+- mapa, drawer, proforma y venta nueva comparten la misma seleccion multiple
+- el expediente calcula como uno solo
+- la regla de `2` titulares se mantiene sobre todo el expediente
+- los lotes seleccionados se muestran de forma consistente en cotizacion y venta
+
+## Fase 6. Documentos e impresion del expediente de venta
+
+Estado: `Pendiente`
+
+Meta:
+
+- consolidar los formatos de impresion del modulo ventas con datos reales del expediente
+
+Pendientes:
+
+- ficha de separacion
+- contrato
+- venta
+- historial de pagos
+- otros anexos o formatos derivados si el expediente lo requiere
+
+Entregables tecnicos:
+
+- frontend:
+  - puntos de impresion alineados al expediente de venta
+  - apertura controlada por tipo de documento
+- documentos:
+  - render con datos existentes de venta, clientes, lotes e historial de pagos
+  - soporte a tabla de lotes si el expediente es multi-lote
+- reglas:
+  - no inventar datos faltantes
+  - no romper render si faltan campos no obligatorios
+
+Dependencias:
+
+- cierre de reglas multi-lote si el formato debe soportar mas de un lote
+- validacion legal o comercial del contenido minimo por formato
+
+Criterio de cierre:
+
+- cada formato abre con datos reales del expediente
+- el historial de pagos se imprime desde la venta
+- los formatos soportan expediente incompleto sin romperse
 
 ## Dependencias documentales
 
@@ -236,6 +379,11 @@ Cuando estas fases se apliquen, se debe actualizar en paralelo:
 - [x] modal de historico de venta visible en `ventaId`
 - [x] `progress bar` de completitud: retirado del alcance de esta fase
 
+## Backlog siguiente aprobado
+
+1. Fase 5: multi-lote en cotizador y venta
+2. Fase 6: documentos e impresion del expediente
+
 ## Riesgos abiertos
 
 - relajar campos obligatorios puede degradar calidad de datos si no se distingue expediente incompleto de venta madura
@@ -258,3 +406,4 @@ Si el cambio de BD ya fue aprobado y aplicado:
 
 - La regla operativa de "venta activa" ya excluye ventas con estado `CAIDA` en mapa, tabla del mapa, `/lotes` y `/ventas`.
 - Si una venta previa del lote esta en `CAIDA`, el flujo visible vuelve a `Crear venta`.
+- La opcion `CAIDA` ya se manejo como accion administrativa y salio del select principal de estado.

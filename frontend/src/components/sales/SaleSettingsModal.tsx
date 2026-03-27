@@ -52,6 +52,15 @@ const formatStateLabel = (value: string | null) => {
   return value.replaceAll("_", " ");
 };
 
+const administrativeStateOptions = [
+  { value: "SEPARADA", label: "Separada" },
+  { value: "INICIAL_PAGADA", label: "Inicial pagada" },
+  { value: "CONTRATO_FIRMADO", label: "Contrato firmado" },
+  { value: "PAGANDO", label: "Pagando" },
+  { value: "COMPLETADA", label: "Completada" },
+  { value: "CAIDA", label: "Caida" },
+] as const;
+
 const formatUserLabel = (item: SaleHistoryItem) => {
   if (!item.usuario) return "Sistema";
   return item.usuario.nombre || item.usuario.username;
@@ -281,6 +290,28 @@ export default function SaleSettingsModal({
         ) : (
           <div className="sales-settings-modal__admin-pane">
             <div className="sales-settings-modal__admin-controls">
+              {role === "admin" ? (
+                <label className="sales-settings-modal__field">
+                  Estado administrativo
+                  <select
+                    value={form.estadoVenta}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onFormChange((current) => ({ ...current, estadoVenta: event.target.value as SaleFormValues["estadoVenta"] }))
+                    }
+                  >
+                    {administrativeStateOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="sales-settings-modal__field-hint">
+                    Solo admin puede marcar la venta como caida.
+                  </span>
+                </label>
+              ) : null}
+
               <label className="sales-settings-modal__field">
                 Asesor asignado
                 {role === "admin" ? (
