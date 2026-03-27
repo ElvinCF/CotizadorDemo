@@ -96,6 +96,7 @@ const IconList = () => (
 
 export function SalePaymentsOverviewCard({ sale, disabled = false, onOpenPayments, onAddPayment }: SalePaymentsOverviewCardProps) {
   const summary = summarizeSalePayments(sale);
+  const hasPayments = sale.pagos.length > 0;
 
   return (
     <article className="sales-form-card sales-payments-overview-card">
@@ -115,26 +116,30 @@ export function SalePaymentsOverviewCard({ sale, disabled = false, onOpenPayment
         </div>
       </header>
 
-      <div className="sales-payments-overview-card__table-wrap">
-        <table className="sales-payments-overview-card__table">
-          <thead>
-            <tr>
-              <th>Inicial</th>
-              <th>Cuotas pagadas</th>
-              <th>Total cobrado</th>
-              <th>Ultimo pago</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>{formatMoney(summary.totalInitial)}</td>
-              <td>{formatMoney(summary.totalInstallments)}</td>
-              <td>{formatMoney(summary.totalCollected)}</td>
-              <td>{formatDate(summary.lastPaymentDate)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {hasPayments ? (
+        <div className="sales-payments-overview-card__table-wrap">
+          <table className="sales-payments-overview-card__table">
+            <thead>
+              <tr>
+                <th>Inicial</th>
+                <th>Cuotas pagadas</th>
+                <th>Total cobrado</th>
+                <th>Ultimo pago</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{formatMoney(summary.totalInitial)}</td>
+                <td>{formatMoney(summary.totalInstallments)}</td>
+                <td>{formatMoney(summary.totalCollected)}</td>
+                <td>{formatDate(summary.lastPaymentDate)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="sales-payments-overview-card__empty">Aun no hay pagos registrados.</div>
+      )}
     </article>
   );
 }

@@ -110,9 +110,22 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
                 <td>
                   {(() => {
                     const isAdmin = role === "admin";
+                    const isFallen = sale.estadoVenta === "CAIDA";
                     const ownerUsername = sale.asesor?.username?.trim().toLowerCase();
                     const currentUsername = loginUsername?.trim().toLowerCase();
-                    const canViewDetail = isAdmin || (role === "asesor" && !!ownerUsername && !!currentUsername && ownerUsername === currentUsername);
+                    const canViewDetail =
+                      isAdmin || (role === "asesor" && !!ownerUsername && !!currentUsername && ownerUsername === currentUsername);
+
+                    if (isFallen && canViewDetail && sale.lote?.codigo) {
+                      return (
+                        <Link
+                          className="btn ghost data-table__row-action"
+                          to={`/ventas/nueva?lote=${encodeURIComponent(sale.lote.codigo)}`}
+                        >
+                          <span className="data-table__row-action-label">Crear venta</span>
+                        </Link>
+                      );
+                    }
 
                     if (canViewDetail) {
                       return (

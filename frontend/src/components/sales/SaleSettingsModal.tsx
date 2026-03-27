@@ -83,11 +83,30 @@ export default function SaleSettingsModal({
   onClose,
 }: SaleSettingsModalProps) {
   const [tab, setTab] = useState<SettingsTab>("llenado");
+  const tabStorageKey = `sale-settings-tab:${role || "guest"}`;
 
   useEffect(() => {
     if (!open) return;
+    try {
+      const stored = window.localStorage.getItem(tabStorageKey) as SettingsTab | null;
+      if (stored === "historial" || stored === "llenado" || stored === "administrativo") {
+        setTab(stored);
+        return;
+      }
+    } catch {
+      // ignore storage access issues
+    }
     setTab("llenado");
-  }, [open]);
+  }, [open, tabStorageKey]);
+
+  useEffect(() => {
+    if (!open) return;
+    try {
+      window.localStorage.setItem(tabStorageKey, tab);
+    } catch {
+      // ignore storage access issues
+    }
+  }, [open, tab, tabStorageKey]);
 
   const fillingItems = useMemo<FillingItem[]>(
     () => [

@@ -150,6 +150,9 @@ function LotesTablePage() {
       try {
         const sales = await listSales();
         const mapping = sales.reduce<Record<string, string>>((acc, sale) => {
+          if (sale.estadoVenta === "CAIDA") {
+            return acc;
+          }
           const code = sale.lote?.codigo;
           if (code) {
             acc[code] = sale.id;

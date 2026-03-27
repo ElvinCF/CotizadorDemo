@@ -204,6 +204,8 @@ Avance aplicado:
 - el bloque `Titulares` se renombra visualmente como `Datos del cliente`
 - en edicion, la vista principal ya usa resumen de pagos y mueve la tabla completa a un modal dedicado con footer resumen
 - en mapa, tabla y drawer ya usan la misma regla de venta: `Crear venta` o `Ver venta` depende solo de existencia de venta activa
+- el header del expediente ya muestra badge pequeno de estado, acciones responsive y bloqueo de guardado cuando no hay cambios
+- en mobile, las secciones del expediente ya operan como acordeones y el alta/edicion comparten esa logica
 
 ## Dependencias documentales
 
@@ -252,3 +254,7 @@ Si el cambio de BD ya fue aprobado y aplicado:
 - moverlo a `1_esquema_bd.md`
 - mover reglas asociadas a `2_reglas_negocio.md`
 - actualizar `3-1_arq_ventas.md` si cambia el flujo real del modulo
+# Ajuste aplicado
+
+- La regla operativa de "venta activa" ya excluye ventas con estado `CAIDA` en mapa, tabla del mapa, `/lotes` y `/ventas`.
+- Si una venta previa del lote esta en `CAIDA`, el flujo visible vuelve a `Crear venta`.

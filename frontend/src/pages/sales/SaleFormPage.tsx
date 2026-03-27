@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import AdminTextInput from "../../components/admin/AdminTextInput";
 import SaleClientCard from "../../components/sales/SaleClientCard";
 import SaleClientModal from "../../components/sales/SaleClientModal";
-import SaleEditableCard, { SaleFinancingCard } from "../../components/sales/SaleEditableCard";
+import {
+  SaleContractSummaryCard,
+  SaleDataCard,
+  SaleFinancingCard,
+  SaleLotCard,
+} from "../../components/sales/SaleEditableCard";
 import SalePaymentModal from "../../components/sales/SalePaymentModal";
 import { SalePaymentsModal, SalePaymentsOverviewCard } from "../../components/sales/SalePaymentsCard";
 import SaleSettingsModal from "../../components/sales/SaleSettingsModal";
@@ -201,6 +206,48 @@ const IconChevronDown = () => (
     <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+
+const IconSpinner = () => (
+  <svg className="sales-spinner" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" opacity="0.28" />
+    <path d="M12 4a8 8 0 0 1 8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const formatSaleStateBadge = (value: SaleState) => value.replaceAll("_", " ");
+
+type MobileAccordionSectionProps = {
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+};
+
+function MobileAccordionSection({ title, defaultOpen = true, children }: MobileAccordionSectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section className={`sales-mobile-section${open ? " is-open" : ""}`}>
+      <button
+        type="button"
+        className="sales-mobile-section__toggle"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+      >
+        <span>{title}</span>
+        <IconChevronDown />
+      </button>
+      <div className="sales-mobile-section__content">{children}</div>
+    </section>
+  );
+}
+
+const normalizeClientForCompare = (client: SaleFormValues["cliente"] | null | undefined) => ({
+  nombreCompleto: String(client?.nombreCompleto || "").trim(),
+  dni: String(client?.dni || "").trim(),
+  celular: String(client?.celular || "").trim(),
+  direccion: String(client?.direccion || "").trim(),
+  ocupacion: String(client?.ocupacion || "").trim(),
+});
 
 export default function SaleFormPage() {
   const { id: saleId } = useParams();
@@ -398,6 +445,48 @@ export default function SaleFormPage() {
     if (!ownerUsername || !currentUsername) return false;
     return ownerUsername === currentUsername;
   }, [isEdit, loginUsername, role, sale?.asesor?.username]);
+
+  const hasPendingChanges = useMemo(() => {
+    if (!isEdit) {
+      return Boolean(String(form.fechaVenta || "").trim());
+    }
+
+    if (!sale) return false;
+
+    const sameClients =
+      JSON.stringify(normalizeClientForCompare(form.cliente)) ===
+        JSON.stringify(
+          normalizeClientForCompare({
+            nombreCompleto: sale.cliente?.nombreCompleto ?? "",
+            dni: sale.cliente?.dni ?? "",
+            celular: sale.cliente?.celular ?? "",
+            direccion: sale.cliente?.direccion ?? "",
+            ocupacion: sale.cliente?.ocupacion ?? "",
+          })
+        ) &&
+      JSON.stringify(normalizeClientForCompare(form.cliente2)) ===
+        JSON.stringify(
+          normalizeClientForCompare({
+            nombreCompleto: sale.cliente2?.nombreCompleto ?? "",
+            dni: sale.cliente2?.dni ?? "",
+            celular: sale.cliente2?.celular ?? "",
+            direccion: sale.cliente2?.direccion ?? "",
+            ocupacion: sale.cliente2?.ocupacion ?? "",
+          })
+        );
+
+    const sameAdvisor = role === "admin" ? (form.asesorId ?? null) === (sale.asesor?.id ?? null) : true;
+    const sameDate = form.fechaVenta === sale.fechaVenta.slice(0, 10);
+    const samePactDate = (form.fechaPagoPactada || "") === (sale.fechaPagoPactada?.slice(0, 10) ?? "");
+    const samePrice = Math.abs(asNumber(form.precioVenta) - Number(sale.precioVenta || 0)) < 0.005;
+    const sameState = form.estadoVenta === sale.estadoVenta;
+    const sameFinancing = form.tipoFinanciamiento === sale.tipoFinanciamiento;
+    const sameCount = Number.parseInt(form.cantidadCuotas || "0", 10) === Number(sale.cantidadCuotas || 0);
+    const sameInstallment = Math.abs(asNumber(form.montoCuota) - Number(sale.montoCuota || 0)) < 0.005;
+    const sameNote = String(form.observacion || "").trim() === String(sale.observacion || "").trim();
+
+    return !(sameClients && sameAdvisor && sameDate && samePactDate && samePrice && sameState && sameFinancing && sameCount && sameInstallment && sameNote);
+  }, [form, isEdit, role, sale]);
 
   const updateInitialPayment = (index: number, field: keyof InitialPaymentInput, value: string) => {
     setForm((current) => ({
@@ -604,6 +693,26 @@ export default function SaleFormPage() {
   const suggestedDefaultPaymentAmount =
     suggestedNextPaymentType === "CUOTA" ? String(Number(sale?.montoCuota ?? 0).toFixed(2)) : "";
 
+  const lotPreview = sale?.lote
+    ? {
+        codigo: sale.lote.codigo,
+        mz: sale.lote.mz,
+        lote: sale.lote.lote,
+        areaM2: sale.lote.areaM2,
+        estadoComercial: sale.lote.estadoComercial,
+        precioReferencial: sale.lote.precioReferencial,
+      }
+    : selectedLote
+      ? {
+          codigo: selectedLote.id,
+          mz: selectedLote.mz,
+          lote: selectedLote.lote,
+          areaM2: selectedLote.areaM2,
+          estadoComercial: selectedLote.condicion,
+          precioReferencial: selectedLote.price,
+        }
+      : null;
+
   const renderAdvisorCard = (disabled: boolean) => (
     <article className="sales-form-card sales-advisor-card">
       <header className="sales-client-card__header">
@@ -650,6 +759,7 @@ export default function SaleFormPage() {
               <span className="sales-header-action__label">Volver</span>
             </button>
             <h2>Modificar Venta</h2>
+            <span className="sales-form-page__status-badge">{formatSaleStateBadge(form.estadoVenta)}</span>
           </div>
         </div>
         <div className="sales-form-page__summary">
@@ -692,10 +802,11 @@ export default function SaleFormPage() {
             type="button"
             className="btn sales-header-action sales-header-action--save"
             onClick={handleSubmit}
-            disabled={saving || !canEditCurrentSale}
+            disabled={saving || !canEditCurrentSale || !hasPendingChanges}
           >
-            <IconSave />
-            <span className="sales-header-action__label">{saving ? "Guardando..." : "Guardar cambios"}</span>
+            {saving ? <IconSpinner /> : <IconSave />}
+            <span className="sales-header-action__label sales-header-action__label--long">Guardar cambios</span>
+            <span className="sales-header-action__label sales-header-action__label--short">Guardar</span>
           </button>
         </div>
       </header>
@@ -706,47 +817,31 @@ export default function SaleFormPage() {
 
       <section className="sales-expediente-layout">
         <div className="sales-expediente-layout__main">
-          <SaleEditableCard
-            form={form}
-            role={role}
-            disabled={!canEditCurrentSale}
-            preview={preview}
-            lote={
-              sale.lote
-                ? {
-                    codigo: sale.lote.codigo,
-                    mz: sale.lote.mz,
-                    lote: sale.lote.lote,
-                    areaM2: sale.lote.areaM2,
-                    estadoComercial: sale.lote.estadoComercial,
-                    precioReferencial: sale.lote.precioReferencial,
-                  }
-                : selectedLote
-                  ? {
-                      codigo: selectedLote.id,
-                      mz: selectedLote.mz,
-                      lote: selectedLote.lote,
-                      areaM2: selectedLote.areaM2,
-                      estadoComercial: selectedLote.condicion,
-                      precioReferencial: selectedLote.price,
-                    }
-                  : null
-            }
-            onFormChange={(updater) => setForm((current) => updater(current))}
-          />
+          <MobileAccordionSection title="Datos del lote">
+            <SaleLotCard lote={lotPreview} />
+          </MobileAccordionSection>
+          <MobileAccordionSection title="Datos de la venta">
+            <SaleDataCard form={form} role={role} disabled={!canEditCurrentSale} onFormChange={(updater) => setForm((current) => updater(current))} />
+          </MobileAccordionSection>
+          <MobileAccordionSection title="Resumen del contrato">
+            <SaleContractSummaryCard preview={preview} />
+          </MobileAccordionSection>
         </div>
 
         <div className="sales-expediente-layout__side">
-          <SaleClientCard
-            title="Datos del cliente"
-            cliente={form.cliente}
-            cliente2={form.cliente2}
-            disabled={!canEditCurrentSale}
-            onEditCliente={() => openClientModal("principal")}
-            onAddCliente2={() => openClientModal("secundario")}
-            onEditCliente2={() => openClientModal("secundario")}
-            onRemoveCliente2={handleRemoveClient2}
-          />
+          <MobileAccordionSection title="Datos del cliente">
+            <SaleClientCard
+              title="Datos del cliente"
+              cliente={form.cliente}
+              cliente2={form.cliente2}
+              disabled={!canEditCurrentSale}
+              onEditCliente={() => openClientModal("principal")}
+              onAddCliente2={() => openClientModal("secundario")}
+              onEditCliente2={() => openClientModal("secundario")}
+              onRemoveCliente2={handleRemoveClient2}
+            />
+          </MobileAccordionSection>
+          <MobileAccordionSection title="Datos de la financiacion">
             <SaleFinancingCard
               form={form}
               role={role}
@@ -754,7 +849,10 @@ export default function SaleFormPage() {
               disabled={!canEditCurrentSale}
               onFormChange={(updater) => setForm((current) => updater(current))}
             />
-          <SalePaymentsOverviewCard sale={sale} disabled={!canEditCurrentSale} onOpenPayments={() => setPaymentsListModalOpen(true)} onAddPayment={handleOpenCreatePayment} />
+          </MobileAccordionSection>
+          <MobileAccordionSection title="Pagos">
+            <SalePaymentsOverviewCard sale={sale} disabled={!canEditCurrentSale} onOpenPayments={() => setPaymentsListModalOpen(true)} onAddPayment={handleOpenCreatePayment} />
+          </MobileAccordionSection>
         </div>
       </section>
     </>
@@ -774,11 +872,12 @@ export default function SaleFormPage() {
               <span className="sales-header-action__label">Volver</span>
             </button>
             <h2>Nueva venta - SEPARACION / INICIAL</h2>
+            <span className="sales-form-page__status-badge">{formatSaleStateBadge(form.estadoVenta)}</span>
           </div>
         </div>
         <div className="sales-form-page__summary">
           <button type="button" className="btn sales-header-action sales-header-action--save" onClick={handleSubmit} disabled={saving}>
-            <IconSave />
+            {saving ? <IconSpinner /> : <IconSave />}
             <span className="sales-header-action__label">{saving ? "Guardando..." : "Crear venta"}</span>
           </button>
         </div>
@@ -786,78 +885,75 @@ export default function SaleFormPage() {
 
       <section className="sales-expediente-layout">
         <div className="sales-expediente-layout__main">
-          <SaleEditableCard
-            form={form}
-            role={role}
-            preview={preview}
-            lote={
-              selectedLote
-                ? {
-                    codigo: selectedLote.id,
-                    mz: selectedLote.mz,
-                    lote: selectedLote.lote,
-                    areaM2: selectedLote.areaM2,
-                    estadoComercial: selectedLote.condicion,
-                    precioReferencial: selectedLote.price,
-                  }
-                : null
-            }
-            onFormChange={(updater) => setForm((current) => updater(current))}
-          />
+          <MobileAccordionSection title="Datos del lote">
+            <SaleLotCard lote={lotPreview} />
+          </MobileAccordionSection>
+          <MobileAccordionSection title="Datos de la venta">
+            <SaleDataCard form={form} role={role} onFormChange={(updater) => setForm((current) => updater(current))} />
+          </MobileAccordionSection>
+          <MobileAccordionSection title="Resumen del contrato">
+            <SaleContractSummaryCard preview={preview} />
+          </MobileAccordionSection>
         </div>
 
         <div className="sales-expediente-layout__side">
           {renderAdvisorCard(false)}
-          <SaleClientCard
-            title="Datos del cliente"
-            cliente={form.cliente}
-            cliente2={form.cliente2}
-            onEditCliente={() => openClientModal("principal")}
-            onAddCliente2={() => openClientModal("secundario")}
-            onEditCliente2={() => openClientModal("secundario")}
-            onRemoveCliente2={handleRemoveClient2}
-          />
+          <MobileAccordionSection title="Datos del cliente">
+            <SaleClientCard
+              title="Datos del cliente"
+              cliente={form.cliente}
+              cliente2={form.cliente2}
+              onEditCliente={() => openClientModal("principal")}
+              onAddCliente2={() => openClientModal("secundario")}
+              onEditCliente2={() => openClientModal("secundario")}
+              onRemoveCliente2={handleRemoveClient2}
+            />
+          </MobileAccordionSection>
+          <MobileAccordionSection title="Datos de la financiacion">
             <SaleFinancingCard
               form={form}
               role={role}
               preview={preview}
               onFormChange={(updater) => setForm((current) => updater(current))}
             />
-          <article className="sales-form-card">
-            <header className="sales-client-card__header">
-              <h3>Pagos iniciales</h3>
-            </header>
-            <div className="sales-form-fields sales-form-fields--payments">
-              {form.pagosIniciales.map((payment, index) => (
-                <div key={payment.tipoPago} className="sales-payment-inline">
-                  <strong>{payment.tipoPago}</strong>
-                  <div className="sales-payment-inline__date">
-                    <AdminTextInput
-                      type="date"
-                      value={payment.fechaPago}
-                      onChange={(event) => updateInitialPayment(index, "fechaPago", event.target.value)}
-                    />
+          </MobileAccordionSection>
+          <MobileAccordionSection title="Pagos iniciales">
+            <article className="sales-form-card">
+              <header className="sales-client-card__header">
+                <h3>Pagos iniciales</h3>
+              </header>
+              <div className="sales-form-fields sales-form-fields--payments">
+                {form.pagosIniciales.map((payment, index) => (
+                  <div key={payment.tipoPago} className="sales-payment-inline">
+                    <strong>{payment.tipoPago}</strong>
+                    <div className="sales-payment-inline__date">
+                      <AdminTextInput
+                        type="date"
+                        value={payment.fechaPago}
+                        onChange={(event) => updateInitialPayment(index, "fechaPago", event.target.value)}
+                      />
+                    </div>
+                    <div className="sales-payment-inline__amount">
+                      <AdminTextInput
+                        type="number"
+                        step="0.01"
+                        placeholder="Monto"
+                        value={payment.monto}
+                        onChange={(event) => updateInitialPayment(index, "monto", event.target.value)}
+                      />
+                    </div>
+                    <div className="sales-payment-inline__note">
+                      <AdminTextInput
+                        placeholder="Observacion"
+                        value={payment.observacion}
+                        onChange={(event) => updateInitialPayment(index, "observacion", event.target.value)}
+                      />
+                    </div>
                   </div>
-                  <div className="sales-payment-inline__amount">
-                    <AdminTextInput
-                      type="number"
-                      step="0.01"
-                      placeholder="Monto"
-                      value={payment.monto}
-                      onChange={(event) => updateInitialPayment(index, "monto", event.target.value)}
-                    />
-                  </div>
-                  <div className="sales-payment-inline__note">
-                    <AdminTextInput
-                      placeholder="Observacion"
-                      value={payment.observacion}
-                      onChange={(event) => updateInitialPayment(index, "observacion", event.target.value)}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </article>
+                ))}
+              </div>
+            </article>
+          </MobileAccordionSection>
         </div>
       </section>
     </>
@@ -937,6 +1033,18 @@ export default function SaleFormPage() {
             onAddPayment={handleOpenCreatePayment}
             onEditPayment={handleEditPayment}
           />
+        ) : null}
+        {isEdit && canEditCurrentSale ? (
+          <button
+            type="button"
+            className="btn sales-floating-payment-btn"
+            onClick={handleOpenCreatePayment}
+            title="Registrar pago"
+            aria-label="Registrar pago"
+          >
+            <span>+</span>
+            <span className="sales-floating-payment-btn__label">Pago</span>
+          </button>
         ) : null}
         {isEdit && sale ? (
           <SaleSettingsModal

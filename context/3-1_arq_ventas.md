@@ -93,8 +93,9 @@ Incluye:
 - el scroll operativo de la pagina vive en el contenedor del expediente de venta, no en el `main` global
 - header de acciones responsive:
   - desktop con icono y texto
-  - tablet con reduccion visual solo en botones de impresion
+  - tablet con impresion agrupada en un menu compacto
   - mobile con acciones en la misma franja del titulo y solo iconos
+  - el estado actual de la venta se muestra como badge pequeno junto al titulo
 
 ## Composicion actual del expediente
 
@@ -111,6 +112,8 @@ Bloques principales:
 - en desktop, `Datos del lote`, `Datos de la venta` y `Datos de la financiacion` se compactan en una sola franja interna por seccion
 - en `Datos de la financiacion`, `Cantidad de cuotas` y `Monto por cuota` siempre se muestran en ese orden; uno queda editable y el otro se recalcula segun `tipo_financiamiento`
 - si el calculo deja una ultima cuota mayor por redondeo, la UI muestra un helper corto bajo `Monto por cuota`
+- en mobile, las secciones del expediente operan como acordeones y reutilizan los mismos bloques internos
+- en mobile, el expediente muestra un boton flotante para registrar pago
 - en alta de venta, `Asesor asignado` vive sobre `Datos del cliente` en la columna derecha
 - en edicion, la tabla completa de pagos vive en un modal dedicado con footer resumen
 
@@ -124,6 +127,7 @@ Reglas vigentes:
 - el card principal de datos editables usa una malla interna compacta y responsive
 - en alta, el bloque de pagos iniciales prioriza `Observacion` sobre `Fecha` y `Monto` en ancho util
 - los mensajes de error y aviso en la pagina de venta se pueden cerrar manualmente
+- el guardado en edicion se bloquea si no hay cambios pendientes y muestra spinner simple mientras persiste
 
 ## Integraciones del modulo
 
@@ -163,3 +167,8 @@ Reglas vigentes:
 ## Criterio de actualizacion
 
 Actualizar este documento solo cuando el flujo de ventas ya este aplicado en codigo y funcionando como regla vigente.
+# Regla de venta activa por lote
+
+- Para mapa, tabla del mapa, `/lotes` y `/ventas`, una venta con estado `CAIDA` se trata como no activa.
+- Si el lote solo tiene una venta `CAIDA`, la UI debe ofrecer `Crear venta` y no `Ver venta`.
+- La venta `CAIDA` sigue existiendo como historial, pero no bloquea el inicio de una nueva venta sobre el mismo lote.

@@ -50,6 +50,14 @@ const financingOptions = [
   { value: "REDUCIR_MESES", label: "Reducir meses", tone: "neutral" as const },
 ];
 
+const IconInfo = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M12 10.2v5.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="12" cy="7.2" r="1" fill="currentColor" />
+  </svg>
+);
+
 const formatMoney = (value: number) =>
   new Intl.NumberFormat("es-PE", {
     style: "currency",
@@ -164,9 +172,14 @@ type SaleFinancingCardProps = SaleCardBaseProps & {
 export function SaleFinancingCard({ form, disabled = false, onFormChange, preview }: SaleFinancingCardProps) {
   const cantidadEditable = form.tipoFinanciamiento === "REDUCIR_CUOTA";
   const montoEditable = form.tipoFinanciamiento === "REDUCIR_MESES";
+  const cuotaCount = Number(form.cantidadCuotas || 0);
   const ultimaCuotaLabel =
     preview.ultimaCuotaAjustada && preview.ultimaCuota > preview.montoCuota
       ? `Ultima cuota: ${formatMoney(preview.ultimaCuota)} por ajuste.`
+      : null;
+  const cuotasWarning =
+    cantidadEditable && Number.isFinite(cuotaCount) && cuotaCount > 0 && cuotaCount < 36
+      ? "Plan menor a 36 cuotas. Permitido."
       : null;
 
   return (
@@ -207,7 +220,16 @@ export function SaleFinancingCard({ form, disabled = false, onFormChange, previe
         </label>
 
         <label className="sales-editable-row__field">
-          Cantidad de cuotas
+          <span className="sales-editable-row__label">
+            <span>Cantidad de cuotas</span>
+            <span
+              className="sales-editable-row__info"
+              title="Puedes usar menos de 36 cuotas si el plan comercial lo requiere."
+              aria-label="Aviso sobre cantidad de cuotas"
+            >
+              <IconInfo />
+            </span>
+          </span>
           <AdminTextInput
             type="number"
             min={1}
@@ -215,8 +237,10 @@ export function SaleFinancingCard({ form, disabled = false, onFormChange, previe
             value={cantidadEditable ? form.cantidadCuotas : String(preview.cantidadCuotas)}
             disabled={disabled}
             readOnly={!cantidadEditable}
+            title="Puedes usar menos de 36 cuotas si el plan comercial lo requiere."
             onChange={(event) => onFormChange((current) => ({ ...current, cantidadCuotas: event.target.value }))}
           />
+          {cuotasWarning ? <span className="sales-editable-row__helper">{cuotasWarning}</span> : null}
         </label>
 
         <label className="sales-editable-row__field">

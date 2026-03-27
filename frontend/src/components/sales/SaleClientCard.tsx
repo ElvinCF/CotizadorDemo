@@ -47,6 +47,7 @@ export default function SaleClientCard({
 }: SaleClientCardProps) {
   const hasPrimaryClient = Boolean(cliente?.dni?.trim() || cliente?.nombreCompleto?.trim());
   const hasSecondaryClient = Boolean(cliente2?.dni?.trim() || cliente2?.nombreCompleto?.trim());
+  const hasAnyClient = hasPrimaryClient || hasSecondaryClient;
   const showAddButton = !hasSecondaryClient;
   const addButtonLabel = hasPrimaryClient ? "Agregar titular" : "Agregar titular";
   const addButtonAction = hasPrimaryClient ? onAddCliente2 : onEditCliente;
@@ -71,6 +72,7 @@ export default function SaleClientCard({
       </header>
 
       <div className="sales-client-card__rows">
+        {!hasAnyClient ? <p className="sales-client-card__empty">Aun no se registran titulares.</p> : null}
         {hasPrimaryClient ? (
         <article className="sales-client-card__row">
           <span className="sales-pill is-info">Titular principal</span>

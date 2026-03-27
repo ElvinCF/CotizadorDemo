@@ -1319,6 +1319,16 @@
   box-sizing: border-box;
 }
 
+.table-header--public,
+.table-row--public {
+  grid-template-columns:
+    minmax(54px, 0.56fr)
+    minmax(54px, 0.56fr)
+    minmax(104px, 0.96fr)
+    minmax(114px, 1fr)
+    minmax(124px, 1.04fr);
+}
+
 .table-header {
   font-weight: 700;
   font-size: 0.85rem;
@@ -2888,6 +2898,16 @@ input.is-invalid {
       minmax(98px, 0.98fr)
       minmax(102px, 1fr);
     gap: 6px;
+  }
+
+  .table-header--public,
+  .table-row--public {
+    grid-template-columns:
+      minmax(40px, 0.46fr)
+      minmax(40px, 0.46fr)
+      minmax(82px, 0.88fr)
+      minmax(90px, 0.94fr)
+      minmax(98px, 0.98fr);
   }
 
   .table-header {
@@ -5190,7 +5210,23 @@ input.is-invalid {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+.sales-form-page__status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary-strong);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .sales-form-page__lote-row {
@@ -5649,6 +5685,10 @@ input.is-invalid {
   display: inline;
 }
 
+.sales-header-action__label--short {
+  display: none;
+}
+
 .sales-header-action--print-desktop {
   display: inline-flex;
 }
@@ -6039,7 +6079,8 @@ input.is-invalid {
 
 .sales-contract-summary {
   display: grid;
-  gap: 2px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
 }
 
 .sales-contract-summary__row {
@@ -6082,11 +6123,34 @@ input.is-invalid {
   font-weight: 700;
 }
 
+.sales-editable-row__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sales-editable-row__info {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  cursor: help;
+}
+
 .sales-editable-row__helper {
   font-size: 0.74rem;
   font-weight: 600;
   line-height: 1.2;
   color: var(--color-text-muted);
+}
+
+.sales-spinner {
+  animation: sales-spinner-spin 0.9s linear infinite;
+}
+
+@keyframes sales-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sales-editable-row__field--wide {
@@ -6223,6 +6287,16 @@ input.is-invalid {
   white-space: nowrap;
 }
 
+.sales-payments-overview-card__empty {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  padding: 8px 2px 2px;
+}
+
+.sales-floating-payment-btn {
+  display: none;
+}
+
 .sales-payments-shell__add-btn {
   min-height: 38px;
   padding: 6px 12px;
@@ -6301,6 +6375,18 @@ input.is-invalid {
   align-self: start;
   height: auto;
   min-height: auto;
+}
+
+.sales-mobile-section {
+  display: contents;
+}
+
+.sales-mobile-section__toggle {
+  display: none;
+}
+
+.sales-mobile-section__content {
+  display: contents;
 }
 
 .sales-header-action--title-back {
@@ -6945,20 +7031,19 @@ input.is-invalid {
   }
 
   .sales-header-action--print-desktop {
-    display: inline-flex;
-    width: 38px;
-    min-width: 38px;
-    padding: 0;
-    justify-content: center;
-    gap: 0;
-  }
-
-  .sales-header-action--print-desktop .sales-header-action__label {
     display: none;
   }
 
   .sales-header-print-menu {
+    display: inline-block;
+  }
+
+  .sales-header-action--save .sales-header-action__label--long {
     display: none;
+  }
+
+  .sales-header-action--save .sales-header-action__label--short {
+    display: inline;
   }
 
   .sales-kpi-formula {
@@ -7120,14 +7205,23 @@ input.is-invalid {
 
   .sales-form-grid,
   .sales-form-fields,
-  .sales-editable-row,
   .sales-payment-form,
-  .sales-payment-inline,
   .sales-detail-grid,
   .sales-expediente-layout,
   .sales-client-modal__form,
   .sales-payment-modal__form {
     grid-template-columns: 1fr;
+  }
+
+  .sales-editable-row--sale,
+  .sales-editable-row--finance,
+  .sales-payment-inline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sales-editable-row--sale .sales-editable-row__field:last-child,
+  .sales-payment-inline__note {
+    grid-column: 1 / -1;
   }
 
   .sales-settings-modal__tabs {
@@ -7153,15 +7247,6 @@ input.is-invalid {
 
   .sales-payments-modal__footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .sales-contract-summary__row {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-
-  .sales-contract-summary__row dd {
-    text-align: left;
   }
 
   .sales-form-page__summary {
@@ -7259,6 +7344,80 @@ input.is-invalid {
 
   .sales-client-card__add-btn {
     width: 100%;
+  }
+
+  .sales-mobile-section {
+    display: block;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+    background: var(--color-panel);
+    overflow: hidden;
+  }
+
+  .sales-mobile-section__toggle {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 0;
+    background: transparent;
+    color: var(--color-primary-strong);
+    font: inherit;
+    font-weight: 800;
+  }
+
+  .sales-mobile-section__toggle svg {
+    transition: transform 0.18s ease;
+  }
+
+  .sales-mobile-section.is-open .sales-mobile-section__toggle svg {
+    transform: rotate(180deg);
+  }
+
+  .sales-mobile-section__content {
+    display: none;
+    padding: 10px 12px 12px;
+  }
+
+  .sales-mobile-section.is-open .sales-mobile-section__content {
+    display: grid;
+    gap: 10px;
+  }
+
+  .sales-mobile-section__content > .sales-form-card {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    gap: 8px;
+    box-shadow: none;
+  }
+
+  .sales-mobile-section__content > .sales-form-card .sales-section-card__header,
+  .sales-mobile-section__content > .sales-form-card .sales-client-card__header,
+  .sales-mobile-section__content > .sales-form-card .sales-payments-overview-card__header {
+    display: none;
+  }
+
+  .sales-floating-payment-btn {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 30;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .sales-floating-payment-btn__label {
+    display: none;
   }
 
   .sales-payments-overview-card__actions,

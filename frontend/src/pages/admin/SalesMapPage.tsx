@@ -199,6 +199,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         const sales = await listSales();
         if (cancelled) return;
         const mapping = sales.reduce<Record<string, string>>((acc, sale) => {
+          if (sale.estadoVenta === "CAIDA") {
+            return acc;
+          }
           const loteCode = sale.lote?.codigo;
           if (loteCode && !acc[loteCode]) {
             acc[loteCode] = sale.id;
