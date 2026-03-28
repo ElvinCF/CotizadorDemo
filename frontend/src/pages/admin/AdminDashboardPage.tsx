@@ -90,6 +90,8 @@ const emptyKpis: DashboardAdminKpis = {
   montoVendido: 0,
   montoCobrado: 0,
   saldoPendienteGlobal: 0,
+  pendienteVender: 0,
+  cuotaCobrarProximoMes: 0,
   ticketPromedioVenta: 0,
   asesorTopId: null,
   asesorTopUsername: null,

@@ -36,7 +36,7 @@ import { buildIdSet, overlayStyle, quoteMonthly } from "../../domain/finance";
 import type { FiltersState, Lote, OverlayTransform, ProformaState, QuoteState } from "../../domain/types";
 import { projectInfo } from "../../data/projectInfo";
 import { loadLotesFromApi } from "../../services/lotes";
-import { listSales } from "../../services/ventas";
+import { listSaleAccessByLot } from "../../services/ventas";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
@@ -44,11 +44,29 @@ type SalesMapPageProps = {
   publicView?: boolean;
 };
 
+type LoteSaleAccess = {
+  saleId: string;
+  ownerUsername: string | null;
+};
+
+const createProformaLotId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `proforma-lote-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const toProformaLotRow = (lote?: Lote | null) => ({
+  id: createProformaLotId(),
+  mz: lote?.mz ?? "",
+  lote: lote ? String(lote.lote) : "",
+  area: lote ? formatArea(lote.areaM2) : "",
+  precioReferencial: Math.max(lote?.price ?? 0, 0),
+});
+
 function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ loteCodigo?: string }>();
-  const { isAuthenticated, username, telefono } = useAuth();
+  const { isAuthenticated, role, username, telefono, loginUsername } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -70,7 +88,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const [proformaAlert, setProformaAlert] = useState<string | null>(null);
   const [proforma, setProforma] = useState<ProformaState>({
     cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
-    lote: { proyecto: PROYECTO_FIJO, mz: "", lote: "", area: "", ubicacion: "" },
+    proyecto: { proyecto: PROYECTO_FIJO, ubicacion: projectInfo.locationText },
+    lotes: [],
     precioRegular: 0,
     precioPromocional: 0,
     descuentoSoles: 0,
@@ -106,11 +125,21 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const lastPriceEditedRef = useRef<"soles" | "pct" | "promo" | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, string>>({});
+  const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, LoteSaleAccess>>({});
   const hidePublicRestrictedActions = publicView && !isAuthenticated;
   const routeLoteCodigo = params.loteCodigo?.trim().toUpperCase() ?? "";
   const isCotizadorRoute = publicView && location.pathname.startsWith("/cotizador");
   const DRAWER_PULSE_MS = 900;
+  const currentUsername = loginUsername?.trim().toLowerCase() ?? null;
+
+  const canAccessSaleFromLot = useCallback(
+    (saleAccess?: LoteSaleAccess | null) => {
+      if (!saleAccess) return true;
+      if (role === "admin") return true;
+      return role === "asesor" && !!saleAccess.ownerUsername && !!currentUsername && saleAccess.ownerUsername === currentUsername;
+    },
+    [currentUsername, role]
+  );
 
   const openQuoteDrawer = useCallback(
     (loteId?: string | null) => {
@@ -196,15 +225,15 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       }
 
       try {
-        const sales = await listSales();
+        const sales = await listSaleAccessByLot();
         if (cancelled) return;
-        const mapping = sales.reduce<Record<string, string>>((acc, sale) => {
-          if (sale.estadoVenta === "CAIDA") {
-            return acc;
-          }
-          const loteCode = sale.lote?.codigo;
+        const mapping = sales.reduce<Record<string, LoteSaleAccess>>((acc, sale) => {
+          const loteCode = sale.loteCodigo;
           if (loteCode && !acc[loteCode]) {
-            acc[loteCode] = sale.id;
+            acc[loteCode] = {
+              saleId: sale.saleId,
+              ownerUsername: sale.ownerUsername,
+            };
           }
           return acc;
         }, {});
@@ -583,13 +612,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     lastPriceEditedRef.current = null;
     setProforma({
       cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
-      lote: {
-        proyecto: PROYECTO_FIJO,
-        mz: lote.mz,
-        lote: String(lote.lote),
-        area: formatArea(lote.areaM2),
-        ubicacion: projectInfo.locationText,
-      },
+      proyecto: { proyecto: PROYECTO_FIJO, ubicacion: projectInfo.locationText },
+      lotes: [toProformaLotRow(lote)],
       precioRegular: regular,
       precioPromocional: promo,
       descuentoSoles: Math.max(regular - promo, 0),
@@ -606,7 +630,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   };
 
   const recalcProforma = (draft: ProformaState) => {
-    const regular = Math.max(draft.precioRegular, 0);
+    const regular = Math.max(
+      draft.lotes.reduce((sum, item) => sum + Math.max(item.precioReferencial || 0, 0), 0),
+      0
+    );
     let promo = Math.max(draft.precioPromocional, 0);
     let descuentoSoles = Math.max(draft.descuentoSoles, 0);
     let descuentoPct = Math.max(draft.descuentoPct, 0);
@@ -884,6 +911,19 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     const clientCel = line(proforma.cliente.celular);
     const clientAddress = line(proforma.cliente.direccion);
     const clientMail = line(proforma.cliente.correo);
+    const totalPrecioRef = proforma.lotes.reduce((sum, row) => sum + Math.max(row.precioReferencial || 0, 0), 0);
+    const lotRowsHtml = proforma.lotes
+      .map(
+        (row) => `
+          <tr>
+            <td>${row.mz || "-"}</td>
+            <td>${row.lote || "-"}</td>
+            <td>${row.area || "-"}</td>
+            <td>${formatMoney(row.precioReferencial || 0)}</td>
+          </tr>
+        `
+      )
+      .join("");
 
     const html = `
       <html>
@@ -955,7 +995,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                   <div class="meta"> Celular: <span class="seller-name">${vendorPhone}</span></div>
                 </div>
               </div>
-                <img src="/assets/Logo_Arenas_Malabrigo.svg" class="logo" alt="Arenas Malabrigo" />
+              <img src="/assets/arenas_club_cele.png" class="logo" alt="Arenas Club" />
               </div>
 
             <section class="section">
@@ -970,14 +1010,32 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             </section>
 
             <section class="section">
-              <h2>Informacion del lote</h2>
-              <div class="grid-4">
-                <div><span class="label">Proyecto</span><span class="value">${proforma.lote.proyecto}</span></div>
-                <div><span class="label">Ubicacion referencial</span><span class="value">${proforma.lote.ubicacion}</span></div>
-                <div><span class="label">Manzana</span><span class="value">${proforma.lote.mz}</span></div>
-                <div><span class="label">Lote</span><span class="value">${proforma.lote.lote}</span></div>
-                <div><span class="label">Area total</span><span class="value">${proforma.lote.area}</span></div>
+              <h2>Proyecto</h2>
+              <div class="grid-2">
+                <div><span class="label">Proyecto</span><span class="value">${proforma.proyecto.proyecto}</span></div>
+                <div><span class="label">Ubicacion referencial</span><span class="value">${proforma.proyecto.ubicacion}</span></div>
               </div>
+            </section>
+
+            <section class="section">
+              <h2>Lotes</h2>
+              <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left; padding:6px 4px; border-bottom:1px solid #efd4c1;">MZ</th>
+                    <th style="text-align:left; padding:6px 4px; border-bottom:1px solid #efd4c1;">Lote</th>
+                    <th style="text-align:left; padding:6px 4px; border-bottom:1px solid #efd4c1;">Area</th>
+                    <th style="text-align:right; padding:6px 4px; border-bottom:1px solid #efd4c1;">Precio ref.</th>
+                  </tr>
+                </thead>
+                <tbody>${lotRowsHtml}</tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="3" style="padding:6px 4px; border-top:1px solid #efd4c1; font-weight:700;">Total precio referencial</td>
+                    <td style="padding:6px 4px; border-top:1px solid #efd4c1; text-align:right; font-weight:700;">${formatMoney(totalPrecioRef)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </section>
 
             <div class="price-grid">
@@ -1058,9 +1116,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   const openSaleFromDrawer = () => {
     if (!selectedLote) return;
-    const activeSaleId = salesByLoteCode[selectedLote.id];
-    if (activeSaleId) {
-      navigate(`/ventas/${activeSaleId}`);
+    const activeSale = salesByLoteCode[selectedLote.id] ?? null;
+    if (activeSale) {
+      if (!canAccessSaleFromLot(activeSale)) {
+        return;
+      }
+      navigate(`/ventas/${activeSale.saleId}`);
       return;
     }
     navigate(`/ventas/nueva?lote=${selectedLote.id}&target=${selectedLote.condicion}`);
@@ -1214,9 +1275,14 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 }}
                 canOpenSales={isAuthenticated}
                 salesByLoteCode={salesByLoteCode}
+                canAccessSaleFromLot={canAccessSaleFromLot}
                 onOpenSale={(lote, activeSaleId) => {
-                  if (activeSaleId) {
-                    navigate(`/ventas/${activeSaleId}`);
+                  const activeSale = activeSaleId ? salesByLoteCode[lote.id] ?? null : null;
+                  if (activeSaleId && activeSale) {
+                    if (!canAccessSaleFromLot(activeSale)) {
+                      return;
+                    }
+                    navigate(`/ventas/${activeSale.saleId}`);
                     return;
                   }
                   navigate(`/ventas/nueva?lote=${lote.id}&target=${lote.condicion}`);
@@ -1252,6 +1318,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           onChangeQuote={setQuote}
           hideProformaButton={hidePublicRestrictedActions}
           showSaleButton={!hidePublicRestrictedActions && Boolean(selectedLote)}
+          saleButtonDisabled={selectedLote ? !canAccessSaleFromLot(salesByLoteCode[selectedLote.id] ?? null) : false}
+          saleButtonTitle={
+            selectedLote && !canAccessSaleFromLot(salesByLoteCode[selectedLote.id] ?? null)
+              ? "No puedes abrir ni crear ventas sobre un lote con venta activa de otro asesor"
+              : undefined
+          }
           saleButtonLabel={selectedLote && salesByLoteCode[selectedLote.id] ? "Ver venta" : "Crear venta"}
         />
       </section>
@@ -1267,6 +1339,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       {!hidePublicRestrictedActions && proformaOpen && (
         <ProformaModal
           proforma={proforma}
+          lotesCatalog={lotes}
           proformaInvalidInicial={proformaInvalidInicial}
           proformaInvalidMeses={proformaInvalidMeses}
           precioFinanciarRegular={precioFinanciarRegular}
