@@ -95,9 +95,10 @@ Incluye:
 - header de acciones responsive:
   - desktop con icono y texto
   - tablet con impresion agrupada en un menu compacto
-  - mobile con acciones en la misma franja del titulo y solo iconos
-  - el estado actual de la venta se muestra como badge pequeno junto al titulo
-- si el usuario es `ASESOR`, la pantalla tampoco debe cargar la lista global de usuarios; solo `ADMIN` ve y usa el selector de asesor
+  - mobile con una barra interna compacta `Volver | Estado | Ajustes | Guardar`
+  - en mobile el titulo interno del expediente se oculta para no duplicar el header global
+  - el estado actual de la venta se muestra como badge pequeno, truncable y con ancho maximo
+  - si el usuario es `ASESOR`, la pantalla tampoco debe cargar la lista global de usuarios; solo `ADMIN` ve y usa el selector de asesor
 
 ## Composicion actual del expediente
 
@@ -115,7 +116,7 @@ Bloques principales:
 - en `Datos de la financiacion`, `Cantidad de cuotas` y `Monto por cuota` siempre se muestran en ese orden; uno queda editable y el otro se recalcula segun `tipo_financiamiento`
 - si el calculo deja una ultima cuota mayor por redondeo, la UI muestra un helper corto bajo `Monto por cuota`
 - en mobile, las secciones del expediente operan como acordeones y reutilizan los mismos bloques internos
-- en mobile, el expediente muestra un boton flotante para registrar pago
+- en mobile, el expediente mantiene el footer general visible y deja `Pago` como accion separada del guardado
 - en alta de venta, `Asesor asignado` vive sobre `Datos del cliente` en la columna derecha
 - en edicion, la tabla completa de pagos vive en un modal dedicado con footer resumen
 

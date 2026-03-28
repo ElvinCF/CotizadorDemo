@@ -134,6 +134,7 @@ Aplican segun dashboard y bloque:
 - `mes`
 - `estado lote`
 - `asesor`
+- los paneles de filtros arrancan contraidos por defecto
 
 En `dashboard admin`, `estado lote` ya aplica a todos los graficos y bloques visibles del resumen:
 

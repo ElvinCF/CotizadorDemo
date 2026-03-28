@@ -113,6 +113,8 @@ Componentes y bloques base:
 Reglas vigentes:
 
 - header comun para rutas principales
+- el `AppShell` usa un `<header>` real y reutilizable; el titulo y acciones cambian por ruta y acceso
+- la altura efectiva de `header` y `footer` se mide en runtime y se expone por variables CSS para evitar solapamientos del contenido
 - tema oscuro/claro global
 - menu de usuario persistente
 - fondo sin scroll global
@@ -149,6 +151,7 @@ Reglas vigentes:
 - el scroll ocurre dentro del body de tabla o su card contenedora
 - el sort vive en el header de columna
 - la toolbar concentra busqueda, filtros, limpiar y acciones
+- los paneles de filtros arrancan contraidos por defecto y se expanden por accion explicita del usuario
 - la busqueda en mobile puede colapsar a icono y expandirse
 - los loaders de tabla son compartidos
 - en mobile los botones priorizan icono sobre label
