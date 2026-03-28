@@ -30,6 +30,8 @@ const IconLogin = () => (
   </svg>
 );
 
+const PIN_SLOTS = 6;
+
 export default function LoginPage() {
   const { isAuthenticated, login, role } = useAuth();
   const location = useLocation();
@@ -157,18 +159,28 @@ export default function LoginPage() {
 
             <label className="auth-field" htmlFor="pin">
               <span>PIN de seguridad (4 a 6 digitos)</span>
-              <input
-                id="pin"
-                type="password"
-                inputMode="numeric"
-                pattern="\d{4,6}"
-                value={pin}
-                onChange={handlePinChange}
-                placeholder="******"
-                required
-                autoComplete="current-password"
-                maxLength={6}
-              />
+              <div className="auth-pin-input">
+                <input
+                  id="pin"
+                  className="auth-pin-input__native"
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d{4,6}"
+                  value={pin}
+                  onChange={handlePinChange}
+                  required
+                  autoComplete="current-password"
+                  maxLength={6}
+                  aria-label="PIN de seguridad"
+                />
+                <div className="auth-pin-input__slots" aria-hidden="true">
+                  {Array.from({ length: PIN_SLOTS }).map((_, index) => (
+                    <span key={`pin-slot-${index}`} className={`auth-pin-input__slot${pin[index] ? " is-filled" : ""}`}>
+                      {pin[index] ? "•" : ""}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </label>
 
             <p className="auth-hint">

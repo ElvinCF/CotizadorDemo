@@ -33,7 +33,6 @@ import {
   getAdvisorDashboardPayments,
   getAdvisorDashboardSalesSeries,
 } from "../../services/dashboard";
-import { exportElementToPdfA4 } from "../../utils/exportElementToPdfA4";
 
 type AdvisorDashboardFiltersState = {
   from: string;
@@ -394,11 +393,6 @@ export default function AdvisorDashboardPage() {
 
   const advisorBadge = <span className="dashboard-title-badge">{username || "Asesor"}</span>;
 
-  const printDashboard = async () => {
-    if (!dashboardRef.current) return;
-    await exportElementToPdfA4(dashboardRef.current, `dashboard-asesor-${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
-
   const clearFilters = () => {
     setFilters(defaultFilters);
   };
@@ -558,7 +552,7 @@ export default function AdvisorDashboardPage() {
                 ))}
               </select>
           </DashboardFilterField>
-          <DashboardToolbarActions onPrint={() => void printDashboard()} onClear={clearFilters} />
+          <DashboardToolbarActions onClear={clearFilters} />
         </DashboardFilterToolbar>
 
         {error ? <p className="admin-error">{error}</p> : null}

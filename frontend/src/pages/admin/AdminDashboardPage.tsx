@@ -32,7 +32,6 @@ import {
   getAdminDashboardOverview,
   getAdminDashboardSalesSeries,
 } from "../../services/dashboard";
-import { exportElementToPdfA4 } from "../../utils/exportElementToPdfA4";
 
 type CollectionSortKey = "cliente" | "lote" | "fecha" | "monto";
 
@@ -719,11 +718,6 @@ export default function AdminDashboardPage() {
 
   const adminBadge = <span className="dashboard-title-badge">{username || "Admin"}</span>;
 
-  const printDashboard = async () => {
-    if (!dashboardRef.current) return;
-    await exportElementToPdfA4(dashboardRef.current, `dashboard-admin-${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
-
   const clearFilters = () => {
     setFilters(defaultFilters);
   };
@@ -790,7 +784,7 @@ export default function AdminDashboardPage() {
                 ))}
               </select>
           </DashboardFilterField>
-          <DashboardToolbarActions onPrint={() => void printDashboard()} onClear={clearFilters} />
+          <DashboardToolbarActions onClear={clearFilters} />
         </DashboardFilterToolbar>
 
         {error ? <p className="admin-error">{error}</p> : null}
