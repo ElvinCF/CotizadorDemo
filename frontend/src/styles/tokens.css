@@ -27,23 +27,23 @@
   --color-secondary-strong: #2f5875;
   --color-muted: #7e6d5d;
   --color-muted-strong: #342c25;
-  --color-success: #1f8a4c;
-  --color-success-strong: #1c5c2a;
-  --color-success-soft: #dff5e3;
-  --color-success-subtle: #f5fff7;
-  --color-warning: #c47a00;
-  --color-warning-soft: #f4d28b;
-  --color-danger: #cf2d2d;
-  --color-danger-strong: #7a1c1c;
-  --color-danger-soft: #ffd7d7;
+  --color-success: #2d9b59;
+  --color-success-strong: #1f6d3b;
+  --color-success-soft: #d8f2df;
+  --color-success-subtle: #f3fff6;
+  --color-warning: #d67900;
+  --color-warning-soft: #f6d083;
+  --color-danger: #d84532;
+  --color-danger-strong: #8a261d;
+  --color-danger-soft: #ffd9d3;
   --color-info: #36688d;
   --color-info-border: rgba(54, 104, 141, 0.3);
   --color-info-soft: rgba(54, 104, 141, 0.12);
   
-  --lot-fill-libre: rgba(60, 223, 101, 0.322);
-  --lot-fill-libre-strong: rgba(20, 209, 61, 0.596);
-  --lot-fill-separado: rgba(255, 196, 99, 0.5);
-  --lot-fill-vendido: rgba(255, 133, 149, 0.5);
+  --lot-fill-libre: rgba(45, 155, 89, 0.3);
+  --lot-fill-libre-strong: rgba(45, 155, 89, 0.58);
+  --lot-fill-separado: rgba(243, 243, 5, 0.574);
+  --lot-fill-vendido: rgba(255, 34, 34, 0.432);
 }
 
 :root[data-theme="dark"] {
@@ -73,22 +73,22 @@
   --color-muted: #c3b29e;
   --color-muted-strong: #a78e77;
 
-  --color-success: #4ade80;
-  --color-success-strong: #22c55e;
-  --color-success-soft: rgba(74, 222, 128, 0.2);
-  --color-success-subtle: rgba(34, 197, 94, 0.08);
-  --color-warning: #fbbf24;
-  --color-warning-soft: rgba(251, 191, 36, 0.2);
-  --color-danger: #fb7185;
-  --color-danger-strong: #f43f5e;
-  --color-danger-soft: rgba(251, 113, 133, 0.25);
+  --color-success: #54d67d;
+  --color-success-strong: #2fb85a;
+  --color-success-soft: rgba(84, 214, 125, 0.22);
+  --color-success-subtle: rgba(47, 184, 90, 0.1);
+  --color-warning: #f3cd05;
+  --color-warning-soft: rgba(243, 205, 5, 0.22);
+  --color-danger: #ff7a63;
+  --color-danger-strong: #ff9b8c;
+  --color-danger-soft: rgba(255, 122, 99, 0.24);
   
   --color-info: #78a6c8;
   --color-info-border: rgba(120, 166, 200, 0.34);
   --color-info-soft: rgba(120, 166, 200, 0.16);
   
-  --lot-fill-libre: rgba(60, 223, 101, 0.322);
-  --lot-fill-libre-strong: rgba(20, 209, 61, 0.596);
-  --lot-fill-separado: rgba(255, 196, 99, 0.5);
-  --lot-fill-vendido: rgba(255, 133, 149, 0.5);
+  --lot-fill-libre: rgba(84, 214, 125, 0.22);
+  --lot-fill-libre-strong: rgba(84, 214, 125, 0.62);
+  --lot-fill-separado: rgba(243, 231, 5, 0.408);
+  --lot-fill-vendido: rgba(244, 5, 5, 0.24);
 }

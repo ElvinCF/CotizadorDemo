@@ -32,8 +32,9 @@ import {
   getAdminDashboardOverview,
   getAdminDashboardSalesSeries,
 } from "../../services/dashboard";
+import { exportElementToPdfA4 } from "../../utils/exportElementToPdfA4";
 
-type CollectionSortKey = "asesor" | "cliente" | "lote" | "fecha" | "monto";
+type CollectionSortKey = "cliente" | "lote" | "fecha" | "monto";
 
 type DashboardFiltersState = {
   from: string;
@@ -89,8 +90,6 @@ const emptyKpis: DashboardAdminKpis = {
   montoVendido: 0,
   montoCobrado: 0,
   saldoPendienteGlobal: 0,
-  pendienteVender: 0,
-  cuotaCobrarProximoMes: 0,
   ticketPromedioVenta: 0,
   asesorTopId: null,
   asesorTopUsername: null,
@@ -236,14 +235,6 @@ const compactMoney = (value: number) =>
     maximumFractionDigits: 1,
   }).format(value);
 
-const preciseMoney = (value: number) =>
-  new Intl.NumberFormat("es-PE", {
-    style: "currency",
-    currency: "PEN",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-
 const formatBucketLabel = (bucket: string) => {
   const parsed = new Date(bucket);
   if (Number.isNaN(parsed.getTime())) {
@@ -263,18 +254,6 @@ const getInitials = (name: string) => {
   const first = parts[0]?.charAt(0) ?? "";
   const last = (parts.length > 1 ? parts[parts.length - 1] : parts[0])?.charAt(0) ?? "";
   return `${first}${last}`.toUpperCase();
-};
-
-const formatDueDateTime = (value: string) => {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat("es-PE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(parsed);
 };
 
 const metricToValue = (item: DashboardAdvisorSummaryItem, metric: DashboardRankingMetric) => {
@@ -606,9 +585,6 @@ export default function AdminDashboardPage() {
     const multiplier = sort.direction === "asc" ? 1 : -1;
     const copy = [...items];
     copy.sort((a, b) => {
-      if (sort.key === "asesor") {
-        return (a.asesorNombre ?? "").localeCompare(b.asesorNombre ?? "", "es") * multiplier;
-      }
       if (sort.key === "cliente") {
         return a.clienteNombre.localeCompare(b.clienteNombre, "es") * multiplier;
       }
@@ -636,78 +612,6 @@ export default function AdminDashboardPage() {
     [executive.collections.overdue, overdueSort]
   );
 
-  const renderCollectionGroup = (
-    title: string,
-    items: DashboardAdminExecutiveOverview["collections"]["pendingToday"],
-    sort: SortState<CollectionSortKey>,
-    setSort: Dispatch<SetStateAction<SortState<CollectionSortKey>>>,
-    keyPrefix: string
-  ) => (
-    <div className="admin-collections__group">
-      <strong>{title}</strong>
-      <DataTable className="admin-collections-table-view">
-        <table className="sales-table admin-collections-table">
-          <thead>
-            <tr>
-              <th>
-                <DataTableSortHeader
-                  label="Asesor"
-                  direction={sortDirectionForCollection(sort, "asesor")}
-                  onToggle={() => toggleCollectionSort(setSort, "asesor")}
-                />
-              </th>
-              <th>
-                <DataTableSortHeader
-                  label="Cliente"
-                  direction={sortDirectionForCollection(sort, "cliente")}
-                  onToggle={() => toggleCollectionSort(setSort, "cliente")}
-                />
-              </th>
-              <th>
-                <DataTableSortHeader
-                  label="Lote"
-                  direction={sortDirectionForCollection(sort, "lote")}
-                  onToggle={() => toggleCollectionSort(setSort, "lote")}
-                />
-              </th>
-              <th>
-                <DataTableSortHeader
-                  label="Vence"
-                  direction={sortDirectionForCollection(sort, "fecha")}
-                  onToggle={() => toggleCollectionSort(setSort, "fecha")}
-                />
-              </th>
-              <th>
-                <DataTableSortHeader
-                  label="Monto"
-                  direction={sortDirectionForCollection(sort, "monto")}
-                  onToggle={() => toggleCollectionSort(setSort, "monto")}
-                />
-              </th>
-              <th>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.slice(0, 5).map((item) => (
-              <tr key={`${keyPrefix}-${item.ventaId}`}>
-                <td>{item.asesorNombre || "-"}</td>
-                <td>{item.clienteNombre}</td>
-                <td>{item.loteCodigo}</td>
-                <td>{formatDueDateTime(item.fechaVencimiento)}</td>
-                <td>{preciseMoney(item.montoPagar)}</td>
-                <td>
-                  <Link className="btn ghost data-table__row-action" to={`/ventas/${item.ventaId}`}>
-                    Ver venta
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </DataTable>
-    </div>
-  );
-
   const actions = (
     <div className="dashboard-topbar-actions">
       <nav className="topbar-nav dashboard-topbar-nav">
@@ -724,12 +628,29 @@ export default function AdminDashboardPage() {
           Usuarios
         </Link>
       </nav>
+      <DashboardFilterToggle
+        open={filtersOpen}
+        controlsId="admin-dashboard-filters"
+        onToggle={() => setFiltersOpen((current) => !current)}
+      />
     </div>
   );
 
-  const mobileActions = null;
+  const mobileActions = (
+    <DashboardFilterToggle
+      open={filtersOpen}
+      controlsId="admin-dashboard-filters"
+      onToggle={() => setFiltersOpen((current) => !current)}
+      mobile
+    />
+  );
 
   const adminBadge = <span className="dashboard-title-badge">{username || "Admin"}</span>;
+
+  const printDashboard = async () => {
+    if (!dashboardRef.current) return;
+    await exportElementToPdfA4(dashboardRef.current, `dashboard-admin-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
 
   const clearFilters = () => {
     setFilters(defaultFilters);
@@ -745,20 +666,7 @@ export default function AdminDashboardPage() {
       contentClassName="main--admin-dashboard"
     >
       <section className="admin-dashboard" ref={dashboardRef}>
-        <DashboardFilterToolbar
-          id="admin-dashboard-filters"
-          open={filtersOpen}
-          className="admin-dashboard__filters--admin"
-          actions={
-            <DashboardToolbarActions onClear={clearFilters}>
-              <DashboardFilterToggle
-                open={filtersOpen}
-                controlsId="admin-dashboard-filters"
-                onToggle={() => setFiltersOpen((current) => !current)}
-              />
-            </DashboardToolbarActions>
-          }
-        >
+        <DashboardFilterToolbar id="admin-dashboard-filters" open={filtersOpen} className="admin-dashboard__filters--admin">
           <DashboardFilterField label="Año" icon={<IconCalendar />}>
             <input
               type="number"
@@ -810,6 +718,7 @@ export default function AdminDashboardPage() {
                 ))}
               </select>
           </DashboardFilterField>
+          <DashboardToolbarActions onPrint={() => void printDashboard()} onClear={clearFilters} />
         </DashboardFilterToolbar>
 
         {error ? <p className="admin-error">{error}</p> : null}
@@ -818,64 +727,42 @@ export default function AdminDashboardPage() {
           <AdminDashboardStatCard
             label="Total lotes"
             value={loading ? "..." : `${executive.projectSummary.totalLotes}`}
+            helper="Total del proyecto"
+            trend="Inventario global"
             tone="info"
             icon={<IconLots />}
           />
           <AdminDashboardStatCard
             label="Total vendidos"
             value={loading ? "..." : `${executive.projectSummary.totalVendidos}`}
+            helper="Lotes vendidos"
+            trend="Estado comercial"
             tone="success"
             icon={<IconSold />}
           />
           <AdminDashboardStatCard
             label="Total separados"
             value={loading ? "..." : `${executive.projectSummary.totalSeparados}`}
+            helper="Lotes separados"
+            trend="Estado comercial"
             tone="warning"
             icon={<IconMoney />}
           />
           <AdminDashboardStatCard
             label="Total disponibles"
             value={loading ? "..." : `${executive.projectSummary.totalDisponibles}`}
+            helper="Lotes disponibles"
+            trend="Estado comercial"
             tone="warning"
             icon={<IconMoney />}
           />
           <AdminDashboardStatCard
             label="Avance de ventas"
             value={loading ? "..." : `${executive.projectSummary.porcentajeAvanceVentas}%`}
+            helper="Porcentaje vendido"
+            trend={`Periodo ${filters.month === "TODOS" ? "todos" : filters.month}/${filters.year}`}
             tone="neutral"
             icon={<IconRate />}
-          />
-          <AdminDashboardStatCard
-            label="Total vendido"
-            value={loading ? "..." : compactMoney(kpis.montoVendido)}
-            tone="info"
-            icon={<IconMoney />}
-          />
-          <AdminDashboardStatCard
-            label="Total cobrado"
-            value={loading ? "..." : compactMoney(kpis.montoCobrado)}
-            tone="success"
-            icon={<IconMoney />}
-          />
-          <AdminDashboardStatCard
-            label="Pendiente a cobrar"
-            value={loading ? "..." : compactMoney(kpis.saldoPendienteGlobal)}
-            tone="warning"
-            icon={<IconRate />}
-          />
-          <AdminDashboardStatCard
-            label="Cuota a cobrar"
-            value={loading ? "..." : compactMoney(kpis.cuotaCobrarProximoMes)}
-            helper="Proximo mes"
-            tone="info"
-            icon={<IconCalendar />}
-          />
-          <AdminDashboardStatCard
-            label="Pendiente a vender"
-            value={loading ? "..." : compactMoney(kpis.pendienteVender)}
-            helper={loading ? "..." : `${kpis.lotesDisponibles} lotes`}
-            tone="warning"
-            icon={<IconLots />}
           />
         </div>
 
@@ -923,9 +810,153 @@ export default function AdminDashboardPage() {
               </div>
             </div>
             <div className="admin-ranking admin-collections">
-              {renderCollectionGroup(`Hoy (${executive.collections.pendingToday.length})`, pendingTodayRows, todaySort, setTodaySort, "today")}
-              {renderCollectionGroup(`Próximos 7 días (${executive.collections.dueNext7Days.length})`, dueNextRows, nextSort, setNextSort, "next")}
-              {renderCollectionGroup(`Vencidos (${executive.collections.overdue.length})`, overdueRows, overdueSort, setOverdueSort, "overdue")}
+              <div className="admin-collections__group">
+                <strong>Hoy ({executive.collections.pendingToday.length})</strong>
+                <DataTable className="admin-collections-table-view">
+                  <table className="sales-table admin-collections-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <DataTableSortHeader
+                            label="Cliente"
+                            direction={sortDirectionForCollection(todaySort, "cliente")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "cliente")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Lote"
+                            direction={sortDirectionForCollection(todaySort, "lote")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "lote")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Vence"
+                            direction={sortDirectionForCollection(todaySort, "fecha")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "fecha")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Monto"
+                            direction={sortDirectionForCollection(todaySort, "monto")}
+                            onToggle={() => toggleCollectionSort(setTodaySort, "monto")}
+                          />
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingTodayRows.slice(0, 5).map((item) => (
+                        <tr key={`today-${item.ventaId}`}>
+                          <td>{item.clienteNombre}</td>
+                          <td>{item.loteCodigo}</td>
+                          <td>{item.fechaVencimiento}</td>
+                          <td>{compactMoney(item.montoPagar)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </DataTable>
+              </div>
+              <div className="admin-collections__group">
+                <strong>Próximos 7 días ({executive.collections.dueNext7Days.length})</strong>
+                <DataTable className="admin-collections-table-view">
+                  <table className="sales-table admin-collections-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <DataTableSortHeader
+                            label="Cliente"
+                            direction={sortDirectionForCollection(nextSort, "cliente")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "cliente")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Lote"
+                            direction={sortDirectionForCollection(nextSort, "lote")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "lote")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Vence"
+                            direction={sortDirectionForCollection(nextSort, "fecha")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "fecha")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Monto"
+                            direction={sortDirectionForCollection(nextSort, "monto")}
+                            onToggle={() => toggleCollectionSort(setNextSort, "monto")}
+                          />
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dueNextRows.slice(0, 5).map((item) => (
+                        <tr key={`next-${item.ventaId}`}>
+                          <td>{item.clienteNombre}</td>
+                          <td>{item.loteCodigo}</td>
+                          <td>{item.fechaVencimiento}</td>
+                          <td>{compactMoney(item.montoPagar)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </DataTable>
+              </div>
+              <div className="admin-collections__group">
+                <strong>Vencidos ({executive.collections.overdue.length})</strong>
+                <DataTable className="admin-collections-table-view">
+                  <table className="sales-table admin-collections-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <DataTableSortHeader
+                            label="Cliente"
+                            direction={sortDirectionForCollection(overdueSort, "cliente")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "cliente")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Lote"
+                            direction={sortDirectionForCollection(overdueSort, "lote")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "lote")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Vence"
+                            direction={sortDirectionForCollection(overdueSort, "fecha")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "fecha")}
+                          />
+                        </th>
+                        <th>
+                          <DataTableSortHeader
+                            label="Monto"
+                            direction={sortDirectionForCollection(overdueSort, "monto")}
+                            onToggle={() => toggleCollectionSort(setOverdueSort, "monto")}
+                          />
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overdueRows.slice(0, 5).map((item) => (
+                        <tr key={`overdue-${item.ventaId}`}>
+                          <td>{item.clienteNombre}</td>
+                          <td>{item.loteCodigo}</td>
+                          <td>{item.fechaVencimiento}</td>
+                          <td>{compactMoney(item.montoPagar)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </DataTable>
+              </div>
             </div>
           </article>
         </div>
