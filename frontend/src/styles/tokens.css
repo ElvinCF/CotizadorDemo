@@ -39,11 +39,32 @@
   --color-info: #36688d;
   --color-info-border: rgba(54, 104, 141, 0.3);
   --color-info-soft: rgba(54, 104, 141, 0.12);
+  --sale-state-separada-bg: #fff0c4;
+  --sale-state-separada-border: #e5b300;
+  --sale-state-separada-text: #9b7300;
+  --sale-state-inicial-bg: #ffe2b3;
+  --sale-state-inicial-border: #f49f05;
+  --sale-state-inicial-text: #a95700;
+  --sale-state-contrato-bg: #dcecff;
+  --sale-state-contrato-border: #5a9bff;
+  --sale-state-contrato-text: #205bb5;
+  --sale-state-pagando-bg: #d8f3ff;
+  --sale-state-pagando-border: #26a4d9;
+  --sale-state-pagando-text: #0f6c96;
+  --sale-state-completada-bg: #dff6e6;
+  --sale-state-completada-border: #2d9b59;
+  --sale-state-completada-text: #1f6d3b;
+  --sale-state-caida-bg: #ffd9d3;
+  --sale-state-caida-border: #d84532;
+  --sale-state-caida-text: #8a261d;
+  --sale-state-creacion-bg: #ece8e1;
+  --sale-state-creacion-border: #b8aa98;
+  --sale-state-creacion-text: #6b5d4d;
   
-  --lot-fill-libre: rgba(45, 155, 89, 0.3);
-  --lot-fill-libre-strong: rgba(45, 155, 89, 0.58);
-  --lot-fill-separado: rgba(243, 243, 5, 0.574);
-  --lot-fill-vendido: rgba(255, 34, 34, 0.432);
+ --lot-fill-libre: rgba(0, 255, 102, 0.3);
+  --lot-fill-libre-strong: rgba(55, 255, 0, 0.538);
+  --lot-fill-separado: rgba(243, 195, 5, 0.378);
+  --lot-fill-vendido: rgba(255, 0, 0, 0.305);
 }
 
 :root[data-theme="dark"] {
@@ -86,9 +107,30 @@
   --color-info: #78a6c8;
   --color-info-border: rgba(120, 166, 200, 0.34);
   --color-info-soft: rgba(120, 166, 200, 0.16);
+  --sale-state-separada-bg: rgba(243, 205, 5, 0.18);
+  --sale-state-separada-border: rgba(243, 205, 5, 0.44);
+  --sale-state-separada-text: #f3cd05;
+  --sale-state-inicial-bg: rgba(244, 159, 5, 0.18);
+  --sale-state-inicial-border: rgba(244, 159, 5, 0.44);
+  --sale-state-inicial-text: #ffcb7a;
+  --sale-state-contrato-bg: rgba(90, 155, 255, 0.18);
+  --sale-state-contrato-border: rgba(90, 155, 255, 0.42);
+  --sale-state-contrato-text: #a9ccff;
+  --sale-state-pagando-bg: rgba(38, 164, 217, 0.18);
+  --sale-state-pagando-border: rgba(38, 164, 217, 0.42);
+  --sale-state-pagando-text: #8fddff;
+  --sale-state-completada-bg: rgba(84, 214, 125, 0.18);
+  --sale-state-completada-border: rgba(84, 214, 125, 0.42);
+  --sale-state-completada-text: #8ef2ad;
+  --sale-state-caida-bg: rgba(255, 122, 99, 0.18);
+  --sale-state-caida-border: rgba(255, 122, 99, 0.42);
+  --sale-state-caida-text: #ffb4a8;
+  --sale-state-creacion-bg: rgba(195, 178, 158, 0.16);
+  --sale-state-creacion-border: rgba(195, 178, 158, 0.38);
+  --sale-state-creacion-text: #ddd0c3;
   
-  --lot-fill-libre: rgba(84, 214, 125, 0.22);
-  --lot-fill-libre-strong: rgba(84, 214, 125, 0.62);
-  --lot-fill-separado: rgba(243, 231, 5, 0.408);
-  --lot-fill-vendido: rgba(244, 5, 5, 0.24);
+  --lot-fill-libre: rgba(0, 255, 102, 0.3);
+  --lot-fill-libre-strong: rgba(55, 255, 0, 0.538);
+  --lot-fill-separado: rgba(243, 195, 5, 0.378);
+  --lot-fill-vendido: rgba(255, 0, 0, 0.305);
 }

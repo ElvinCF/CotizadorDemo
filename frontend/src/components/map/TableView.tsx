@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import DataTableSortHeader from "../data-table/DataTableSortHeader";
+import type { SortState } from "../data-table/types";
 import { formatArea, formatMoney, normalizeStatusLabel, statusToClass } from "../../domain/formatters";
 import type { FiltersState, Lote } from "../../domain/types";
 
@@ -56,6 +58,8 @@ type TableViewProps = {
   onOpenSale: (lote: Lote, activeSaleId: string | null) => void;
 };
 
+type TableSortKey = "mz" | "lote" | "areaM2" | "price" | "condicion";
+
 function TableView({
   tableFiltersOpen,
   onToggleFilters,
@@ -71,27 +75,62 @@ function TableView({
   onOpenSale,
 }: TableViewProps) {
   const [tableQuery, setTableQuery] = useState("");
+  const [sort, setSort] = useState<SortState<TableSortKey>>({ key: "mz", direction: "asc" });
+
+  const handleSort = (key: TableSortKey) => {
+    setSort((current) => {
+      if (current.key !== key) return { key, direction: "asc" };
+      if (current.direction === "asc") return { key, direction: "desc" };
+      if (current.direction === "desc") return { key: null, direction: null };
+      return { key, direction: "asc" };
+    });
+  };
+
+  const sortDirectionFor = (key: TableSortKey) => (sort.key === key ? sort.direction : null);
 
   const visibleLotes = useMemo(() => {
     const term = tableQuery.trim().toLowerCase();
-    if (!term) {
-      return filteredLotes;
+    const queried = !term
+      ? filteredLotes
+      : filteredLotes.filter((lote) => {
+          const searchable = [
+            lote.id,
+            lote.mz,
+            lote.lote,
+            lote.condicion,
+            normalizeStatusLabel(lote.condicion),
+          ]
+            .join(" ")
+            .toLowerCase();
+
+          return searchable.includes(term);
+        });
+
+    if (!sort.key || !sort.direction) {
+      return queried;
     }
 
-    return filteredLotes.filter((lote) => {
-      const searchable = [
-        lote.id,
-        lote.mz,
-        lote.lote,
-        lote.condicion,
-        normalizeStatusLabel(lote.condicion),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return searchable.includes(term);
+    const ordered = [...queried].sort((a, b) => {
+      switch (sort.key) {
+        case "mz":
+          return a.mz.localeCompare(b.mz, undefined, { numeric: true, sensitivity: "base" });
+        case "lote":
+          return a.lote - b.lote;
+        case "areaM2":
+          return (a.areaM2 ?? -Infinity) - (b.areaM2 ?? -Infinity);
+        case "price":
+          return (a.price ?? -Infinity) - (b.price ?? -Infinity);
+        case "condicion":
+          return normalizeStatusLabel(a.condicion).localeCompare(normalizeStatusLabel(b.condicion), undefined, {
+            sensitivity: "base",
+          });
+        default:
+          return 0;
+      }
     });
-  }, [filteredLotes, tableQuery]);
+
+    return sort.direction === "desc" ? ordered.reverse() : ordered;
+  }, [filteredLotes, sort.direction, sort.key, tableQuery]);
 
   return (
     <div className="table-view">
@@ -170,11 +209,23 @@ function TableView({
       <div className="table-scroll">
         <div className="table-grid">
           <div className={`table-header ${!canOpenSales ? "table-header--public" : ""}`}>
-            <span>MZ</span>
-            <span>LT</span>
-            <span>AREA (M2)</span>
-            <span>PRECIO</span>
-            <span>CONDICION</span>
+            <DataTableSortHeader label="MZ" direction={sortDirectionFor("mz")} onToggle={() => handleSort("mz")} />
+            <DataTableSortHeader label="LT" direction={sortDirectionFor("lote")} onToggle={() => handleSort("lote")} />
+            <DataTableSortHeader
+              label="AREA (M2)"
+              direction={sortDirectionFor("areaM2")}
+              onToggle={() => handleSort("areaM2")}
+            />
+            <DataTableSortHeader
+              label="PRECIO"
+              direction={sortDirectionFor("price")}
+              onToggle={() => handleSort("price")}
+            />
+            <DataTableSortHeader
+              label="CONDICION"
+              direction={sortDirectionFor("condicion")}
+              onToggle={() => handleSort("condicion")}
+            />
             {canOpenSales ? <span>ACCION</span> : null}
           </div>
           {visibleLotes.map((lote) => (

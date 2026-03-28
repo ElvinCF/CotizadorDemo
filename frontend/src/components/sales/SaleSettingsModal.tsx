@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { SaleFormValues, SaleHistoryItem, SaleRecord } from "../../domain/ventas";
+import { formatSaleStateLabel, saleStateClassName, type SaleFormValues, type SaleHistoryItem, type SaleRecord } from "../../domain/ventas";
 
 type SaleSettingsModalProps = {
   open: boolean;
@@ -45,11 +45,6 @@ const formatHistoryTime = (value: string) => {
     timeStyle: "short",
     timeZone: "America/Lima",
   }).format(date);
-};
-
-const formatStateLabel = (value: string | null) => {
-  if (!value) return "Creacion";
-  return value.replaceAll("_", " ");
 };
 
 const administrativeStateOptions = [
@@ -163,7 +158,7 @@ export default function SaleSettingsModal({
     () => [
       { key: "venta", label: "Venta ID", value: sale.id },
       { key: "lote", label: "Lote", value: (sale.lote?.codigo ?? form.loteCodigo) || "-" },
-      { key: "estadoVenta", label: "Estado venta", value: sale.estadoVenta.replaceAll("_", " ") },
+      { key: "estadoVenta", label: "Estado venta", value: formatSaleStateLabel(sale.estadoVenta) },
       { key: "estadoLote", label: "Estado lote", value: sale.lote?.estadoComercial ?? "-" },
       { key: "financiamiento", label: "Financiamiento", value: sale.tipoFinanciamiento.replaceAll("_", " ") },
       {
@@ -243,7 +238,9 @@ export default function SaleSettingsModal({
                 <div className="sales-history-item sales-history-item--current sales-history-item--timeline">
                   <div className="sales-history-item__sentence">
                     <span className="sales-history-item__text">Estado actual</span>
-                    <span className="sales-history-item__badge is-current">{formatStateLabel(sale.estadoVenta)}</span>
+                    <span className={`sales-history-item__badge ${saleStateClassName(sale.estadoVenta)}`}>
+                      {formatSaleStateLabel(sale.estadoVenta)}
+                    </span>
                     <span className="sales-history-item__text">por {latestHistoryEvent ? formatUserLabel(latestHistoryEvent) : "Sistema"}</span>
                   </div>
                 </div>
@@ -258,9 +255,13 @@ export default function SaleSettingsModal({
                   <div className="sales-history-item sales-history-item--timeline">
                     <div className="sales-history-item__sentence">
                       <span className="sales-history-item__text">De</span>
-                      <span className="sales-history-item__badge is-previous">{formatStateLabel(item.estadoAnterior)}</span>
-                      <span className="sales-history-item__text">a</span>
-                      <span className="sales-history-item__badge is-current">{formatStateLabel(item.estadoNuevo)}</span>
+                        <span className={`sales-history-item__badge ${saleStateClassName(item.estadoAnterior)}`}>
+                          {formatSaleStateLabel(item.estadoAnterior)}
+                        </span>
+                        <span className="sales-history-item__text">a</span>
+                        <span className={`sales-history-item__badge ${saleStateClassName(item.estadoNuevo)}`}>
+                          {formatSaleStateLabel(item.estadoNuevo)}
+                        </span>
                       <span className="sales-history-item__text">por {formatUserLabel(item)}</span>
                     </div>
                   </div>

@@ -120,3 +120,27 @@ export type SalePaymentFormValues = {
   nroCuota: string;
   observacion: string;
 };
+
+export const formatSaleStateLabel = (value: SaleState | null) => {
+  if (!value) return "Creacion";
+  return value.replaceAll("_", " ");
+};
+
+export const saleStateClassName = (value: SaleState | null) => {
+  switch (value) {
+    case "SEPARADA":
+      return "sale-state--separada";
+    case "INICIAL_PAGADA":
+      return "sale-state--inicial";
+    case "CONTRATO_FIRMADO":
+      return "sale-state--contrato";
+    case "PAGANDO":
+      return "sale-state--pagando";
+    case "COMPLETADA":
+      return "sale-state--completada";
+    case "CAIDA":
+      return "sale-state--caida";
+    default:
+      return "sale-state--creacion";
+  }
+};

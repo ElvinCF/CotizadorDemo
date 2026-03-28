@@ -20,7 +20,9 @@ export default function AdminDashboardStatCard({
   return (
     <article className={`admin-dashboard-stat admin-dashboard-stat--${tone}`}>
       <div className="admin-dashboard-stat__head">
-        <span className="admin-dashboard-stat__label">{label}</span>
+        <span className="admin-dashboard-stat__label-wrap">
+          <span className="admin-dashboard-stat__label">{label}</span>
+        </span>
       </div>
       <strong className="admin-dashboard-stat__value">{value}</strong>
       {helper || trend ? (

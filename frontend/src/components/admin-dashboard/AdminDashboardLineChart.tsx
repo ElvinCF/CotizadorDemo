@@ -14,6 +14,7 @@ import AdminDashboardChartTooltip from "./AdminDashboardChartTooltip";
 type LineDatum = {
   label: string;
   sold?: number;
+  collected?: number;
   value?: number;
 };
 
@@ -45,7 +46,9 @@ export default function AdminDashboardLineChart({
   const chartData = data.map((item) => ({
     label: item.label,
     sold: Number(item.sold ?? item.value ?? 0),
+    collected: Number(item.collected ?? 0),
   }));
+  const hasCollectedSeries = chartData.some((item) => Number(item.collected ?? 0) > 0);
 
   return (
     <article className="admin-dashboard-panel admin-dashboard-panel--line">
@@ -113,6 +116,19 @@ export default function AdminDashboardLineChart({
                         }).format(Number(point.sold ?? 0) || 0),
                         color: "var(--color-primary)",
                       },
+                      ...(hasCollectedSeries
+                        ? [
+                            {
+                              label: "Cobrado",
+                              value: new Intl.NumberFormat("es-PE", {
+                                style: "currency",
+                                currency: "PEN",
+                                maximumFractionDigits: 2,
+                              }).format(Number(point.collected ?? 0) || 0),
+                              color: "var(--color-success)",
+                            },
+                          ]
+                        : []),
                     ]}
                   />
                 );
@@ -145,6 +161,29 @@ export default function AdminDashboardLineChart({
                 className="admin-line-chart__point-label"
               />
             </Line>
+            {hasCollectedSeries ? (
+              <>
+                <Area
+                  type="monotone"
+                  dataKey="collected"
+                  stroke="none"
+                  fill="color-mix(in srgb, var(--color-success) 14%, transparent)"
+                  isAnimationActive
+                  animationDuration={420}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="collected"
+                  name="collected"
+                  stroke="var(--color-success)"
+                  strokeWidth={2.5}
+                  dot={{ r: 3.5, fill: "var(--color-success-strong)", stroke: "var(--color-surface)", strokeWidth: 2 }}
+                  activeDot={{ r: 4.5 }}
+                  isAnimationActive
+                  animationDuration={470}
+                />
+              </>
+            ) : null}
           </LineChart>
         </ResponsiveContainer>
       </div>

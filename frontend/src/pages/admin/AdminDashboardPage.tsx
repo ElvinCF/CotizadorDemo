@@ -281,6 +281,8 @@ const metricToValue = (item: DashboardAdvisorSummaryItem, metric: DashboardRanki
 const metricToLabel = (metric: DashboardRankingMetric) =>
   RANKING_METRIC_OPTIONS.find((option) => option.value === metric)?.label ?? "Monto vendido";
 
+const formatPercent = (value: number) => `${Number(value || 0).toFixed(2)}%`;
+
 const inventoryLabel = (state: DashboardInventoryItem["estadoComercial"]) => {
   switch (state) {
     case "SEPARADO":
@@ -519,6 +521,74 @@ export default function AdminDashboardPage() {
     [inventory]
   );
 
+  const statCards = useMemo(
+    () => [
+      {
+        label: "Total lotes",
+        value: loading ? "..." : `${kpis.inventarioTotal}`,
+        tone: "info" as const,
+        icon: <IconLots />,
+      },
+      {
+        label: "Total vendidos",
+        value: loading ? "..." : `${kpis.lotesVendidos}`,
+        tone: "success" as const,
+        icon: <IconSold />,
+      },
+      {
+        label: "Total separados",
+        value: loading ? "..." : `${kpis.lotesSeparados}`,
+        tone: "warning" as const,
+        icon: <IconMoney />,
+      },
+      {
+        label: "Total disponibles",
+        value: loading ? "..." : `${kpis.lotesDisponibles}`,
+        tone: "info" as const,
+        icon: <IconLots />,
+      },
+      {
+        label: "Avance de ventas",
+        value: loading ? "..." : formatPercent(executive.projectSummary.porcentajeAvanceVentas),
+        tone: "neutral" as const,
+        icon: <IconRate />,
+      },
+      {
+        label: "Total vendido",
+        value: loading ? "..." : compactMoney(kpis.montoVendido),
+        tone: "success" as const,
+        icon: <IconMoney />,
+      },
+      {
+        label: "Total cobrado",
+        value: loading ? "..." : compactMoney(kpis.montoCobrado),
+        tone: "info" as const,
+        icon: <IconMoney />,
+      },
+      {
+        label: "Pendiente a cobrar",
+        value: loading ? "..." : compactMoney(kpis.saldoPendienteGlobal),
+        tone: "warning" as const,
+        icon: <IconRate />,
+      },
+      {
+        label: "Cuota a cobrar",
+        value: loading ? "..." : compactMoney(kpis.cuotaCobrarProximoMes),
+        helper: "Proximo mes",
+        tone: "warning" as const,
+        icon: <IconCalendar />,
+      },
+      {
+        label: "Pendiente a vender",
+        value: loading ? "..." : compactMoney(kpis.pendienteVender),
+        helper: loading ? "..." : `${kpis.lotesDisponibles} lotes`,
+        tone: "info" as const,
+        icon: <IconLots />,
+      },
+    ],
+    [executive.projectSummary.porcentajeAvanceVentas, kpis, loading]
+  );
+
   const summaryBars = useMemo(() => {
     const sortedItems = advisorSummary
       .filter((item) => item.cantidadVentas > 0)
@@ -530,7 +600,7 @@ export default function AdminDashboardPage() {
 
     return sortedItems.map((item) => ({
       label: item.asesorNombre || item.asesorUsername || "Asesor",
-      helper: `${item.cantidadVentas} ventas âœª cartera ${item.carteraActiva}`,
+      helper: `${item.cantidadVentas} ventas | cartera ${item.carteraActiva}`,
       valueLabel: compactMoney(item.montoVendido),
       primaryLabel: "Vendido",
       ratio: item.montoVendido / maxValue,
@@ -549,7 +619,7 @@ export default function AdminDashboardPage() {
         const value = metricToValue(item, rankingMetric);
         return {
           name,
-          detail: `${item.cantidadVentas} ventas âœª cobrado ${compactMoney(item.montoCobrado)}`,
+          detail: `Cobrado ${compactMoney(item.montoCobrado)}`,
           valueLabel: rankingMetric === "cantidad_ventas" || rankingMetric === "cartera_activa" ? String(value) : compactMoney(value),
           helper: metricToLabel(rankingMetric),
           initials: getInitials(name),
@@ -726,46 +796,16 @@ export default function AdminDashboardPage() {
         {error ? <p className="admin-error">{error}</p> : null}
 
         <div className="admin-dashboard__stats">
-          <AdminDashboardStatCard
-            label="Total lotes"
-            value={loading ? "..." : `${executive.projectSummary.totalLotes}`}
-            helper="Total del proyecto"
-            trend="Inventario global"
-            tone="info"
-            icon={<IconLots />}
-          />
-          <AdminDashboardStatCard
-            label="Total vendidos"
-            value={loading ? "..." : `${executive.projectSummary.totalVendidos}`}
-            helper="Lotes vendidos"
-            trend="Estado comercial"
-            tone="success"
-            icon={<IconSold />}
-          />
-          <AdminDashboardStatCard
-            label="Total separados"
-            value={loading ? "..." : `${executive.projectSummary.totalSeparados}`}
-            helper="Lotes separados"
-            trend="Estado comercial"
-            tone="warning"
-            icon={<IconMoney />}
-          />
-          <AdminDashboardStatCard
-            label="Total disponibles"
-            value={loading ? "..." : `${executive.projectSummary.totalDisponibles}`}
-            helper="Lotes disponibles"
-            trend="Estado comercial"
-            tone="warning"
-            icon={<IconMoney />}
-          />
-          <AdminDashboardStatCard
-            label="Avance de ventas"
-            value={loading ? "..." : `${executive.projectSummary.porcentajeAvanceVentas}%`}
-            helper="Porcentaje vendido"
-            trend={`Periodo ${filters.month === "TODOS" ? "todos" : filters.month}/${filters.year}`}
-            tone="neutral"
-            icon={<IconRate />}
-          />
+          {statCards.map((card) => (
+            <AdminDashboardStatCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              helper={card.helper}
+              tone={card.tone}
+              icon={card.icon}
+            />
+          ))}
         </div>
 
 

@@ -56,8 +56,10 @@ export default function AdminDashboardRanking({
             <span className="admin-ranking__avatar">{item.initials}</span>
             <div className="admin-ranking__body">
               <strong>{item.name}</strong>
-              <span>{item.detail}</span>
-              {typeof item.salesCount === "number" ? <span>{`${item.salesCount} ventas`}</span> : null}
+              <span className="admin-ranking__meta">
+                <span>{item.detail}</span>
+                {typeof item.salesCount === "number" ? <span>{`${item.salesCount} ventas`}</span> : null}
+              </span>
             </div>
             <div className="admin-ranking__value">
               <strong>{item.valueLabel}</strong>

@@ -934,21 +934,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             @page { size: A4; margin: 12mm; }
             body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b1b1b; }
             .page { border: 2px solid #d7b08a; border-radius: 16px; padding: 0; position: relative; overflow: hidden; }
-            .page::before,
-            .page::after {
-              content: "";
-              position: absolute;
-              left: 0;
-              right: 0;
-              height: 14mm;
-              background: linear-gradient(135deg, #1f8a4c 0 45%, #f4b24d 45% 60%, #1f8a4c 60% 100%);
-            }
-            .page::before { top: 0; }
-            .page::after {
-              bottom: 0;
-              transform: rotate(180deg);
-            }
-            .page-content { padding: 18mm 14px 18mm; position: relative; z-index: 1; }
+            .page-content { padding: 12px 14px; position: relative; z-index: 1; }
             .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
             .header h1 { margin: 0; font-size: 20px; color: #b14518; }
             .meta { font-size: 11px; color: #6a5c4c; }

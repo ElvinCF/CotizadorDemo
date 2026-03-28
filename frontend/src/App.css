@@ -513,7 +513,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
+  padding: 0 10px;
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
   background: var(--color-panel-contrast);
@@ -532,7 +532,7 @@
   min-width: 0;
   border: 0;
   background: transparent;
-  padding: 11px 0;
+  padding: 8px 0;
   color: var(--color-text);
   font: inherit;
 }
@@ -1111,15 +1111,21 @@
 }
 
 .legend__item.disponible {
-  background: var(--color-success-soft);
+  background: color-mix(in srgb, var(--lot-fill-libre) 85%, transparent);
+  border-color: var(--lot-fill-libre-strong);
+  color: var(--color-success-strong);
 }
 
 .legend__item.separado {
-  background: var(--color-primary-soft);
+  background: color-mix(in srgb, var(--lot-fill-separado) 85%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning) 40%, transparent);
+  color: var(--color-warning);
 }
 
 .legend__item.vendido {
-  background: var(--color-danger-soft);
+  background: color-mix(in srgb, var(--lot-fill-vendido) 85%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger-strong) 40%, transparent);
+  color: var(--color-danger-strong);
 }
 
 .map-container {
@@ -1825,22 +1831,22 @@
 }
 
 .seller-status.disponible {
-  background: var(--color-success-soft);
-  border-color: var(--color-success-soft);
+  background: color-mix(in srgb, var(--lot-fill-libre) 75%, transparent);
+  border-color: var(--lot-fill-libre-strong);
   color: var(--color-success-strong);
   font-weight: 700;
 }
 
 .seller-status.separado {
-  background: var(--color-panel-alt);
-  border-color: var(--color-warning-soft);
+  background: color-mix(in srgb, var(--lot-fill-separado) 80%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning) 40%, transparent);
   color: var(--color-warning);
   font-weight: 700;
 }
 
 .seller-status.vendido {
-  background: var(--color-danger-soft);
-  border-color: var(--color-danger-soft);
+  background: color-mix(in srgb, var(--lot-fill-vendido) 80%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger-strong) 40%, transparent);
   color: var(--color-danger-strong);
   font-weight: 700;
 }
@@ -4068,10 +4074,11 @@ input.is-invalid {
 .admin-dashboard-stat {
   padding: 12px 14px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  min-height: 104px;
 }
 
 .admin-dashboard-stat__head,
@@ -4082,6 +4089,30 @@ input.is-invalid {
   gap: 8px;
 }
 
+.admin-dashboard-stat__label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-dashboard-stat__icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  flex: 0 0 auto;
+}
+
+.admin-dashboard-stat__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 .admin-dashboard-stat__label {
   font-size: 0.72rem;
   font-weight: 700;
@@ -4090,6 +4121,7 @@ input.is-invalid {
   letter-spacing: 0.04em;
   position: relative;
   z-index: 1;
+  line-height: 1.1;
 }
 
 .admin-dashboard-stat__bg-icon {
@@ -4137,6 +4169,7 @@ input.is-invalid {
   text-align: right;
   position: relative;
   z-index: 1;
+  line-height: 1.1;
 }
 
 .admin-dashboard-stat--success .admin-dashboard-stat__bg-icon,
@@ -4568,6 +4601,19 @@ input.is-invalid {
 .admin-ranking__body strong {
   display: block;
   color: var(--color-text);
+}
+
+.admin-ranking__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-ranking__meta > span + span::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--color-muted);
 }
 
 .admin-ranking__value {
@@ -5362,9 +5408,7 @@ input.is-invalid {
   min-height: 28px;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  color: var(--color-primary-strong);
+  border: 1px solid transparent;
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.03em;
@@ -5641,6 +5685,13 @@ input.is-invalid {
   vertical-align: middle;
 }
 
+.sales-table th,
+.sales-table td,
+.sales-table__lot,
+.sales-table__client {
+  white-space: nowrap;
+}
+
 .data-table thead th,
 .sales-table th {
   position: sticky;
@@ -5914,6 +5965,62 @@ input.is-invalid {
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   color: var(--color-primary-strong);
   border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.sales-pill.sale-state--separada,
+.sales-form-page__status-badge.sale-state--separada,
+.sales-history-item__badge.sale-state--separada {
+  background: var(--sale-state-separada-bg);
+  color: var(--sale-state-separada-text);
+  border-color: var(--sale-state-separada-border);
+}
+
+.sales-pill.sale-state--inicial,
+.sales-form-page__status-badge.sale-state--inicial,
+.sales-history-item__badge.sale-state--inicial {
+  background: var(--sale-state-inicial-bg);
+  color: var(--sale-state-inicial-text);
+  border-color: var(--sale-state-inicial-border);
+}
+
+.sales-pill.sale-state--contrato,
+.sales-form-page__status-badge.sale-state--contrato,
+.sales-history-item__badge.sale-state--contrato {
+  background: var(--sale-state-contrato-bg);
+  color: var(--sale-state-contrato-text);
+  border-color: var(--sale-state-contrato-border);
+}
+
+.sales-pill.sale-state--pagando,
+.sales-form-page__status-badge.sale-state--pagando,
+.sales-history-item__badge.sale-state--pagando {
+  background: var(--sale-state-pagando-bg);
+  color: var(--sale-state-pagando-text);
+  border-color: var(--sale-state-pagando-border);
+}
+
+.sales-pill.sale-state--completada,
+.sales-form-page__status-badge.sale-state--completada,
+.sales-history-item__badge.sale-state--completada {
+  background: var(--sale-state-completada-bg);
+  color: var(--sale-state-completada-text);
+  border-color: var(--sale-state-completada-border);
+}
+
+.sales-pill.sale-state--caida,
+.sales-form-page__status-badge.sale-state--caida,
+.sales-history-item__badge.sale-state--caida {
+  background: var(--sale-state-caida-bg);
+  color: var(--sale-state-caida-text);
+  border-color: var(--sale-state-caida-border);
+}
+
+.sales-pill.sale-state--creacion,
+.sales-form-page__status-badge.sale-state--creacion,
+.sales-history-item__badge.sale-state--creacion {
+  background: var(--sale-state-creacion-bg);
+  color: var(--sale-state-creacion-text);
+  border-color: var(--sale-state-creacion-border);
 }
 
 .sales-form-grid {
@@ -6951,18 +7058,19 @@ input.is-invalid {
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+  border: 1px solid transparent;
 }
 
 .sales-history-item__badge.is-previous {
-  border: 1px solid color-mix(in srgb, var(--color-text-muted) 26%, transparent);
-  color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-text-muted) 12%);
+  border: 1px solid transparent;
+  color: inherit;
+  background: transparent;
 }
 
 .sales-history-item__badge.is-current {
-  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
-  color: var(--color-primary-strong);
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border: 1px solid transparent;
+  color: inherit;
+  background: transparent;
 }
 
 .sales-history-item__meta {
@@ -7694,12 +7802,36 @@ input.is-invalid {
   }
 
   .sales-table {
-    min-width: 680px;
-  }
+      min-width: 600px;
+    }
 
-  .sales-payments-table-view .sales-table {
-    min-width: 640px;
-  }
+    .sales-table th,
+    .sales-table td {
+      padding: 8px 6px;
+      font-size: 0.8rem;
+    }
+
+    .sales-table th {
+      font-size: 0.7rem;
+    }
+
+    .sales-table .data-table-sort {
+      gap: 4px;
+      min-height: 26px;
+    }
+
+    .sales-table .data-table-sort__icon {
+      width: 12px;
+    }
+
+    .sales-table .sales-pill {
+      padding: 4px 8px;
+      font-size: 0.72rem;
+    }
+
+    .sales-payments-table-view .sales-table {
+      min-width: 640px;
+    }
 
   .sales-payments-table__edit span {
     display: none;

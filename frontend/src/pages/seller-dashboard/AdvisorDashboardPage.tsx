@@ -299,23 +299,19 @@ export default function AdvisorDashboardPage() {
     };
   }, [commonFilters, filters.groupBy, filters.tipoPago]);
 
-  const salesLine = useMemo(
-    () =>
-      salesSeries.map((item) => ({
-        label: formatBucketLabel(item.bucket),
-        value: item.montoVendido,
-      })),
-    [salesSeries]
-  );
+  const salesLine = useMemo(() => {
+    const salesByBucket = new Map(salesSeries.map((item) => [item.bucket, item]));
+    const collectionsByBucket = new Map(collectionsSeries.map((item) => [item.bucket, item]));
+    const buckets = Array.from(new Set([...salesByBucket.keys(), ...collectionsByBucket.keys()])).sort((a, b) =>
+      a.localeCompare(b)
+    );
 
-  const collectionsLine = useMemo(
-    () =>
-      collectionsSeries.map((item) => ({
-        label: formatBucketLabel(item.bucket),
-        value: item.montoCobrado,
-      })),
-    [collectionsSeries]
-  );
+    return buckets.map((bucket) => ({
+      label: formatBucketLabel(bucket),
+      sold: salesByBucket.get(bucket)?.montoVendido ?? 0,
+      collected: collectionsByBucket.get(bucket)?.montoCobrado ?? 0,
+    }));
+  }, [collectionsSeries, salesSeries]);
 
   const operationsSegments = useMemo(
     () =>
@@ -406,6 +402,68 @@ export default function AdvisorDashboardPage() {
   const clearFilters = () => {
     setFilters(defaultFilters);
   };
+
+  const statCards = useMemo(
+    () => [
+      {
+        label: "Mis ventas activas",
+        value: loading ? "..." : `${kpis.misVentasActivas}`,
+        helper: loading ? "..." : `${kpis.misSeparaciones} separaciones`,
+        tone: "info" as const,
+        icon: <IconSales />,
+      },
+      {
+        label: "Monto vendido",
+        value: loading ? "..." : compactMoney(kpis.miMontoVendido),
+        helper: loading ? "..." : `Mayor venta ${compactMoney(kpis.mayorVenta)}`,
+        tone: "success" as const,
+        icon: <IconMoney />,
+      },
+      {
+        label: "Total cobrado",
+        value: loading ? "..." : compactMoney(kpis.miMontoCobrado),
+        helper: loading ? "..." : `${payments.length} pagos`,
+        tone: "info" as const,
+        icon: <IconMoney />,
+      },
+      {
+        label: "Pendiente a cobrar",
+        value: loading ? "..." : compactMoney(kpis.saldoPendienteMiCartera),
+        helper: loading ? "..." : `${kpis.clientesActivos} clientes activos`,
+        tone: "warning" as const,
+        icon: <IconClients />,
+      },
+      {
+        label: "Ticket promedio",
+        value: loading ? "..." : compactMoney(kpis.ticketPromedioVenta),
+        helper: loading ? "..." : "Promedio de ventas",
+        tone: "neutral" as const,
+        icon: <IconTable />,
+      },
+      {
+        label: "Separaciones",
+        value: loading ? "..." : `${kpis.misSeparaciones}`,
+        helper: loading ? "..." : "Estado separada",
+        tone: "warning" as const,
+        icon: <IconTable />,
+      },
+      {
+        label: "Clientes activos",
+        value: loading ? "..." : `${kpis.clientesActivos}`,
+        helper: loading ? "..." : "Cartera vigente",
+        tone: "neutral" as const,
+        icon: <IconClients />,
+      },
+      {
+        label: "Mayor venta",
+        value: loading ? "..." : compactMoney(kpis.mayorVenta),
+        helper: loading ? "..." : "Operacion mas alta",
+        tone: "success" as const,
+        icon: <IconMoney />,
+      },
+    ],
+    [kpis, loading, payments.length]
+  );
 
   return (
     <AppShell
@@ -506,46 +564,26 @@ export default function AdvisorDashboardPage() {
         {error ? <p className="admin-error">{error}</p> : null}
 
         <div className="admin-dashboard__stats">
-          <AdminDashboardStatCard
-            label="Mis ventas activas"
-            value={loading ? "..." : `${kpis.misVentasActivas}`}
-            helper={`${kpis.misSeparaciones} separaciones`}
-            trend={`Mayor venta ${compactMoney(kpis.mayorVenta)}`}
-            tone="info"
-            icon={<IconSales />}
-          />
-          <AdminDashboardStatCard
-            label="Monto vendido"
-            value={loading ? "..." : compactMoney(kpis.miMontoVendido)}
-            helper={`Cobrado ${compactMoney(kpis.miMontoCobrado)}`}
-            trend={`Ticket ${compactMoney(kpis.ticketPromedioVenta)}`}
-            tone="success"
-            icon={<IconMoney />}
-          />
-          <AdminDashboardStatCard
-            label="Saldo pendiente"
-            value={loading ? "..." : compactMoney(kpis.saldoPendienteMiCartera)}
-            helper={`${kpis.clientesActivos} clientes activos`}
-            trend="Cartera vigente"
-            tone="warning"
-            icon={<IconClients />}
-          />
-          <AdminDashboardStatCard
-            label="Pagos registrados"
-            value={loading ? "..." : `${payments.length}`}
-            helper={filters.tipoPago || "Todos los tipos"}
-            trend={`Ultimos ${paymentsRanking.length} pagos`}
-            tone="neutral"
-            icon={<IconTable />}
-          />
+          {statCards.map((card) => (
+            <AdminDashboardStatCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              helper={card.helper}
+              tone={card.tone}
+              icon={card.icon}
+            />
+          ))}
         </div>
 
         <div className="admin-dashboard__charts">
           <AdminDashboardLineChart
-            title="Cobros en el tiempo"
-            subtitle="Serie agrupada segun el periodo seleccionado."
-            legend={filters.groupBy}
-            data={collectionsLine}
+            title="Ventas y cobros"
+            subtitle="Serie comparada segun el periodo seleccionado."
+            legend="Vendido / Cobrado"
+            data={salesLine}
+            groupBy={filters.groupBy}
+            onGroupByChange={(next) => setFilters((current) => ({ ...current, groupBy: next }))}
           />
           <AdminDashboardDonutChart
             title="Operaciones por estado"
@@ -571,12 +609,6 @@ export default function AdvisorDashboardPage() {
 
         {!loading && salesSeries.length > 0 ? (
           <div className="admin-dashboard__charts">
-            <AdminDashboardLineChart
-              title="Ventas en el tiempo"
-              subtitle="Monto vendido agrupado segun el periodo para tus operaciones."
-              legend="ventas"
-              data={salesLine}
-            />
             <article className="admin-dashboard-panel admin-dashboard-panel--ranking">
               <div className="admin-dashboard-panel__head">
                 <div>

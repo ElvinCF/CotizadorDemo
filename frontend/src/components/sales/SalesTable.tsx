@@ -4,7 +4,7 @@ import DataTableLoadingRows from "../data-table/DataTableLoadingRows";
 import DataTableSortHeader from "../data-table/DataTableSortHeader";
 import { resolveTableLoadState } from "../data-table/loadState";
 import type { SortState } from "../data-table/types";
-import type { SaleRecord } from "../../domain/ventas";
+import { formatSaleStateLabel, saleStateClassName, type SaleRecord } from "../../domain/ventas";
 
 type SalesSortKey = "lote" | "cliente" | "asesor" | "estado" | "precio" | "fecha";
 
@@ -30,12 +30,10 @@ const formatDate = (value: string) => {
   return parsed.toLocaleDateString("es-PE");
 };
 
-const statusClass = (state: string) => {
-  if (state === "CAIDA") return "is-danger";
-  if (state === "SEPARADA") return "is-warning";
-  if (state === "COMPLETADA") return "is-success";
-  return "is-info";
-};
+const capitalizeName = (value: string) =>
+  value
+    .toLocaleLowerCase("es-PE")
+    .replace(/\b([\p{L}\p{M}])/gu, (match) => match.toLocaleUpperCase("es-PE"));
 
 const sortDirectionFor = (sort: SortState<SalesSortKey>, key: SalesSortKey) => (sort.key === key ? sort.direction : null);
 
@@ -99,11 +97,15 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
           {showDataRows &&
             items.map((sale) => (
               <tr key={sale.id}>
-                <td>{sale.lote ? `${sale.lote.mz} - Lote ${sale.lote.lote}` : "-"}</td>
-                <td>{sale.cliente?.nombreCompleto || "-"}</td>
+                <td className="sales-table__lot">
+                  {sale.lote ? sale.lote.codigo || `${sale.lote.mz}-${String(sale.lote.lote).padStart(2, "0")}` : "-"}
+                </td>
+                <td className="sales-table__client">
+                  {sale.cliente?.nombreCompleto ? capitalizeName(sale.cliente.nombreCompleto) : "-"}
+                </td>
                 <td>{sale.asesor?.nombre || "-"}</td>
                 <td>
-                  <span className={`sales-pill ${statusClass(sale.estadoVenta)}`}>{sale.estadoVenta.replaceAll("_", " ")}</span>
+                  <span className={`sales-pill ${saleStateClassName(sale.estadoVenta)}`}>{formatSaleStateLabel(sale.estadoVenta)}</span>
                 </td>
                 <td>{formatMoney(sale.precioVenta)}</td>
                 <td>{formatDate(sale.fechaVenta)}</td>

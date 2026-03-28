@@ -26,6 +26,7 @@ import type {
   SaleRecord,
   SaleState,
 } from "../../domain/ventas";
+import { formatSaleStateLabel, saleStateClassName } from "../../domain/ventas";
 import { listAdminUsers } from "../../services/adminUsers";
 import { loadLotesFromApi } from "../../services/lotes";
 import { addSalePayment, createSale, findClientByDni, getSaleById, updateSale, updateSalePayment } from "../../services/ventas";
@@ -213,8 +214,6 @@ const IconSpinner = () => (
   </svg>
 );
 
-const formatSaleStateBadge = (value: SaleState) => value.replaceAll("_", " ");
-
 type MobileAccordionSectionProps = {
   title: string;
   defaultOpen?: boolean;
@@ -296,7 +295,7 @@ function SaleExpedienteTemplate({
               <span className="sales-header-action__label">Volver</span>
             </button>
             <h2>{heading}</h2>
-            <span className="sales-form-page__status-badge">{formatSaleStateBadge(status)}</span>
+            <span className={`sales-form-page__status-badge ${saleStateClassName(status)}`}>{formatSaleStateLabel(status)}</span>
           </div>
         </div>
         <div className="sales-form-page__summary">
