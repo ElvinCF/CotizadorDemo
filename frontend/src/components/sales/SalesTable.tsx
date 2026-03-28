@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import DataTable from "../data-table/DataTable";
 import DataTableLoadingRows from "../data-table/DataTableLoadingRows";
 import DataTableSortHeader from "../data-table/DataTableSortHeader";
@@ -25,7 +25,11 @@ const formatMoney = (value: number) =>
   }).format(value);
 
 const formatDate = (value: string) => {
-  const parsed = new Date(value);
+  const raw = String(value || "").trim();
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/) ;
+  if (dateOnly) return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
+
+  const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return "-";
   return parsed.toLocaleDateString("es-PE");
 };
@@ -164,3 +168,4 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
     </DataTable>
   );
 }
+

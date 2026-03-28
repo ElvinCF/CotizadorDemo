@@ -276,13 +276,10 @@ function ProformaModal({
             </div>
           </section>
 
-          <section className="proforma-section">
-            <div className="proforma-section__head">
-              <h4>Proyecto y lotes</h4>
-              <button className="btn ghost proforma-add-lote" type="button" onClick={addLotRow}>
-                <IconPlus /> Agregar lote
-              </button>
-            </div>
+            <section className="proforma-section">
+              <div className="proforma-section__head">
+                <h4>Proyecto y lotes</h4>
+              </div>
             <div className="proforma-project-card">
               <strong>{proforma.proyecto.proyecto}</strong>
               <div className="proforma-project-card__meta">
@@ -367,8 +364,16 @@ function ProformaModal({
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={3}>Total precio referencial</td>
-                    <td>{formatMoney(totalPrecioRef)}</td>
+                    <td colSpan={2}>
+                      <button className="btn ghost proforma-add-lote" type="button" onClick={addLotRow}>
+                        <IconPlus /> Agregar lote
+                      </button>
+                    </td>
+                    <td />
+                    <td className="proforma-lote-table__total">
+                      <span className="proforma-lote-table__total-label">Total precio referencial</span>
+                      <span>{formatMoney(totalPrecioRef)}</span>
+                    </td>
                     <td />
                   </tr>
                 </tfoot>

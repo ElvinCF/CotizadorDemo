@@ -120,7 +120,7 @@ function LotesTablePage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkType, setBulkType] = useState<"MONTO" | "PORCENTAJE">("MONTO");
   const [bulkValue, setBulkValue] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<LotesFilters>(defaultFilters);
   const [sort, setSort] = useState<SortState<LotesSortKey>>({ key: "mz", direction: "asc" });
 

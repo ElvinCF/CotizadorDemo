@@ -323,9 +323,7 @@ export default function AdminDashboardPage() {
   const [filters, setFilters] = useState<DashboardFiltersState>(defaultFilters);
   const [lineGroupBy, setLineGroupBy] = useState<DashboardGroupBy>("day");
   const [rankingMetric, setRankingMetric] = useState<DashboardRankingMetric>("monto_vendido");
-  const [filtersOpen, setFiltersOpen] = useState(() =>
-    typeof window === "undefined" ? true : window.innerWidth > 640
-  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [kpis, setKpis] = useState<DashboardAdminKpis>(emptyKpis);
   const [salesSeries, setSalesSeries] = useState<DashboardSalesSeriesItem[]>([]);
   const [inventory, setInventory] = useState<DashboardInventoryItem[]>([]);

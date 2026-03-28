@@ -227,9 +227,7 @@ const operationStateLabel = (state: SaleState) => {
 export default function AdvisorDashboardPage() {
   const { username } = useAuth();
   const [filters, setFilters] = useState<AdvisorDashboardFiltersState>(defaultFilters);
-  const [filtersOpen, setFiltersOpen] = useState(() =>
-    typeof window === "undefined" ? true : window.innerWidth > 640
-  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [kpis, setKpis] = useState<DashboardAdvisorKpis>(emptyKpis);
   const [salesSeries, setSalesSeries] = useState<DashboardSalesSeriesItem[]>([]);
   const [collectionsSeries, setCollectionsSeries] = useState<DashboardCollectionsSeriesItem[]>([]);

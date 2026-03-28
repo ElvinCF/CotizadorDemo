@@ -284,6 +284,41 @@ function SaleExpedienteTemplate({
   return (
     <>
       <header className="sales-form-page__head">
+        <div className="sales-form-page__mobile-bar" role="toolbar" aria-label="Acciones principales de venta">
+          <button
+            type="button"
+            className="btn ghost sales-header-action sales-header-action--back"
+            onClick={onBack}
+            aria-label="Volver"
+            title="Volver"
+          >
+            <IconArrowLeft />
+          </button>
+          <span className={`sales-form-page__status-badge ${saleStateClassName(status)}`}>{formatSaleStateLabel(status)}</span>
+          {showSettings ? (
+            <button
+              type="button"
+              className="btn ghost sales-header-action"
+              onClick={onOpenSettings}
+              title="Ajustes"
+              aria-label="Ajustes"
+            >
+              <IconSettings />
+            </button>
+          ) : (
+            <span className="sales-form-page__mobile-bar-spacer" aria-hidden="true" />
+          )}
+          <button
+            type="button"
+            className="btn sales-header-action sales-header-action--save"
+            onClick={onSave}
+            disabled={saveDisabled}
+            title={saveShortLabel}
+            aria-label={saveShortLabel}
+          >
+            {saving ? <IconSpinner /> : <IconSave />}
+          </button>
+        </div>
         <div className="sales-form-page__heading">
           <div className="sales-form-page__title-row">
             <button
@@ -340,8 +375,8 @@ function SaleExpedienteTemplate({
         </div>
       </section>
 
-      <div className="sales-mobile-footer" role="toolbar" aria-label="Acciones principales de venta">
-        {showMobilePaymentAction ? (
+      {showMobilePaymentAction ? (
+        <div className="sales-mobile-footer" role="toolbar" aria-label="Acciones de pago">
           <button
             type="button"
             className="btn ghost sales-mobile-footer__action sales-mobile-footer__action--payment"
@@ -350,14 +385,8 @@ function SaleExpedienteTemplate({
             <span>+</span>
             <span className="sales-mobile-footer__label">Pago</span>
           </button>
-        ) : (
-          <span className="sales-mobile-footer__spacer" aria-hidden="true" />
-        )}
-        <button type="button" className="btn sales-mobile-footer__action sales-mobile-footer__action--save" onClick={onSave} disabled={saveDisabled}>
-          {saving ? <IconSpinner /> : <IconSave />}
-          <span className="sales-mobile-footer__label">{saveShortLabel}</span>
-        </button>
-      </div>
+        </div>
+      ) : null}
     </>
   );
 }

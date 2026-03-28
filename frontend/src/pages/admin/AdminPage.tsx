@@ -76,7 +76,7 @@ function AdminPage() {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<UsersFiltersState>(defaultFilters);
   const [sort, setSort] = useState<SortState<AdminUsersSortKey>>({ key: "username", direction: "asc" });
 
