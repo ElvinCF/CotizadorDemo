@@ -555,7 +555,10 @@ export default function SaleFormPage() {
   }, [isEdit, saleId, searchParams]);
 
   useEffect(() => {
-    if (!loginUsername || !loginPin) return;
+    if (role !== "admin" || !loginUsername || !loginPin) {
+      setAdvisorOptions([]);
+      return;
+    }
 
     const run = async () => {
       try {
@@ -573,18 +576,13 @@ export default function SaleFormPage() {
         const current = users.find((user) => normalizeText(user.username) === normalizeText(loginUsername));
         setCurrentUserId(current?.id ?? null);
 
-        if (role === "admin") {
-          setAdvisorOptions(users.map(({ id, name, rol }) => ({ id, name: `[${rol}] ${name}` })));
-          setForm((currentForm) => {
-            if (isEdit || currentForm.asesorId || !current?.id) return currentForm;
-            return { ...currentForm, asesorId: current.id };
-          });
-          return;
-        }
-
-        setAdvisorOptions([]);
+        setAdvisorOptions(users.map(({ id, name, rol }) => ({ id, name: `[${rol}] ${name}` })));
+        setForm((currentForm) => {
+          if (isEdit || currentForm.asesorId || !current?.id) return currentForm;
+          return { ...currentForm, asesorId: current.id };
+        });
       } catch {
-        setNotice("No se pudo cargar la lista de usuarios para asesor.");
+        setNotice("No se pudo cargar la lista de usuarios.");
       }
     };
 
@@ -1071,7 +1069,7 @@ export default function SaleFormPage() {
               )
             : (
               <SaleExpedienteTemplate
-                heading="Nueva venta - SEPARACION / INICIAL"
+                heading="Nueva venta"
                 status={form.estadoVenta}
                 saving={saving}
                 saveDisabled={saving}

@@ -25,6 +25,9 @@ export default function AdminDashboardBarChart({
   subtitle,
   items,
 }: AdminDashboardBarChartProps) {
+  const primarySeriesColor = "color-mix(in srgb, var(--color-primary) 70%, white)";
+  const secondarySeriesColor = "color-mix(in srgb, var(--color-success) 70%, white)";
+  const pendingSeriesColor = "color-mix(in srgb, var(--color-warning) 78%, white)";
   const hasSecondary = items.some((item) => typeof item.secondaryRatio === "number");
   const chartData = items.map((item) => ({
     label: item.label,
@@ -73,13 +76,13 @@ export default function AdminDashboardBarChart({
                       return {
                         label: String(entry.payload?.secondaryLabel ?? "Cobrado"),
                         value: String(entry.payload?.secondaryValueLabel ?? `${Number(entry.value ?? 0).toFixed(1)}%`),
-                        color: typeof entry.color === "string" ? entry.color : undefined,
+                        color: secondarySeriesColor,
                       };
                     }
                     return {
                       label: String(entry.payload?.primaryLabel ?? "Vendido"),
                       value: String(entry.payload?.valueLabel ?? `${Number(entry.value ?? 0).toFixed(1)}%`),
-                      color: typeof entry.color === "string" ? entry.color : undefined,
+                      color: primarySeriesColor,
                     };
                   })
                   .filter(Boolean);
@@ -101,7 +104,7 @@ export default function AdminDashboardBarChart({
                       {
                         label: "Por cobrar",
                         value: formatMoney(pendingAmount),
-                        color: "color-mix(in srgb, var(--color-warning) 78%, white)",
+                        color: pendingSeriesColor,
                       },
                     ]}
                   />
@@ -112,7 +115,7 @@ export default function AdminDashboardBarChart({
               {chartData.map((item) => (
                 <Cell
                   key={item.label}
-                  fill="color-mix(in srgb, var(--color-primary) 70%, white)"
+                  fill={primarySeriesColor}
                 />
               ))}
               <LabelList
@@ -128,7 +131,7 @@ export default function AdminDashboardBarChart({
                 {chartData.map((item) => (
                   <Cell
                     key={`${item.label}-secondary`}
-                    fill="color-mix(in srgb, var(--color-success) 70%, white)"
+                    fill={secondarySeriesColor}
                   />
                 ))}
                 <LabelList

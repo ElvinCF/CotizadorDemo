@@ -26,6 +26,8 @@ const NUMERIC_KEYS = new Set([
   "montoVendido",
   "montoCobrado",
   "saldoPendienteGlobal",
+  "pendienteVender",
+  "cuotaCobrarProximoMes",
   "ticketPromedioVenta",
   "asesorTopMontoVendido",
   "cantidadVentas",
@@ -448,6 +450,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
     filters.asesorId,
     filters.manzana,
     filters.search,
+    filters.estadoLote,
   ];
 
   const projectSummarySql = `
@@ -470,6 +473,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         or l.codigo ilike '%' || $3::text || '%'
         or l.manzana ilike '%' || $3::text || '%'
       )
+      and ($4::text is null or l.estado_comercial::text = $4::text)
   `;
 
   const salesMonthSql = `
@@ -492,6 +496,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
           or l.codigo ilike '%' || $6::text || '%'
           or coalesce(u.nombres, '') || ' ' || coalesce(u.apellidos, '') ilike '%' || $6::text || '%'
         )
+        and ($7::text is null or l.estado_comercial::text = $7::text)
     ),
     max_row as (
       select lote_codigo, precio_venta
@@ -536,6 +541,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         or l.codigo ilike '%' || $5::text || '%'
         or coalesce(u.nombres, '') || ' ' || coalesce(u.apellidos, '') ilike '%' || $5::text || '%'
       )
+      and ($6::text is null or l.estado_comercial::text = $6::text)
   `;
 
   const compareSql = `
@@ -550,6 +556,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         and ($4::uuid is null or v.asesor_id = $4::uuid)
         and ($5::text is null or upper(l.manzana) = upper($5::text))
         and ($6::text is null or c.nombre_completo ilike '%' || $6::text || '%' or l.codigo ilike '%' || $6::text || '%' or coalesce(u.nombres,'') || ' ' || coalesce(u.apellidos,'') ilike '%' || $6::text || '%')
+        and ($7::text is null or l.estado_comercial::text = $7::text)
     ),
     ventas_prev as (
       select count(*)::int as cantidad, coalesce(sum(v.precio_venta),0)::numeric as monto
@@ -557,11 +564,12 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       join {{SCHEMA}}.lotes l on l.id = v.lote_id
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
-      where (v.fecha_venta at time zone 'America/Lima')::date between $7::date and $8::date
+      where (v.fecha_venta at time zone 'America/Lima')::date between $8::date and $9::date
         and v.estado_venta::text = any($3::text[])
         and ($4::uuid is null or v.asesor_id = $4::uuid)
         and ($5::text is null or upper(l.manzana) = upper($5::text))
         and ($6::text is null or c.nombre_completo ilike '%' || $6::text || '%' or l.codigo ilike '%' || $6::text || '%' or coalesce(u.nombres,'') || ' ' || coalesce(u.apellidos,'') ilike '%' || $6::text || '%')
+        and ($7::text is null or l.estado_comercial::text = $7::text)
     ),
     ingresos_actual as (
       select coalesce(sum(p.monto), 0)::numeric as monto
@@ -575,6 +583,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         and ($4::uuid is null or v.asesor_id = $4::uuid)
         and ($5::text is null or upper(l.manzana) = upper($5::text))
         and ($6::text is null or c.nombre_completo ilike '%' || $6::text || '%' or l.codigo ilike '%' || $6::text || '%' or coalesce(u.nombres,'') || ' ' || coalesce(u.apellidos,'') ilike '%' || $6::text || '%')
+        and ($7::text is null or l.estado_comercial::text = $7::text)
     ),
     ingresos_prev as (
       select coalesce(sum(p.monto), 0)::numeric as monto
@@ -583,11 +592,12 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       join {{SCHEMA}}.lotes l on l.id = v.lote_id
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
-      where (p.fecha_pago at time zone 'America/Lima')::date between $7::date and $8::date
+      where (p.fecha_pago at time zone 'America/Lima')::date between $8::date and $9::date
         and v.estado_venta::text <> 'CAIDA'
         and ($4::uuid is null or v.asesor_id = $4::uuid)
         and ($5::text is null or upper(l.manzana) = upper($5::text))
         and ($6::text is null or c.nombre_completo ilike '%' || $6::text || '%' or l.codigo ilike '%' || $6::text || '%' or coalesce(u.nombres,'') || ' ' || coalesce(u.apellidos,'') ilike '%' || $6::text || '%')
+        and ($7::text is null or l.estado_comercial::text = $7::text)
     )
     select
       (select cantidad from ventas_actual)::int as ventas_mes_actual,
@@ -616,11 +626,12 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
     join {{SCHEMA}}.lotes l on l.id = v.lote_id
     join {{SCHEMA}}.clientes c on c.id = v.cliente_id
     left join pagos_iniciales pi on pi.venta_id = v.id
-    where (v.fecha_venta at time zone 'America/Lima')::date between $1::date and $2::date
+      where (v.fecha_venta at time zone 'America/Lima')::date between $1::date and $2::date
       and v.estado_venta::text = any($3::text[])
       and ($4::uuid is null or v.asesor_id = $4::uuid)
       and ($5::text is null or upper(l.manzana) = upper($5::text))
       and ($6::text is null or c.nombre_completo ilike '%' || $6::text || '%' or l.codigo ilike '%' || $6::text || '%' or coalesce(u.nombres,'') || ' ' || coalesce(u.apellidos,'') ilike '%' || $6::text || '%')
+      and ($7::text is null or l.estado_comercial::text = $7::text)
     group by u.id, u.username, u.nombres, u.apellidos
     order by cantidad_ventas desc, monto_vendido desc
   `;
@@ -633,6 +644,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       from {{SCHEMA}}.lotes l
       where l.manzana is not null
         and ($5::text is null or upper(l.manzana) = upper($5::text))
+        and ($6::text is null or l.estado_comercial::text = $6::text)
       group by l.manzana
     ),
     ventas_filtradas as (
@@ -648,6 +660,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         and v.estado_venta::text = any($3::text[])
         and ($4::uuid is null or v.asesor_id = $4::uuid)
         and ($5::text is null or upper(l.manzana) = upper($5::text))
+        and ($6::text is null or l.estado_comercial::text = $6::text)
     ),
     ventas_agg as (
       select
@@ -700,6 +713,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       and ($4::uuid is null or v.asesor_id = $4::uuid)
       and ($5::text is null or upper(l.manzana) = upper($5::text))
       and ($6::text is null or c.nombre_completo ilike '%' || $6::text || '%' or l.codigo ilike '%' || $6::text || '%' or coalesce(u.nombres,'') || ' ' || coalesce(u.apellidos,'') ilike '%' || $6::text || '%')
+      and ($7::text is null or l.estado_comercial::text = $7::text)
     order by v.fecha_venta desc
     limit 30
   `;
@@ -714,6 +728,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
     base as (
       select
         v.id as venta_id,
+        coalesce(nullif(trim(coalesce(u.nombres,'') || ' ' || coalesce(u.apellidos,'')), ''), u.username, '-') as asesor_nombre,
         c.nombre_completo as cliente_nombre,
         coalesce(c.celular, '') as cliente_telefono,
         l.codigo as lote_codigo,
@@ -730,9 +745,11 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         and ($2::uuid is null or v.asesor_id = $2::uuid)
         and ($3::text is null or upper(l.manzana) = upper($3::text))
         and ($4::text is null or c.nombre_completo ilike '%' || $4::text || '%' or l.codigo ilike '%' || $4::text || '%' or coalesce(u.nombres,'') || ' ' || coalesce(u.apellidos,'') ilike '%' || $4::text || '%')
+        and ($5::text is null or l.estado_comercial::text = $5::text)
     )
     select
       venta_id,
+      asesor_nombre,
       cliente_nombre,
       cliente_telefono,
       lote_codigo,
@@ -763,7 +780,7 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
     filters.prevEnd,
   ]);
   const advisorPerformance = await queryRowsSql(advisorSql, [filters.monthStart, filters.monthEnd, soldStates, ...shared]);
-  const manzanaSummary = await queryRowsSql(manzanaSql, [filters.monthStart, filters.monthEnd, soldStates, filters.asesorId, filters.manzana]);
+  const manzanaSummary = await queryRowsSql(manzanaSql, [filters.monthStart, filters.monthEnd, soldStates, filters.asesorId, filters.manzana, filters.estadoLote]);
   const priceControl = await queryRowsSql(priceControlSql, [filters.monthStart, filters.monthEnd, soldStates, ...shared]);
   const dueRows = await queryRowsSql(dueSql, [activeStates, ...shared]);
 

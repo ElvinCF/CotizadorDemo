@@ -81,6 +81,26 @@ export const listSales = async () => {
   return Array.isArray(payload.items) ? payload.items : [];
 };
 
+export type SaleAccessByLot = {
+  loteCodigo: string;
+  saleId: string;
+  ownerUsername: string | null;
+};
+
+export const listSaleAccessByLot = async () => {
+  const response = await fetch("/api/ventas/accesos-lote", {
+    headers: buildHeaders(),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw await buildError(response, `No se pudo listar accesos de venta por lote (${response.status})`);
+  }
+
+  const payload = (await response.json()) as { items?: SaleAccessByLot[] };
+  return Array.isArray(payload.items) ? payload.items : [];
+};
+
 export const getSaleById = async (saleId: string) => {
   const response = await fetch(`/api/ventas/${saleId}`, {
     headers: buildHeaders(),

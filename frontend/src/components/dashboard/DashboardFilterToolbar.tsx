@@ -4,6 +4,7 @@ type DashboardFilterToolbarProps = {
   id: string;
   open: boolean;
   className?: string;
+  actions?: ReactNode;
   children: ReactNode;
 };
 
@@ -11,6 +12,7 @@ export default function DashboardFilterToolbar({
   id,
   open,
   className = "",
+  actions = null,
   children,
 }: DashboardFilterToolbarProps) {
   return (
@@ -19,7 +21,8 @@ export default function DashboardFilterToolbar({
       data-dashboard-print-hide="true"
       className={`admin-dashboard__hero admin-dashboard__hero--toolbar${open ? "" : " is-collapsed"}`}
     >
-      <div className={`admin-dashboard__filters ${className}`.trim()}>{children}</div>
+      {actions ? <div className="admin-dashboard__toolbar-actions-row">{actions}</div> : null}
+      {open ? <div className={`admin-dashboard__filters ${className}`.trim()}>{children}</div> : null}
     </div>
   );
 }

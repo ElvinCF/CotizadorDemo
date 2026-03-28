@@ -23,17 +23,21 @@ const IconClear = () => (
 );
 
 type DashboardToolbarActionsProps = {
-  onPrint: () => void;
+  onPrint?: () => void;
   onClear: () => void;
+  children?: React.ReactNode;
 };
 
-export default function DashboardToolbarActions({ onPrint, onClear }: DashboardToolbarActionsProps) {
+export default function DashboardToolbarActions({ onPrint, onClear, children }: DashboardToolbarActionsProps) {
   return (
     <div className="dashboard-toolbar-actions">
-      <button type="button" className="btn" onClick={onPrint}>
-        <IconPrint />
-        <span className="dashboard-toolbar-actions__label">Imprimir PDF</span>
-      </button>
+      {onPrint ? (
+        <button type="button" className="btn" onClick={onPrint}>
+          <IconPrint />
+          <span className="dashboard-toolbar-actions__label">Imprimir PDF</span>
+        </button>
+      ) : null}
+      {children}
       <button type="button" className="btn ghost" onClick={onClear}>
         <IconClear />
         <span className="dashboard-toolbar-actions__label">Limpiar</span>

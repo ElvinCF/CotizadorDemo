@@ -1,6 +1,8 @@
+﻿import DataTable from "../data-table/DataTable";
 import ValidatedNumberField from "../forms/ValidatedNumberField";
-import { formatMoney } from "../../domain/formatters";
-import type { ProformaState } from "../../domain/types";
+import { formatArea, formatMoney } from "../../domain/formatters";
+import { projectInfo } from "../../data/projectInfo";
+import type { Lote, ProformaState } from "../../domain/types";
 
 const IconPrinter = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none">
@@ -20,8 +22,21 @@ const IconClose = () => (
   </svg>
 );
 
+const IconPlus = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const IconTrash = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M4 7h16M10 11v6M14 11v6M9 4h6l1 2H8l1-2Zm-1 3h10l-1 12H8L7 7Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 type ProformaModalProps = {
   proforma: ProformaState;
+  lotesCatalog: Lote[];
   proformaInvalidInicial: boolean;
   proformaInvalidMeses: boolean;
   precioFinanciarRegular: number;
@@ -39,8 +54,14 @@ type ProformaModalProps = {
   onPromoPrice: (value: number) => void;
 };
 
+const createRowId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `proforma-lote-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 function ProformaModal({
   proforma,
+  lotesCatalog,
   proformaInvalidInicial,
   proformaInvalidMeses,
   precioFinanciarRegular,
@@ -57,6 +78,70 @@ function ProformaModal({
   onDiscountPct,
   onPromoPrice,
 }: ProformaModalProps) {
+  const mzOptions = Array.from(new Set(lotesCatalog.map((item) => item.mz).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, "es", { numeric: true, sensitivity: "base" })
+  );
+
+  const addLotRow = () => {
+    onUpdate((current) => ({
+      ...current,
+      lotes: [
+        ...current.lotes,
+        {
+          id: createRowId(),
+          mz: "",
+          lote: "",
+          area: "",
+          precioReferencial: 0,
+        },
+      ],
+    }));
+  };
+
+  const updateLotMz = (rowId: string, mz: string) => {
+    onUpdate((current) => ({
+      ...current,
+      lotes: current.lotes.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              mz,
+              lote: "",
+              area: "",
+              precioReferencial: 0,
+            }
+          : row
+      ),
+    }));
+  };
+
+  const updateLotValue = (rowId: string, loteId: string) => {
+    const match = lotesCatalog.find((item) => item.id === loteId);
+    onUpdate((current) => ({
+      ...current,
+      lotes: current.lotes.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              mz: match?.mz ?? row.mz,
+              lote: match ? String(match.lote) : "",
+              area: match ? formatArea(match.areaM2) : "",
+              precioReferencial: Math.max(match?.price ?? 0, 0),
+            }
+          : row
+      ),
+    }));
+  };
+
+  const removeLotRow = (rowId: string) => {
+    onUpdate((current) => ({
+      ...current,
+      lotes: current.lotes.filter((row) => row.id !== rowId),
+    }));
+  };
+
+  const totalPrecioRef = proforma.lotes.reduce((sum, row) => sum + Math.max(row.precioReferencial || 0, 0), 0);
+
   return (
     <div className="modal-backdrop" onClick={onBackdropClose}>
       <div className="proforma-modal" onClick={(event) => event.stopPropagation()}>
@@ -76,10 +161,11 @@ function ProformaModal({
             </button>
           </div>
         </div>
+
         <div className="proforma-body">
           <section className="proforma-section">
             <h4>Agente de ventas</h4>
-            <div className="proforma-fields two-cols">
+            <div className="proforma-fields proforma-fields--seller">
               <label>
                 Nombre
                 <input
@@ -109,11 +195,13 @@ function ProformaModal({
                 />
               </label>
             </div>
+            <small className="proforma-note">Autocompletado segun la sesion actual.</small>
           </section>
+
           <section className="proforma-section">
-            <h3>Datos del cliente</h3>
-            <div className="proforma-fields two-cols">
-              <label>
+            <h4>Datos del cliente</h4>
+            <div className="proforma-fields proforma-fields--client">
+              <label className="proforma-fields__span-2">
                 Nombre completo
                 <input
                   type="text"
@@ -189,29 +277,103 @@ function ProformaModal({
           </section>
 
           <section className="proforma-section">
-            <h4>Informacion del lote</h4>
-            <div className="proforma-fields two-cols">
-              <label>
-                Proyecto / Urbanizacion
-                <span className="proforma-value">{proforma.lote.proyecto}</span>
-              </label>
-              <label>
-                Manzana
-                <span className="proforma-value">{proforma.lote.mz}</span>
-              </label>
-              <label>
-                Lote
-                <span className="proforma-value">{proforma.lote.lote}</span>
-              </label>
-              <label>
-                Area total (m2)
-                <span className="proforma-value">{proforma.lote.area}</span>
-              </label>
-              <label>
-                Ubicacion referencial
-                <span className="proforma-value">{proforma.lote.ubicacion}</span>
-              </label>
+            <div className="proforma-section__head">
+              <h4>Proyecto y lotes</h4>
+              <button className="btn ghost proforma-add-lote" type="button" onClick={addLotRow}>
+                <IconPlus /> Agregar lote
+              </button>
             </div>
+            <div className="proforma-project-card">
+              <strong>{proforma.proyecto.proyecto}</strong>
+              <div className="proforma-project-card__meta">
+                <div>
+                  <span className="proforma-project-card__label">Etapa</span>
+                  <span>{projectInfo.stage}</span>
+                </div>
+                <div>
+                  <span className="proforma-project-card__label">Razon social</span>
+                  <span>{projectInfo.owner}</span>
+                </div>
+                <div>
+                  <span className="proforma-project-card__label">RUC</span>
+                  <span>{projectInfo.ownerRuc}</span>
+                </div>
+                <div className="proforma-project-card__wide">
+                  <span className="proforma-project-card__label">Ubicacion</span>
+                  <span>{proforma.proyecto.ubicacion || "-"}</span>
+                </div>
+              </div>
+            </div>
+            <DataTable className="proforma-lote-table-view">
+              <table className="sales-table proforma-lote-table">
+                <thead>
+                  <tr>
+                    <th>MZ</th>
+                    <th>Lote</th>
+                    <th>Area total (m2)</th>
+                    <th>Precio ref.</th>
+                    <th>Accion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proforma.lotes.map((row) => {
+                    const lotesByMz = lotesCatalog
+                      .filter((item) => item.mz === row.mz)
+                      .sort((a, b) => a.lote - b.lote);
+                    const selectedLoteId =
+                      lotesByMz.find((item) => String(item.lote) === row.lote)?.id ?? "";
+
+                    return (
+                      <tr key={row.id}>
+                        <td>
+                          <select value={row.mz} onChange={(event) => updateLotMz(row.id, event.target.value)}>
+                            <option value="">Seleccionar</option>
+                            {mzOptions.map((mz) => (
+                              <option key={mz} value={mz}>
+                                {mz}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <select
+                            value={selectedLoteId}
+                            disabled={!row.mz}
+                            onChange={(event) => updateLotValue(row.id, event.target.value)}
+                          >
+                            <option value="">Seleccionar</option>
+                            {lotesByMz.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.lote}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>{row.area || "-"}</td>
+                        <td>{formatMoney(row.precioReferencial)}</td>
+                        <td>
+                          <button
+                            className="btn ghost icon-only"
+                            type="button"
+                            onClick={() => removeLotRow(row.id)}
+                            aria-label="Eliminar lote"
+                          >
+                            <IconTrash />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={3}>Total precio referencial</td>
+                    <td>{formatMoney(totalPrecioRef)}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </DataTable>
           </section>
 
           <section className="proforma-section">
@@ -236,7 +398,7 @@ function ProformaModal({
                       }))
                     }
                   />
-                  <label>
+                  <label className="proforma-manual__field">
                     Separacion (S/)
                     <input
                       type="number"
@@ -266,10 +428,11 @@ function ProformaModal({
                 </div>
                 <small>Inicial minimo S/ 6,000</small>
               </div>
+
               <div className="proforma-manual__block">
                 <h5>Solo vendedor</h5>
                 <div className="proforma-fields manual-cols">
-                  <label>
+                  <label className="proforma-manual__field">
                     Descuento (S/)
                     <input
                       type="number"
@@ -278,7 +441,7 @@ function ProformaModal({
                       onChange={(event) => onDiscountSoles(Number(event.target.value || 0))}
                     />
                   </label>
-                  <label>
+                  <label className="proforma-manual__field">
                     Descuento (%)
                     <input
                       type="number"
@@ -289,7 +452,7 @@ function ProformaModal({
                       onChange={(event) => onDiscountPct(Number(event.target.value || 0))}
                     />
                   </label>
-                  <label>
+                  <label className="proforma-manual__field">
                     Precio promocional
                     <input
                       type="number"
@@ -358,6 +521,7 @@ function ProformaModal({
                   Pago mensual en {proforma.meses} meses: <strong>{formatMoney(proformaCuotaRegular)}</strong>
                 </div>
               </article>
+
               <article className="proforma-price-card promo">
                 <h5>Precio promocional</h5>
                 <div className="price">{formatMoney(proforma.precioPromocional)}</div>

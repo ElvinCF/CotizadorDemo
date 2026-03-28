@@ -2,6 +2,11 @@ import { useMemo, useState } from "react";
 import { formatArea, formatMoney, normalizeStatusLabel, statusToClass } from "../../domain/formatters";
 import type { FiltersState, Lote } from "../../domain/types";
 
+type LoteSaleAccess = {
+  saleId: string;
+  ownerUsername: string | null;
+};
+
 const IconFilterOn = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path
@@ -46,7 +51,8 @@ type TableViewProps = {
   selectedId: string | null;
   onSelectLote: (id: string) => void;
   canOpenSales: boolean;
-  salesByLoteCode: Record<string, string>;
+  salesByLoteCode: Record<string, LoteSaleAccess>;
+  canAccessSaleFromLot: (saleAccess?: LoteSaleAccess | null) => boolean;
   onOpenSale: (lote: Lote, activeSaleId: string | null) => void;
 };
 
@@ -61,6 +67,7 @@ function TableView({
   onSelectLote,
   canOpenSales,
   salesByLoteCode,
+  canAccessSaleFromLot,
   onOpenSale,
 }: TableViewProps) {
   const [tableQuery, setTableQuery] = useState("");
@@ -194,15 +201,20 @@ function TableView({
               {canOpenSales ? (
                 <span className="table-cell table-cell--action">
                   {(() => {
-                    const activeSaleId = salesByLoteCode[lote.id] ?? null;
+                    const activeSale = salesByLoteCode[lote.id] ?? null;
+                    const activeSaleId = activeSale?.saleId ?? null;
+                    const canUseSaleAction = canAccessSaleFromLot(activeSale);
                     return (
                       <button
                         type="button"
                         className={`btn ghost table-row__action ${activeSaleId ? "is-active" : "is-create"}`}
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (!canUseSaleAction) return;
                           onOpenSale(lote, activeSaleId);
                         }}
+                        disabled={!canUseSaleAction}
+                        title={!canUseSaleAction ? "No puedes abrir ni crear ventas sobre un lote con venta activa de otro asesor" : undefined}
                       >
                         {activeSaleId ? "Ver venta" : "Crear venta"}
                       </button>

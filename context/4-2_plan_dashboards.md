@@ -1,6 +1,6 @@
 # Plan de Dashboards
 
-Actualizado: `2026-03-22`
+Actualizado: `2026-03-27`
 Rol: `Plan por fases`
 
 ## Uso de este documento
@@ -34,6 +34,7 @@ Pendientes:
 - seguir reduciendo tiempo de carga percibido
 - revisar peso de consultas del resumen ejecutivo
 - estabilizar del todo el grafico por manzana
+- mantener consistencia entre filtros globales visibles y filtros realmente aplicados en todos los charts
 
 ### Fase 2. Operacion comercial avanzada
 
@@ -76,6 +77,7 @@ Pendientes:
 - seguir refinando compactacion de cards y charts
 - revisar legibilidad de tooltips y etiquetas
 - revisar mejor jerarquia visual de tablas operativas
+- seguir simplificando toolbar y filtros globales del dashboard admin
 
 ## Riesgos abiertos
 

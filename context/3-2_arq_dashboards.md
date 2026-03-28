@@ -1,6 +1,6 @@
-# Arquitectura de Dashboards
+﻿# Arquitectura de Dashboards
 
-Actualizado: `2026-03-22`
+Actualizado: `2026-03-27`
 Rol: `Fuente de verdad`
 
 ## Objetivo
@@ -132,14 +132,23 @@ Aplican segun dashboard y bloque:
 
 - `año`
 - `mes`
+- `estado lote`
 - `asesor`
-- `manzana` cuando corresponde
+
+En `dashboard admin`, `estado lote` ya aplica a todos los graficos y bloques visibles del resumen:
+
+- KPIs
+- dona de inventario
+- serie de ventas
+- ranking y resumen por asesor
+- estado por manzana
+- cobranza y vencimientos
 
 ### Locales
 
 Se aplican solo al card o chart que los contiene:
 
-- agrupacion `dia / semana / mes` para serie de ventas vs cobros
+- agrupacion `dia / semana / mes` para serie de ventas
 - ranking o metrica local en cards de asesor o manzana cuando corresponde
 
 ## KPIs y bloques vigentes
@@ -172,6 +181,7 @@ Se aplican solo al card o chart que los contiene:
 - ranking por monto vendido o cobrado segun bloque
 - resumen por asesor
 - comparativas de cartera
+- incluye usuarios `ASESOR` y `ADMIN` activos cuando tengan ventas asociadas
 
 ### Estado por manzana
 
@@ -215,6 +225,7 @@ Con columnas ya usadas:
 - tablas operativas al final
 - filtros compactos arriba
 - filtros locales dentro del card cuando afectan solo a ese grafico
+- acciones de toolbar con icono y label en desktop
 - tooltip compacto y consistente
 - mobile en una sola columna
 
@@ -244,3 +255,4 @@ Actualizar aqui cuando cambie:
 No entra aqui.
 
 Debe ir a `4-2_plan_dashboards.md`.
+

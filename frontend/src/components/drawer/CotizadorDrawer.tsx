@@ -37,7 +37,9 @@ type CotizadorDrawerProps = {
   onChangeQuote: (next: QuoteState) => void;
   hideProformaButton?: boolean;
   showSaleButton?: boolean;
+  saleButtonDisabled?: boolean;
   saleButtonLabel?: string;
+  saleButtonTitle?: string;
 };
 
 function CotizadorDrawer({
@@ -56,7 +58,9 @@ function CotizadorDrawer({
   onChangeQuote,
   hideProformaButton = false,
   showSaleButton = false,
+  saleButtonDisabled = false,
   saleButtonLabel = "Crear venta",
+  saleButtonTitle,
 }: CotizadorDrawerProps) {
   const precioLote = selectedLote?.price ?? quote.precio ?? 0;
   const loteStatusClass = statusToClass(selectedLote?.condicion);
@@ -212,7 +216,12 @@ function CotizadorDrawer({
 
             <div className="drawer-footer-actions">
               {showSaleButton && onOpenSale ? (
-                <button className="btn ghost drawer-footer-btn drawer-footer-btn--secondary" onClick={onOpenSale}>
+                <button
+                  className="btn ghost drawer-footer-btn drawer-footer-btn--secondary"
+                  onClick={onOpenSale}
+                  disabled={saleButtonDisabled}
+                  title={saleButtonTitle}
+                >
                   <IconSale />
                   <span>{saleButtonLabel}</span>
                 </button>

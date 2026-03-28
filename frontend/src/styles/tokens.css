@@ -4,28 +4,28 @@
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Space Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
-  --color-bg: #f5f4f0;
-  --color-surface: #ffffff;
-  --color-surface-alt: #f8f2e6;
-  --color-panel: #fff7ef;
-  --color-panel-alt: #fff1df;
-  --color-panel-contrast: #f8f2e6;
-  --color-border: rgba(12, 12, 12, 0.08);
-  --color-border-strong: rgba(12, 12, 12, 0.16);
+  --color-bg: #f2ede4;
+  --color-surface: #fffdfa;
+  --color-surface-alt: #f7eddc;
+  --color-panel: #fff5e7;
+  --color-panel-alt: #ffedd2;
+  --color-panel-contrast: #f7efe2;
+  --color-border: rgba(54, 104, 141, 0.12);
+  --color-border-strong: rgba(54, 104, 141, 0.24);
   --color-text: #1c1917;
   --color-text-muted: rgba(28, 25, 23, 0.7);
-  --color-accent: #e0a12b;
-  --color-accent-contrast: #1f1200;
-  --color-accent-soft: rgba(224, 161, 43, 0.12);
-  --color-overlay: rgba(0, 0, 0, 0.5);
-  --shadow-elevated: 0 5px 5px rgba(15, 23, 42, 0.15);
+  --color-accent: #f3cd05;
+  --color-accent-contrast: #2b2100;
+  --color-accent-soft: rgba(243, 205, 5, 0.16);
+  --color-overlay: rgba(18, 24, 32, 0.52);
+  --shadow-elevated: 0 10px 26px rgba(30, 41, 59, 0.14);
 
-  --color-primary: #c24a18;
-  --color-primary-strong: #8f3a18;
-  --color-primary-soft: #ffe8b3;
-  --color-secondary: #5a4b3d;
-  --color-secondary-strong: #4e3f32;
-  --color-muted: #7c6d60;
+  --color-primary: #f18904;
+  --color-primary-strong: #b85d05;
+  --color-primary-soft: rgba(244, 159, 5, 0.2);
+  --color-secondary: #36688d;
+  --color-secondary-strong: #2f5875;
+  --color-muted: #7e6d5d;
   --color-muted-strong: #342c25;
   --color-success: #1f8a4c;
   --color-success-strong: #1c5c2a;
@@ -36,9 +36,9 @@
   --color-danger: #cf2d2d;
   --color-danger-strong: #7a1c1c;
   --color-danger-soft: #ffd7d7;
-  --color-info: #7f5af0;
-  --color-info-border: rgba(127, 90, 240, 0.35);
-  --color-info-soft: rgba(127, 90, 240, 0.12);
+  --color-info: #36688d;
+  --color-info-border: rgba(54, 104, 141, 0.3);
+  --color-info-soft: rgba(54, 104, 141, 0.12);
   
   --lot-fill-libre: rgba(60, 223, 101, 0.322);
   --lot-fill-libre-strong: rgba(20, 209, 61, 0.596);
@@ -49,29 +49,29 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --color-bg: #080f1d;
-  --color-surface: #101a2c;
-  --color-surface-alt: #141f32;
-  --color-panel: #131d2d;
-  --color-panel-alt: #0f1930;
-  --color-panel-contrast: #0c1625;
-  --color-border: rgba(241, 245, 249, 0.12);
-  --color-border-strong: rgba(241, 245, 249, 0.22);
+  --color-bg: #0d1723;
+  --color-surface: #122030;
+  --color-surface-alt: #15263a;
+  --color-panel: #142131;
+  --color-panel-alt: #102032;
+  --color-panel-contrast: #0f1b2a;
+  --color-border: rgba(170, 203, 226, 0.16);
+  --color-border-strong: rgba(170, 203, 226, 0.26);
   --color-text: #f1f5f9;
   --color-text-muted: rgba(241, 245, 249, 0.65);
-  --color-accent: #f5c35f;
-  --color-accent-contrast: #1a1202;
-  --color-accent-soft: rgba(245, 195, 95, 0.14);
+  --color-accent: #f3cd05;
+  --color-accent-contrast: #211800;
+  --color-accent-soft: rgba(243, 205, 5, 0.18);
   --color-overlay: rgba(15, 23, 42, 0.7);
-  --shadow-elevated: 0 15px 35px rgba(0, 0, 0, 0.45);
+  --shadow-elevated: 0 18px 38px rgba(0, 0, 0, 0.42);
 
-  --color-primary: #f0a36a;
-  --color-primary-strong: #fbd1a2;
-  --color-primary-soft: rgba(240, 163, 106, 0.2);
-  --color-secondary: #d8c4b3;
-  --color-secondary-strong: #f6dcc5;
-  --color-muted: #bba795;
-  --color-muted-strong: #9a7f6a;
+  --color-primary: #f49f05;
+  --color-primary-strong: #ffd08a;
+  --color-primary-soft: rgba(244, 159, 5, 0.24);
+  --color-secondary: #78a6c8;
+  --color-secondary-strong: #b8d2e5;
+  --color-muted: #c3b29e;
+  --color-muted-strong: #a78e77;
 
   --color-success: #4ade80;
   --color-success-strong: #22c55e;
@@ -83,12 +83,12 @@
   --color-danger-strong: #f43f5e;
   --color-danger-soft: rgba(251, 113, 133, 0.25);
   
-  --color-info: #c4b5fd;
-  --color-info-border: rgba(196, 181, 253, 0.4);
-  --color-info-soft: rgba(196, 181, 253, 0.18);
+  --color-info: #78a6c8;
+  --color-info-border: rgba(120, 166, 200, 0.34);
+  --color-info-soft: rgba(120, 166, 200, 0.16);
   
-  --lot-fill-libre: rgba(0, 110, 0, 0.2);
-  --lot-fill-libre-strong: rgba(41, 192, 41, 0.712);
-  --lot-fill-separado: rgba(175, 117, 0, 0.25);
-  --lot-fill-vendido: rgba(167, 26, 26, 0.25);
+  --lot-fill-libre: rgba(60, 223, 101, 0.322);
+  --lot-fill-libre-strong: rgba(20, 209, 61, 0.596);
+  --lot-fill-separado: rgba(255, 196, 99, 0.5);
+  --lot-fill-vendido: rgba(255, 133, 149, 0.5);
 }

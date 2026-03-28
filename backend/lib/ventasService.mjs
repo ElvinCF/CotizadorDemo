@@ -895,6 +895,45 @@ export const listSalesAsync = async (username, pin) => {
   }
 };
 
+export const listSaleAccessByLotAsync = async (username, pin) => {
+  await requireOperator(username, pin);
+  const schema = resolveDbSchema();
+
+  try {
+    return await withPgClient(async (client) => {
+      const result = await client.query(
+        `select v.id,
+                l.codigo as lote_codigo,
+                u.username as asesor_username
+           from ${schema}.ventas v
+           join ${schema}.lotes l on l.id = v.lote_id
+      left join ${schema}.usuarios u on u.id = v.asesor_id
+          where v.estado_venta <> 'CAIDA'
+          order by v.created_at desc, v.fecha_venta desc`
+      );
+
+      return result.rows.reduce((acc, row) => {
+        const loteCode = row.lote_codigo;
+        if (!loteCode || acc.some((item) => item.loteCodigo === loteCode)) {
+          return acc;
+        }
+        acc.push({
+          loteCodigo: loteCode,
+          saleId: row.id,
+          ownerUsername: row.asesor_username?.trim().toLowerCase() ?? null,
+        });
+        return acc;
+      }, []);
+    });
+  } catch (error) {
+    console.error("SQL listSaleAccessByLotAsync error:", error);
+    if (error?.message) {
+      throw badRequest(error.message);
+    }
+    throw badRequest("No se pudo listar accesos de ventas por lote.");
+  }
+};
+
 export const getSaleByIdAsync = async (username, pin, saleId) => {
   const operator = await requireOperator(username, pin);
   const sale = await getSaleDetail(saleId);

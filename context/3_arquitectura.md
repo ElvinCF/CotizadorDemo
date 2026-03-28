@@ -116,6 +116,8 @@ Reglas vigentes:
 - tema oscuro/claro global
 - menu de usuario persistente
 - fondo sin scroll global
+- footer global delgado integrado al layout, no flotante
+- el footer global muestra credito a `Adaptic by grupo AIO` y enlaza a `https://www.instagram.com/adaptic.pe`
 
 ## Contratos compartidos UI / API
 
@@ -127,6 +129,7 @@ Reglas vigentes:
 - el frontend no debe asumir que una regla de negocio queda cerrada solo por ocultar o deshabilitar algo
 - en el cotizador, la seleccion publica del lote vive en la URL ` /cotizador/:loteCodigo `
 - los ajustes manuales del cotizador se persisten en cache local por lote y se reutilizan al abrir proforma o venta nueva
+- el acceso operativo por lote hacia una venta se resuelve con un endpoint liviano de accesos por lote, no reutilizando necesariamente el listado general de ventas
 
 ## Sistema de tablas aplicado
 

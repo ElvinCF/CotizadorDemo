@@ -7,6 +7,7 @@ interface AuthState {
     isAuthenticated: boolean;
     role: Role | null;
     username: string | null;
+    telefono: string | null;
     loginUsername: string | null;
     loginPin: string | null;
 }
@@ -20,6 +21,7 @@ const defaultState: AuthState = {
     isAuthenticated: false,
     role: null,
     username: null,
+    telefono: null,
     loginUsername: null,
     loginPin: null,
 };
@@ -84,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                      isAuthenticated: true,
                      role: data.user.role as Role,
                      username: data.user.nombre || data.user.username,
+                     telefono: data.user.telefono || null,
                      loginUsername: username,
                      loginPin: pin,
                  };

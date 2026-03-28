@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+﻿import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
@@ -36,7 +36,7 @@ import { buildIdSet, overlayStyle, quoteMonthly } from "../../domain/finance";
 import type { FiltersState, Lote, OverlayTransform, ProformaState, QuoteState } from "../../domain/types";
 import { projectInfo } from "../../data/projectInfo";
 import { loadLotesFromApi } from "../../services/lotes";
-import { listSales } from "../../services/ventas";
+import { listSaleAccessByLot } from "../../services/ventas";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
@@ -44,11 +44,29 @@ type SalesMapPageProps = {
   publicView?: boolean;
 };
 
+type LoteSaleAccess = {
+  saleId: string;
+  ownerUsername: string | null;
+};
+
+const createProformaLotId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `proforma-lote-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const toProformaLotRow = (lote?: Lote | null) => ({
+  id: createProformaLotId(),
+  mz: lote?.mz ?? "",
+  lote: lote ? String(lote.lote) : "",
+  area: lote ? formatArea(lote.areaM2) : "",
+  precioReferencial: Math.max(lote?.price ?? 0, 0),
+});
+
 function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ loteCodigo?: string }>();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, role, username, telefono, loginUsername } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -70,7 +88,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const [proformaAlert, setProformaAlert] = useState<string | null>(null);
   const [proforma, setProforma] = useState<ProformaState>({
     cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
-    lote: { proyecto: PROYECTO_FIJO, mz: "", lote: "", area: "", ubicacion: "" },
+    proyecto: { proyecto: PROYECTO_FIJO, ubicacion: projectInfo.locationText },
+    lotes: [],
     precioRegular: 0,
     precioPromocional: 0,
     descuentoSoles: 0,
@@ -106,11 +125,21 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const lastPriceEditedRef = useRef<"soles" | "pct" | "promo" | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, string>>({});
+  const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, LoteSaleAccess>>({});
   const hidePublicRestrictedActions = publicView && !isAuthenticated;
   const routeLoteCodigo = params.loteCodigo?.trim().toUpperCase() ?? "";
   const isCotizadorRoute = publicView && location.pathname.startsWith("/cotizador");
   const DRAWER_PULSE_MS = 900;
+  const currentUsername = loginUsername?.trim().toLowerCase() ?? null;
+
+  const canAccessSaleFromLot = useCallback(
+    (saleAccess?: LoteSaleAccess | null) => {
+      if (!saleAccess) return true;
+      if (role === "admin") return true;
+      return role === "asesor" && !!saleAccess.ownerUsername && !!currentUsername && saleAccess.ownerUsername === currentUsername;
+    },
+    [currentUsername, role]
+  );
 
   const openQuoteDrawer = useCallback(
     (loteId?: string | null) => {
@@ -196,15 +225,15 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       }
 
       try {
-        const sales = await listSales();
+        const sales = await listSaleAccessByLot();
         if (cancelled) return;
-        const mapping = sales.reduce<Record<string, string>>((acc, sale) => {
-          if (sale.estadoVenta === "CAIDA") {
-            return acc;
-          }
-          const loteCode = sale.lote?.codigo;
+        const mapping = sales.reduce<Record<string, LoteSaleAccess>>((acc, sale) => {
+          const loteCode = sale.loteCodigo;
           if (loteCode && !acc[loteCode]) {
-            acc[loteCode] = sale.id;
+            acc[loteCode] = {
+              saleId: sale.saleId,
+              ownerUsername: sale.ownerUsername,
+            };
           }
           return acc;
         }, {});
@@ -241,21 +270,24 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   useEffect(() => {
     if (!proformaOpen) return;
+    let saved: { nombre?: string; celular?: string } = {};
     const raw = localStorage.getItem(PROFORMA_VENDOR_KEY);
-    if (!raw) return;
-    try {
-      const saved = JSON.parse(raw) as { nombre?: string; celular?: string };
-      setProforma((current) => ({
-        ...current,
-        vendedor: {
-          nombre: saved.nombre ?? current.vendedor.nombre,
-          celular: saved.celular ?? current.vendedor.celular,
-        },
-      }));
-    } catch {
-      // ignore
+    if (raw) {
+      try {
+        saved = JSON.parse(raw) as { nombre?: string; celular?: string };
+      } catch {
+        saved = {};
+      }
     }
-  }, [proformaOpen]);
+
+    setProforma((current) => ({
+      ...current,
+      vendedor: {
+        nombre: username ?? saved.nombre ?? current.vendedor.nombre,
+        celular: telefono ?? saved.celular ?? current.vendedor.celular,
+      },
+    }));
+  }, [proformaOpen, telefono, username]);
 
   useEffect(() => {
     localStorage.setItem(PROFORMA_VENDOR_KEY, JSON.stringify(proforma.vendedor));
@@ -580,13 +612,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     lastPriceEditedRef.current = null;
     setProforma({
       cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
-      lote: {
-        proyecto: PROYECTO_FIJO,
-        mz: lote.mz,
-        lote: String(lote.lote),
-        area: formatArea(lote.areaM2),
-        ubicacion: projectInfo.locationText,
-      },
+      proyecto: { proyecto: PROYECTO_FIJO, ubicacion: projectInfo.locationText },
+      lotes: [toProformaLotRow(lote)],
       precioRegular: regular,
       precioPromocional: promo,
       descuentoSoles: Math.max(regular - promo, 0),
@@ -603,7 +630,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   };
 
   const recalcProforma = (draft: ProformaState) => {
-    const regular = Math.max(draft.precioRegular, 0);
+    const regular = Math.max(
+      draft.lotes.reduce((sum, item) => sum + Math.max(item.precioReferencial || 0, 0), 0),
+      0
+    );
     let promo = Math.max(draft.precioPromocional, 0);
     let descuentoSoles = Math.max(draft.descuentoSoles, 0);
     let descuentoPct = Math.max(draft.descuentoPct, 0);
@@ -621,8 +651,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       descuentoSoles = Math.max(regular - promo, 0);
       descuentoPct = regular ? (descuentoSoles / regular) * 100 : 0;
     } else {
-      promo = clamp(promo, 0, regular);
-      descuentoSoles = Math.max(regular - promo, 0);
+      descuentoSoles = clamp(descuentoSoles, 0, regular);
+      promo = Math.max(regular - descuentoSoles, 0);
       descuentoPct = regular ? (descuentoSoles / regular) * 100 : 0;
     }
 
@@ -703,7 +733,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     context.fillStyle = "#f7f0e4";
     context.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
-    const backgroundImage = await loadImageElement("/assets/plano-fondo-demo.webp");
+    const backgroundImage = await loadImageElement("/assets/plano-fondo-demo-b.webp");
     const imageRatio = backgroundImage.naturalWidth / backgroundImage.naturalHeight;
     const layerRatio = MAP_WIDTH / MAP_HEIGHT;
     let drawWidth = MAP_WIDTH;
@@ -871,6 +901,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       setProformaAlert("Completa nombre, DNI y celular del cliente para imprimir la proforma.");
       return;
     }
+    if (proforma.lotes.length === 0) {
+      setProformaAlert("Agrega al menos un lote a la proforma antes de imprimir.");
+      return;
+    }
 
     const created = new Date(proforma.creadoEn);
     const line = (value: string) => (value.trim() ? value : "__________________________");
@@ -881,6 +915,19 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     const clientCel = line(proforma.cliente.celular);
     const clientAddress = line(proforma.cliente.direccion);
     const clientMail = line(proforma.cliente.correo);
+    const compactPrint = proforma.lotes.length > 3;
+    const lotRowsHtml = proforma.lotes
+      .map(
+        (row) => `
+          <tr>
+            <td>${row.mz || "-"}</td>
+            <td>${row.lote || "-"}</td>
+            <td>${row.area || "-"}</td>
+            <td>${formatMoney(row.precioReferencial)}</td>
+          </tr>
+        `
+      )
+      .join("");
 
     const html = `
       <html>
@@ -897,7 +944,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
               position: absolute;
               left: 0;
               right: 0;
-              height: 14mm;
+              height: 8mm;
               background: linear-gradient(135deg, #1f8a4c 0 45%, #f4b24d 45% 60%, #1f8a4c 60% 100%);
             }
             .page::before { top: 0; }
@@ -905,40 +952,62 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
               bottom: 0;
               transform: rotate(180deg);
             }
-            .page-content { padding: 18mm 14px 18mm; position: relative; z-index: 1; }
+            .page-content { padding: 11mm 12px 11mm; position: relative; z-index: 1; }
             .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-            .header h1 { margin: 0; font-size: 20px; color: #b14518; }
-            .meta { font-size: 11px; color: #6a5c4c; }
+            .header h1 { margin: 0; font-size: 17px; color: #b14518; }
+            .meta { font-size: 10px; color: #6a5c4c; }
             .meta-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-            .meta-line .expiry { font-weight: 700; font-size: 1.05rem; color: #b14518; }
-            .seller-name { font-size: 1.1rem; font-weight: 700; color: #1b1b1b; }
-            .logo { height: 34px; object-fit: contain; }
-            .section { border: 1px solid #efd4c1; border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
-            .section h2 { margin: 0 0 8px; font-size: 12px; color: #8f3a18; text-transform: uppercase; letter-spacing: 0.02em; }
-            .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; }
+            .meta-line .expiry { font-weight: 700; font-size: 0.95rem; color: #b14518; }
+            .seller-name { font-size: 0.98rem; font-weight: 700; color: #1b1b1b; }
+            .logo { height: 28px; object-fit: contain; }
+            .section { border: 1px solid #efd4c1; border-radius: 12px; padding: 8px 10px; margin-top: 8px; }
+            .section h2 { margin: 0 0 6px; font-size: 11px; color: #8f3a18; text-transform: uppercase; letter-spacing: 0.02em; }
+            .grid-4 { display: grid; grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr)); gap: 6px 8px; }
             .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
-            .label { font-size: 11px; color: #6a5c4c; display: block; }
-            .value { font-weight: 600; font-size: 12px; }
-            .price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
-            .price-card { border: 2px solid #7a4a00; border-radius: 14px; padding: 12px; background: #fffdf9; font-size: 1.08rem; }
-            .price-card h3 { margin: 0 0 8px; font-size: 1.35rem; }
-            .price-card .price { font-size: 1.85rem; font-weight: 700; color: #b14518; }
-            .price-card .sub { font-size: 1.05rem; color: #6a5c4c; }
-            .price-list { margin-top: 6px; display: grid; gap: 4px; font-size: 1.2rem; }
+            .project-card { display: grid; gap: 3px; padding: 8px 10px; border: 1px solid #efd4c1; border-radius: 12px; background: #fffaf1; }
+            .project-card strong { color: #8f3a18; }
+            .project-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; margin-top: 4px; }
+            .project-meta > div { display: grid; gap: 2px; }
+            .project-meta .wide { grid-column: 1 / -1; }
+            .lotes-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            .lotes-table th, .lotes-table td { padding: 6px 5px; text-align: left; border-bottom: 1px solid #efd4c1; font-size: 11px; }
+            .lotes-table tfoot td { font-weight: 700; }
+            .label { font-size: 10px; color: #6a5c4c; display: block; }
+            .value { font-weight: 600; font-size: 11px; }
+            .price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+            .price-card { border: 2px solid #7a4a00; border-radius: 14px; padding: 10px; background: #fffdf9; font-size: 0.95rem; }
+            .price-card h3 { margin: 0 0 6px; font-size: 1.1rem; }
+            .price-card .price { font-size: 1.45rem; font-weight: 700; color: #b14518; }
+            .price-card .sub { font-size: 0.9rem; color: #6a5c4c; }
+            .price-list { margin-top: 4px; display: grid; gap: 3px; font-size: 0.98rem; }
             .price-list > div { display: flex; justify-content: space-between; gap: 8px; }
             .price-list strong { text-align: right; font-weight: 700; }
-            .quick { border: 1px solid #2c2c2c; border-radius: 12px; padding: 8px 10px; margin-top: 8px; font-size: 1.15rem; border-color: #c47a00; }
+            .quick { border: 1px solid #2c2c2c; border-radius: 12px; padding: 6px 8px; margin-top: 6px; font-size: 0.96rem; border-color: #c47a00; }
             .quick-row { display: flex; justify-content: space-between; }
-            .savings { margin-top: 10px; font-weight: 800; font-size: 1.45rem; text-align: center; color: #1f8a4c; }
-            .expiry { margin-top: 4px; font-weight: 700; font-size: 1.1rem; color: #b14518; }
-            .monthly { font-size: 1.2rem; font-weight: 700; }
-            .footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
-            .footer .meta { font-size: 12px; }
-            .project-logo { height: 40px; object-fit: contain; border: 1px solid #efd4c1; border-radius: 10px; padding: 6px; background: #fffaf1; }
+            .savings { margin-top: 8px; font-weight: 800; font-size: 1.2rem; text-align: center; color: #1f8a4c; }
+            .expiry { margin-top: 2px; font-weight: 700; font-size: 0.95rem; color: #b14518; }
+            .monthly { font-size: 1rem; font-weight: 700; }
+            .footer { margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+            .footer .meta { font-size: 10px; }
+            .project-logo { height: 30px; object-fit: contain; border: 1px solid #efd4c1; border-radius: 10px; padding: 4px; background: #fffaf1; }
+            .footer-credit { margin-top: 6px; padding-top: 6px; border-top: 1px solid #efd4c1; display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 10px; color: #6a5c4c; }
+            .footer-credit img { width: 12px; height: 12px; object-fit: contain; }
+            .footer-credit strong { color: #1b1b1b; }
+            .page.compact .page-content { padding: 9mm 10px 9mm; }
+            .page.compact .section { padding: 7px 9px; margin-top: 7px; }
+            .page.compact .lotes-table th, .page.compact .lotes-table td { padding: 4px 4px; font-size: 10px; }
+            .page.compact .price-grid { gap: 8px; margin-top: 6px; }
+            .page.compact .price-card { padding: 8px; font-size: 0.88rem; }
+            .page.compact .price-card h3 { margin-bottom: 4px; font-size: 1rem; }
+            .page.compact .price-card .price { font-size: 1.25rem; }
+            .page.compact .price-list { gap: 2px; font-size: 0.9rem; }
+            .page.compact .quick { padding: 5px 7px; margin-top: 5px; font-size: 0.88rem; }
+            .page.compact .monthly { font-size: 0.92rem; }
+            .page.compact .savings { margin-top: 6px; font-size: 1.05rem; }
           </style>
         </head>
         <body>
-          <div class="page">
+          <div class="page${compactPrint ? " compact" : ""}">
             <div class="page-content">
             <div class="header">
               <div>
@@ -952,7 +1021,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                   <div class="meta"> Celular: <span class="seller-name">${vendorPhone}</span></div>
                 </div>
               </div>
-                <img src="/assets/Logo_Arenas_Malabrigo.svg" class="logo" alt="Arenas Malabrigo" />
+                <img src="/assets/arenas_club_cele.png" class="logo" alt="Arenas Club" />
               </div>
 
             <section class="section">
@@ -967,14 +1036,35 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             </section>
 
             <section class="section">
-              <h2>Informacion del lote</h2>
-              <div class="grid-4">
-                <div><span class="label">Proyecto</span><span class="value">${proforma.lote.proyecto}</span></div>
-                <div><span class="label">Ubicacion referencial</span><span class="value">${proforma.lote.ubicacion}</span></div>
-                <div><span class="label">Manzana</span><span class="value">${proforma.lote.mz}</span></div>
-                <div><span class="label">Lote</span><span class="value">${proforma.lote.lote}</span></div>
-                <div><span class="label">Area total</span><span class="value">${proforma.lote.area}</span></div>
+              <h2>Proyecto y lotes</h2>
+              <div class="project-card">
+                <strong>${proforma.proyecto.proyecto}</strong>
+                <div class="project-meta">
+                  <div><span class="label">Etapa</span><span class="value">${projectInfo.stage}</span></div>
+                  <div><span class="label">Razon social</span><span class="value">${projectInfo.owner}</span></div>
+                  <div><span class="label">RUC</span><span class="value">${projectInfo.ownerRuc}</span></div>
+                  <div class="wide"><span class="label">Ubicacion</span><span class="value">${proforma.proyecto.ubicacion || "-"}</span></div>
+                </div>
               </div>
+              <table class="lotes-table">
+                <thead>
+                  <tr>
+                    <th>MZ</th>
+                    <th>Lote</th>
+                    <th>Area total (m2)</th>
+                    <th>Precio ref.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${lotRowsHtml}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="3">Total precio referencial</td>
+                    <td>${formatMoney(proforma.precioRegular)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </section>
 
             <div class="price-grid">
@@ -1019,9 +1109,13 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 <div><strong>Datos de la empresa</strong></div>
                 <div>RAZON SOCIAL: ${projectInfo.owner}</div>
                 <div>RUC: ${projectInfo.ownerRuc}</div>
-                <div>DIRECCIÓN: ${EMPRESA_DIRECCION}</div>
+                <div>DIRECCIÃ“N: ${EMPRESA_DIRECCION}</div>
               </div>
               <img src="/assets/HOLA-TRUJILLO_LOGOTIPO.webp" class="project-logo" alt="Hola Trujillo" />
+            </div>
+            <div class="footer-credit">
+              <img src="/adaptic.ico" alt="" />
+              <span>Desarrollado por <strong>Adaptic by grupo AIO</strong></span>
             </div>
             </div>
           </div>
@@ -1055,9 +1149,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   const openSaleFromDrawer = () => {
     if (!selectedLote) return;
-    const activeSaleId = salesByLoteCode[selectedLote.id];
-    if (activeSaleId) {
-      navigate(`/ventas/${activeSaleId}`);
+    const activeSale = salesByLoteCode[selectedLote.id] ?? null;
+    if (activeSale) {
+      if (!canAccessSaleFromLot(activeSale)) {
+        return;
+      }
+      navigate(`/ventas/${activeSale.saleId}`);
       return;
     }
     navigate(`/ventas/nueva?lote=${selectedLote.id}&target=${selectedLote.condicion}`);
@@ -1177,7 +1274,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                       <TransformComponent wrapperClass="transform-wrapper">
                         <div className="map-layer">
                           <img
-                            src="/assets/plano-fondo-demo.webp"
+                            src="/assets/plano-fondo-demo-b.webp"
                             alt="Plano de fondo"
                             className="map-background"
                             draggable={false}
@@ -1211,9 +1308,14 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 }}
                 canOpenSales={isAuthenticated}
                 salesByLoteCode={salesByLoteCode}
+                canAccessSaleFromLot={canAccessSaleFromLot}
                 onOpenSale={(lote, activeSaleId) => {
-                  if (activeSaleId) {
-                    navigate(`/ventas/${activeSaleId}`);
+                  const activeSale = activeSaleId ? salesByLoteCode[lote.id] ?? null : null;
+                  if (activeSaleId && activeSale) {
+                    if (!canAccessSaleFromLot(activeSale)) {
+                      return;
+                    }
+                    navigate(`/ventas/${activeSale.saleId}`);
                     return;
                   }
                   navigate(`/ventas/nueva?lote=${lote.id}&target=${lote.condicion}`);
@@ -1249,6 +1351,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           onChangeQuote={setQuote}
           hideProformaButton={hidePublicRestrictedActions}
           showSaleButton={!hidePublicRestrictedActions && Boolean(selectedLote)}
+          saleButtonDisabled={selectedLote ? !canAccessSaleFromLot(salesByLoteCode[selectedLote.id] ?? null) : false}
+          saleButtonTitle={
+            selectedLote && !canAccessSaleFromLot(salesByLoteCode[selectedLote.id] ?? null)
+              ? "No puedes abrir ni crear ventas sobre un lote con venta activa de otro asesor"
+              : undefined
+          }
           saleButtonLabel={selectedLote && salesByLoteCode[selectedLote.id] ? "Ver venta" : "Crear venta"}
         />
       </section>
@@ -1264,6 +1372,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       {!hidePublicRestrictedActions && proformaOpen && (
         <ProformaModal
           proforma={proforma}
+          lotesCatalog={lotes}
           proformaInvalidInicial={proformaInvalidInicial}
           proformaInvalidMeses={proformaInvalidMeses}
           precioFinanciarRegular={precioFinanciarRegular}
@@ -1362,6 +1471,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 }
 
 export default SalesMapPage;
+
 
 
 

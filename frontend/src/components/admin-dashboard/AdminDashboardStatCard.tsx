@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 type AdminDashboardStatCardProps = {
   label: string;
   value: string;
-  helper: string;
-  trend: string;
+  helper?: string;
+  trend?: string;
   tone?: "neutral" | "success" | "warning" | "info";
   icon: ReactNode;
 };
@@ -15,21 +15,20 @@ export default function AdminDashboardStatCard({
   helper,
   trend,
   tone = "neutral",
-  icon,
+  icon: _icon,
 }: AdminDashboardStatCardProps) {
   return (
     <article className={`admin-dashboard-stat admin-dashboard-stat--${tone}`}>
-      <span className="admin-dashboard-stat__bg-icon" aria-hidden="true">
-        {icon}
-      </span>
       <div className="admin-dashboard-stat__head">
         <span className="admin-dashboard-stat__label">{label}</span>
       </div>
       <strong className="admin-dashboard-stat__value">{value}</strong>
-      <div className="admin-dashboard-stat__foot">
-        <span className="admin-dashboard-stat__trend">{trend}</span>
-        <span className="admin-dashboard-stat__helper">{helper}</span>
-      </div>
+      {helper || trend ? (
+        <div className="admin-dashboard-stat__foot">
+          {trend ? <span className="admin-dashboard-stat__trend">{trend}</span> : <span />}
+          {helper ? <span className="admin-dashboard-stat__helper">{helper}</span> : null}
+        </div>
+      ) : null}
     </article>
   );
 }

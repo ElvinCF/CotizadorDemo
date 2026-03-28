@@ -71,6 +71,7 @@ Regla actual aplicada:
 - un `estado_comercial` stale no bloquea la primera venta
 - si la venta nueva se abre desde el cotizador con `?lote=...`, precarga el cache local del lote para `precio_venta`, `cuotas`, `monto_cuota` e `INICIAL`
 - si los pagos cargados en alta evidencian un estado superior al seleccionado en la UI, backend promociona el estado inicial al valor coherente
+- si el usuario es `ASESOR`, la pantalla no dispara la carga de `/api/usuarios`; esa lista queda reservada a `ADMIN`
 
 ### `/ventas/:ventaId`
 
@@ -96,6 +97,7 @@ Incluye:
   - tablet con impresion agrupada en un menu compacto
   - mobile con acciones en la misma franja del titulo y solo iconos
   - el estado actual de la venta se muestra como badge pequeno junto al titulo
+- si el usuario es `ASESOR`, la pantalla tampoco debe cargar la lista global de usuarios; solo `ADMIN` ve y usa el selector de asesor
 
 ## Composicion actual del expediente
 
@@ -138,6 +140,11 @@ Reglas vigentes:
 - desde lotes se puede navegar a crear o ver venta
 - desde la tabla del mapa, `Crear venta` o `Ver venta` depende solo de si existe venta activa para el lote, no de `estado_comercial`
 - desde el cotizador publico, la ruta ` /cotizador/:loteCodigo ` reabre el mismo drawer y conserva sus ajustes manuales por lote
+- mapa, drawer del cotizador y tabla del mapa comparten una misma regla de acceso por lote:
+  - `ADMIN` puede abrir una venta activa o iniciar una nueva cuando no exista venta activa
+  - `ASESOR` solo puede abrir una venta activa si es suya
+  - si la venta activa pertenece a otro asesor, la accion queda bloqueada
+  - si la unica venta existente esta en `CAIDA`, la UI vuelve a ofrecer `Crear venta`
 
 ### Clientes
 
@@ -158,6 +165,7 @@ Reglas vigentes:
 - admin puede crear ventas sin asesor y asignar `asesor_id` en alta o edicion
 - en UI, el selector de asesor aparece solo para admin en alta y edicion de venta
 - en UI, admin puede dejar la venta como `Sin asesor` de forma explicita
+- en UI, mapa, tabla del mapa y drawer no deben ofrecer navegacion operativa sobre ventas activas de otro asesor
 
 ### Persistencia parcial actual
 
@@ -174,3 +182,4 @@ Actualizar este documento solo cuando el flujo de ventas ya este aplicado en cod
 - Si el lote solo tiene una venta `CAIDA`, la UI debe ofrecer `Crear venta` y no `Ver venta`.
 - La venta `CAIDA` sigue existiendo como historial, pero no bloquea el inicio de una nueva venta sobre el mismo lote.
 - En la vista de venta, `CAIDA` no se edita desde el bloque principal de estado; se gestiona solo en `Ajustes > Administrativo` y solo para `admin`.
+- Para mapa, tabla del mapa y drawer, la decision final de `Ver venta` o `Crear venta` se apoya en un endpoint de accesos por lote que devuelve `saleId` y `ownerUsername`.

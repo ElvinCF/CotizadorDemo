@@ -26,7 +26,7 @@ const AppShell = ({
       <div className="brand">
         <div className="brand__headline">
           <span className="brand__icon" aria-hidden="true">
-            <img src="/assets/Logo_Arenas_Malabrigo.svg" alt="" />
+            <img src="/assets/arenas_club_cele.png" alt="" />
           </span>
           <div className="brand__text">
             <div className="brand__title-row">
@@ -47,6 +47,23 @@ const AppShell = ({
     </header>
 
     <main className={`main ${contentClassName}`.trim()}>{children}</main>
+    <footer className="app-footer">
+      <div className="app-footer__content">
+        <span className="app-footer__label">
+          Desarrollado por{" "}
+          <a
+            href="https://www.instagram.com/adaptic.pe"
+            target="_blank"
+            rel="noreferrer"
+            className="app-footer__link"
+            aria-label="Adaptic by grupo AIO en Instagram"
+          >
+            <img src="/adaptic.ico" alt="" aria-hidden="true" className="app-footer__logo" />
+            <strong>Adaptic by grupo AIO</strong>
+          </a>
+        </span>
+      </div>
+    </footer>
   </div>
 );
 

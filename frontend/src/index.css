@@ -3,7 +3,7 @@
   line-height: 1.4;
   font-weight: 400;
   color: #1c1c1c;
-  background-color: #f5f1ea;
+  background-color: #f2ede4;
   --topbar-height: 120px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -19,7 +19,9 @@ body {
   margin: 0;
   min-height: 100vh;
   overflow: auto;
-  background: radial-gradient(circle at top, #fef7e8 0%, #f4efe6 35%, #e8e2d6 100%);
+  background:
+    radial-gradient(circle at top, rgba(243, 205, 5, 0.18) 0%, rgba(255, 248, 229, 0) 34%),
+    linear-gradient(180deg, #f7f1e6 0%, #f2ede4 48%, #ece4d7 100%);
 }
 
 #root {

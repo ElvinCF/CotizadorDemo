@@ -38,13 +38,17 @@ export type ProformaState = {
     direccion: string;
     correo: string;
   };
-  lote: {
+  proyecto: {
     proyecto: string;
+    ubicacion: string;
+  };
+  lotes: Array<{
+    id: string;
     mz: string;
     lote: string;
     area: string;
-    ubicacion: string;
-  };
+    precioReferencial: number;
+  }>;
   precioRegular: number;
   precioPromocional: number;
   descuentoSoles: number;

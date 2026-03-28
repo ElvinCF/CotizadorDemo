@@ -4,6 +4,7 @@ type RankingItem = {
   valueLabel: string;
   helper: string;
   initials: string;
+  salesCount?: number;
 };
 
 type RankingMetricOption = {
@@ -56,6 +57,7 @@ export default function AdminDashboardRanking({
             <div className="admin-ranking__body">
               <strong>{item.name}</strong>
               <span>{item.detail}</span>
+              {typeof item.salesCount === "number" ? <span>{`${item.salesCount} ventas`}</span> : null}
             </div>
             <div className="admin-ranking__value">
               <strong>{item.valueLabel}</strong>

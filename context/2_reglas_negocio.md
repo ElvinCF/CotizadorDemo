@@ -83,6 +83,12 @@ Responsabilidades:
   - registra ventas/separaciones
   - registra pagos permitidos por el flujo
 
+Reglas operativas visibles:
+
+- un `ASESOR` no debe poder abrir ni crear una venta sobre un lote que ya tenga una venta activa asignada a otro asesor
+- una venta con estado `CAIDA` deja de considerarse activa para reglas de acceso por lote
+- solo `ADMIN` puede ver o ejecutar la transicion a `CAIDA`
+
 ### 3.3. Cliente
 
 Representa a la persona compradora.
@@ -200,6 +206,11 @@ Relacion:
 - una venta puede tener multiples pagos
 - una venta puede tener multiples cambios de estado historicos
 
+Regla complementaria de acceso:
+
+- el detalle de una venta asignada a otro asesor no debe quedar navegable desde mapa, tabla del mapa o `/lotes` para un `ASESOR`
+- `ADMIN` mantiene acceso transversal
+
 ### 4.5. `pagos`
 
 Relacion:
@@ -254,6 +265,11 @@ Secuencia acordada:
 - `CAIDA` libera el lote
 - `CAIDA` solo debe poder marcarla `ADMIN`
 - el motivo de `CAIDA` se guarda en `ventas.observacion`
+
+### Implicancia de acceso por lote
+
+- si la unica venta del lote esta en `CAIDA`, el lote vuelve a comportarse como libre para iniciar una nueva venta
+- si existe una venta activa no-`CAIDA`, el acceso depende del rol y del asesor responsable
 
 ## 7. Reglas de transicion de estados
 

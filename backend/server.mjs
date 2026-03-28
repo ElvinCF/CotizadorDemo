@@ -36,6 +36,7 @@ import {
   createSaleAsync,
   findClientByDniAsync,
   getSaleByIdAsync,
+  listSaleAccessByLotAsync,
   listSalesAsync,
   updateSalePaymentAsync,
   updateSaleAsync,
@@ -415,6 +416,22 @@ app.get("/api/ventas", async (req, res) => {
   } catch (error) {
     console.error("Error listing sales:", error);
     res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo listar ventas." });
+  }
+});
+
+app.get("/api/ventas/accesos-lote", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await listSaleAccessByLotAsync(username, pin);
+    res.json({ items });
+  } catch (error) {
+    console.error("Error listing sale access by lot:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo listar accesos por lote." });
   }
 });
 

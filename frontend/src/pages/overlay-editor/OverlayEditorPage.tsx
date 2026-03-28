@@ -212,7 +212,7 @@ const OverlayEditorPage = () => {
                   <TransformComponent wrapperClass="transform-wrapper">
                     <div className="map-layer">
                       <img
-                        src="/assets/plano-fondo-demo.webp"
+                        src="/assets/plano-fondo-demo-b.webp"
                         alt="Plano de fondo"
                         className="map-background"
                         draggable={false}

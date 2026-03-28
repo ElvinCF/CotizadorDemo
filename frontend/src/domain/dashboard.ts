@@ -56,6 +56,8 @@ export type DashboardAdminKpis = {
   montoVendido: number;
   montoCobrado: number;
   saldoPendienteGlobal: number;
+  pendienteVender: number;
+  cuotaCobrarProximoMes: number;
   ticketPromedioVenta: number;
   asesorTopId: string | null;
   asesorTopUsername: string | null;
@@ -181,6 +183,7 @@ export type DashboardAdminExecutivePriceControlItem = {
 
 export type DashboardAdminExecutiveCollectionItem = {
   ventaId: string;
+  asesorNombre?: string;
   clienteNombre: string;
   clienteTelefono?: string;
   loteCodigo: string;

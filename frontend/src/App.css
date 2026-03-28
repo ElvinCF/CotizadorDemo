@@ -1,4 +1,4 @@
-.sr-only {
+﻿.sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -56,24 +56,24 @@
 
 .main.main--seller {
   padding: 20px;
-  height: calc(100vh - var(--header-height, 40px));
-  max-height: calc(100vh - var(--header-height, 40px));
+  height: calc(100vh - var(--header-height, 40px) - var(--app-footer-height, 34px));
+  max-height: calc(100vh - var(--header-height, 40px) - var(--app-footer-height, 34px));
   min-height: 0;
   overflow: hidden;
 }
 
 .main.main--data-table {
   padding: 20px;
-  height: calc(100vh - var(--header-height, 40px));
-  max-height: calc(100vh - var(--header-height, 40px));
+  height: calc(100vh - var(--header-height, 40px) - var(--app-footer-height, 34px));
+  max-height: calc(100vh - var(--header-height, 40px) - var(--app-footer-height, 34px));
   min-height: 0;
   overflow: hidden;
 }
 
 .main.main--admin {
   padding: 20px;
-  height: calc(100vh - var(--header-height, 40px));
-  max-height: calc(100vh - var(--header-height, 40px));
+  height: calc(100vh - var(--header-height, 40px) - var(--app-footer-height, 34px));
+  max-height: calc(100vh - var(--header-height, 40px) - var(--app-footer-height, 34px));
   min-height: 0;
   overflow: hidden;
 }
@@ -212,8 +212,8 @@
   gap: clamp(10px, 1.8vw, 20px);
   padding: clamp(8px, 2vw, 18px);
   box-sizing: border-box;
-  height: calc(100vh - var(--header-height, 88px));
-  max-height: calc(100vh - var(--header-height, 88px));
+  height: calc(100vh - var(--header-height, 88px) - var(--app-footer-height, 34px));
+  max-height: calc(100vh - var(--header-height, 88px) - var(--app-footer-height, 34px));
 }
 
 .map-shell.has-drawer {
@@ -350,7 +350,7 @@
 }
 
 .map-intro__summary li::before {
-  content: "âœ“";
+  content: "Ã¢Å“â€œ";
   color: var(--color-primary);
   margin-right: 6px;
 }
@@ -404,7 +404,6 @@
   display: grid;
   gap: 8px;
   padding: 6px 8px 8px;
-  border-bottom: 1px solid var(--color-border);
   position: relative;
   white-space: normal;
 }
@@ -677,6 +676,11 @@
   letter-spacing: 0.01em;
 }
 
+.proforma-note {
+  font-size: 0.78rem;
+  color: var(--color-primary-strong);
+}
+
 .proforma-fields {
   display: grid;
   gap: 12px;
@@ -686,8 +690,16 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.proforma-fields--seller {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .proforma-fields.manual-cols {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(112px, 1fr));
+}
+
+.proforma-fields__span-2 {
+  grid-column: span 2;
 }
 
 .proforma-fields label {
@@ -699,20 +711,23 @@
   letter-spacing: 0.04em;
 }
 
-.proforma-fields input {
+.proforma-fields input,
+.proforma-fields .field-control input {
   padding: 10px 14px;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
-  background: color-mix(in srgb, var(--color-panel-contrast) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary-strong) 22%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--color-panel-contrast) 6%);
+  color: var(--color-text);
   font-size: 0.95rem;
   transition: border 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
-.proforma-fields input:focus {
+.proforma-fields input:focus,
+.proforma-fields .field-control input:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 30%, transparent);
-  background: color-mix(in srgb, var(--color-panel) 95%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 96%, var(--color-panel) 4%);
 }
 
 .proforma-manual {
@@ -736,9 +751,14 @@
   color: var(--color-primary-strong);
 }
 
+.proforma-manual__field {
+  min-width: 0;
+}
+
 .manual-inline {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   font-size: 0.85rem;
   color: var(--color-muted);
@@ -758,6 +778,93 @@
   background: transparent;
   color: var(--color-text);
   font-size: 0.95rem;
+}
+
+.proforma-project-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  background: color-mix(in srgb, var(--color-panel-contrast) 88%, transparent);
+}
+
+.proforma-project-card strong {
+  color: var(--color-primary-strong);
+  font-size: 1rem;
+}
+
+.proforma-project-card span {
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.proforma-project-card__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.proforma-project-card__meta > div {
+  display: grid;
+  gap: 2px;
+}
+
+.proforma-project-card__wide {
+  grid-column: 1 / -1;
+}
+
+.proforma-project-card__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-muted);
+}
+
+.proforma-lote-table-view {
+  margin-top: 4px;
+}
+
+.proforma-lote-table {
+  table-layout: fixed;
+}
+
+.proforma-lote-table th,
+.proforma-lote-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.proforma-lote-table th:last-child,
+.proforma-lote-table td:last-child {
+  white-space: normal;
+}
+
+.proforma-lote-table select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.proforma-lote-table tfoot td {
+  font-weight: 700;
+  color: var(--color-primary-strong);
+}
+
+.proforma-add-lote {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proforma-fields--client {
+  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
 }
 
 .proforma-fields small {
@@ -891,6 +998,14 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .proforma-fields--client {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .proforma-fields--seller {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .proforma-fields.manual-cols {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -924,6 +1039,22 @@
     grid-template-columns: 1fr;
   }
 
+  .proforma-fields--client {
+    grid-template-columns: 1fr;
+  }
+
+  .proforma-fields--seller {
+    grid-template-columns: 1fr;
+  }
+
+  .proforma-fields__span-2 {
+    grid-column: auto;
+  }
+
+  .proforma-project-card__meta {
+    grid-template-columns: 1fr;
+  }
+
   .proforma-fields label,
   .manual-inline {
     font-size: 0.95rem;
@@ -932,6 +1063,10 @@
   .proforma-fields input,
   .manual-inline input {
     width: 100%;
+  }
+
+  .proforma-manual__block .proforma-fields.manual-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .proforma-price-card {
@@ -993,10 +1128,7 @@
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 20px;
-  border-bottom-left-radius: 20px;
+  border-radius: 20px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
   background: var(--color-panel-contrast);
@@ -1147,8 +1279,8 @@
 
   .map-shell {
     flex-direction: column;
-    height: calc(100vh - var(--header-height, 78px));
-    max-height: calc(100vh - var(--header-height, 78px));
+    height: calc(100vh - var(--header-height, 78px) - var(--app-footer-height, 34px));
+    max-height: calc(100vh - var(--header-height, 78px) - var(--app-footer-height, 34px));
     padding: 10px;
     gap: 10px;
   }
@@ -2591,8 +2723,8 @@ input.is-invalid {
 
   .editor-shell {
     flex-direction: column;
-    height: calc(100vh - var(--header-height, 78px));
-    max-height: calc(100vh - var(--header-height, 78px));
+    height: calc(100vh - var(--header-height, 78px) - var(--app-footer-height, 34px));
+    max-height: calc(100vh - var(--header-height, 78px) - var(--app-footer-height, 34px));
   }
 
   .editor-panel {
@@ -2605,8 +2737,8 @@ input.is-invalid {
   .map-shell {
     flex-direction: column;
     padding: 0;
-    height: calc(100dvh - var(--header-height, 40px));
-    max-height: calc(100dvh - var(--header-height, 40px));
+    height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px));
+    max-height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px));
     gap: 0;
   }
 
@@ -2624,8 +2756,8 @@ input.is-invalid {
   }
 
   .main.main--map {
-    height: calc(100dvh - var(--header-height, 40px));
-    max-height: calc(100dvh - var(--header-height, 40px));
+    height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px));
+    max-height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px));
     min-height: 0;
     overflow: hidden;
   }
@@ -2645,14 +2777,14 @@ input.is-invalid {
     bottom: 0;
     left: 0;
     right: 0;
-    height: calc(100dvh - var(--header-height, 40px) - 1px);
-    max-height: calc(100dvh - var(--header-height, 40px) - 1px);
+    height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px) - 1px);
+    max-height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px) - 1px);
     border-radius: 0;
   }
 
   .drawer-panel.open {
     width: 100%;
-    max-height: calc(100dvh - var(--header-height, 40px) - 1px);
+    max-height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px) - 1px);
   }
 
   .drawer__header {
@@ -3609,7 +3741,7 @@ input.is-invalid {
   }
 }
 
-/* â”€â”€ Public Lote Info Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Ã¢â€â‚¬Ã¢â€â‚¬ Public Lote Info Panel Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 .public-lote-panel {
   position: absolute;
   right: 16px;
@@ -3694,16 +3826,16 @@ input.is-invalid {
 
 .main.main--admin-dashboard {
   padding: 20px;
-  height: calc(100vh - var(--header-height, 40px));
-  max-height: calc(100vh - var(--header-height, 40px));
+  height: calc(100vh - var(--header-height, 40px) - var(--app-footer-height, 34px));
+  max-height: calc(100vh - var(--header-height, 40px) - var(--app-footer-height, 34px));
   min-height: 0;
   overflow: hidden;
 }
 
 .admin-dashboard {
-  --admin-donut-disponible: color-mix(in srgb, var(--color-success) 82%, #8fd5b2);
-  --admin-donut-separado: color-mix(in srgb, var(--color-warning) 78%, #f0c27a);
-  --admin-donut-vendido: color-mix(in srgb, var(--color-primary) 72%, #8eb7ff);
+  --admin-donut-disponible: color-mix(in srgb, var(--lot-fill-libre-strong) 88%, var(--color-success-strong));
+  --admin-donut-separado: color-mix(in srgb, var(--lot-fill-separado) 82%, var(--color-warning));
+  --admin-donut-vendido: color-mix(in srgb, var(--lot-fill-vendido) 82%, var(--color-danger-strong));
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -3727,10 +3859,16 @@ input.is-invalid {
 
 .admin-dashboard__hero--toolbar {
   grid-template-columns: 1fr;
+  gap: 8px;
 }
 
 .admin-dashboard__hero--toolbar.is-collapsed {
-  display: none;
+  display: grid;
+}
+
+.admin-dashboard__toolbar-actions-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .admin-dashboard__eyebrow {
@@ -3784,11 +3922,7 @@ input.is-invalid {
     minmax(120px, 134px)
     minmax(120px, 134px)
     minmax(138px, 1fr)
-    minmax(138px, 1fr)
-    minmax(138px, 1fr)
-    minmax(116px, 126px)
     minmax(150px, 172px)
-    minmax(84px, 96px)
     auto;
   align-items: end;
   padding: 9px 10px;
@@ -3899,10 +4033,18 @@ input.is-invalid {
 }
 
 .dashboard-toolbar-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 34px;
   padding: 6px 12px;
   font-size: 0.96rem;
   white-space: nowrap;
+}
+
+.dashboard-toolbar-actions .btn svg {
+  flex: 0 0 auto;
 }
 
 .dashboard-toolbar-actions__label {
@@ -3924,9 +4066,9 @@ input.is-invalid {
 }
 
 .admin-dashboard-stat {
-  padding: 14px;
+  padding: 12px 14px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   position: relative;
   overflow: hidden;
   isolation: isolate;
@@ -3941,7 +4083,7 @@ input.is-invalid {
 }
 
 .admin-dashboard-stat__label {
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--color-muted);
   text-transform: uppercase;
@@ -3975,21 +4117,22 @@ input.is-invalid {
 }
 
 .admin-dashboard-stat__value {
-  font-size: clamp(1.3rem, 2vw, 1.8rem);
+  font-size: clamp(1.2rem, 1.9vw, 1.7rem);
   color: var(--color-text);
   position: relative;
   z-index: 1;
+  line-height: 1.05;
 }
 
 .admin-dashboard-stat__trend {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   position: relative;
   z-index: 1;
 }
 
 .admin-dashboard-stat__helper {
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   color: var(--color-muted);
   text-align: right;
   position: relative;
@@ -4033,7 +4176,7 @@ input.is-invalid {
 }
 
 .admin-dashboard__bottom--collections {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .admin-dashboard-panel {
@@ -4264,7 +4407,7 @@ input.is-invalid {
 .admin-semidonut__center {
   position: absolute;
   left: 50%;
-  bottom: 14px;
+  bottom: 30px;
   transform: translateX(-50%);
   text-align: center;
   display: grid;
@@ -4626,7 +4769,7 @@ input.is-invalid {
   }
 }
 
-/* â”€â”€ Admin Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Ã¢â€â‚¬Ã¢â€â‚¬ Admin Page Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 .admin-page {
   width: 100%;
   background: var(--color-panel);
@@ -7066,8 +7209,8 @@ input.is-invalid {
 
   .main.main--data-table {
     padding: 0;
-    height: calc(100dvh - var(--header-height, 40px));
-    max-height: calc(100dvh - var(--header-height, 40px));
+    height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px));
+    max-height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px));
   }
 
   .data-table-shell,
@@ -7562,3 +7705,4 @@ input.is-invalid {
     display: none;
   }
 }
+

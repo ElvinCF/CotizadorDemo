@@ -285,7 +285,7 @@ as $$
       u.username as asesor_username,
       trim(concat_ws(' ', u.nombres, u.apellidos)) as asesor_nombre
     from {{SCHEMA}}.usuarios u
-    where u.rol = 'ASESOR'
+    where u.rol in ('ASESOR', 'ADMIN')
       and u.estado = 'ACTIVO'
       and (p_asesor_id is null or u.id = p_asesor_id)
   ),
