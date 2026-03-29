@@ -1,6 +1,6 @@
 # Correcciones e Ideas
 
-Actualizado: `2026-03-27`
+Actualizado: `2026-03-29`
 Rol: `Exploracion previa`
 
 ## Uso de este documento
@@ -75,6 +75,106 @@ Siguiente paso:
 - usar este archivo como embudo previo antes de abrir nuevas fases en los planes
 
 ## Correcciones e ideas vigentes
+
+### Documentacion funcional para usuario final (v1)
+
+Estado: `Idea`
+Modulo: `Documentacion`
+Impacto: `Alto`
+
+Descripcion:
+
+- crear una primera version de documentacion profesional de funciones del software
+- redactada en lenguaje de alto nivel para usuario final (no tecnico)
+- cubrir modulos principales, flujos y limites operativos
+
+Siguiente paso:
+
+- definir indice y formato (manual web, PDF o base de conocimiento)
+- mover a plan cuando se apruebe alcance y propietario
+
+### Ventas Fase 5: multi-lote con estrategia de no ruptura
+
+Estado: `Por evaluar`
+Modulo: `Ventas | BD`
+Impacto: `Alto`
+
+Descripcion:
+
+- en mapa, cotizacion, proforma y venta soportar seleccion de mas de un lote
+- si el usuario elige un solo lote, mantener la UI actual sin cambios de experiencia
+- modelar detalle en tabla `lotes_venta` (o `venta_lotes`, validar nombre final)
+- aplicar migracion progresiva y compatible para no romper BD ni flujos desplegados
+
+Siguiente paso:
+
+- aterrizar estrategia tecnica final en `4-1_plan_ventas.md` Fase 5
+- definir plan de migracion por etapas y rollback
+
+### Equipos de asesores y privacidad comercial
+
+Estado: `Idea`
+Modulo: `Usuarios | Ventas | Permisos`
+Impacto: `Alto`
+
+Descripcion:
+
+- permitir formar equipos de asesores
+- definir reglas de privacidad por equipo (que puede ver/editar cada rol)
+- mantener trazabilidad de accesos y acciones por usuario/equipo
+
+Siguiente paso:
+
+- disenar matriz de permisos y escenarios operativos
+- mover a plan cuando se cierre la politica de privacidad interna
+
+### Priorizacion del plan padre frontend + librerias UI
+
+Estado: `Por evaluar`
+Modulo: `Componentes`
+Impacto: `Medio`
+
+Descripcion:
+
+- subir prioridad del plan padre de frontend para acelerar consistencia visual
+- evaluar librerias open source gratuitas y de buena calidad para UI
+- incluir librerias de iconos con licencia compatible
+
+Siguiente paso:
+
+- comparar opciones (bundle, accesibilidad, mantenimiento, licencia)
+- proponer stack objetivo y mover a `4_planes.md` cuando se priorice
+
+### Integracion CRM Freeler y conversion lead -> cliente
+
+Estado: `Idea`
+Modulo: `Integraciones | CRM`
+Impacto: `Alto`
+
+Descripcion:
+
+- permitir vincular base de clientes con CRM Freeler
+- soportar relacion entre cliente interno y lead ganado
+- evitar duplicidad y mantener consistencia de IDs entre sistemas
+
+Siguiente paso:
+
+- levantar requisitos de integracion (API, autenticacion, mapeo de estados)
+- definir si la sincronizacion sera unidireccional o bidireccional
+
+### Priorizacion MoSCoW de ideas nuevas
+
+Estado: `Por evaluar`
+Modulo: `Planificacion`
+Impacto: `Medio`
+
+Descripcion:
+
+- priorizar las ideas nuevas con criterio MoSCoW para decidir cual pasa primero a plan formal
+
+Siguiente paso:
+
+- pendiente por decision del equipo
 
 ### Dashboard: filtros y toolbar
 

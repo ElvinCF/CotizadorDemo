@@ -122,6 +122,14 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
                     const canViewDetail =
                       isAdmin || (role === "asesor" && !!ownerUsername && !!currentUsername && ownerUsername === currentUsername);
 
+                    if (isFallen && isAdmin) {
+                      return (
+                        <Link className="btn ghost data-table__row-action" to={`/ventas/${sale.id}`}>
+                          <span className="data-table__row-action-label">Ver detalle</span>
+                        </Link>
+                      );
+                    }
+
                     if (isFallen && canViewDetail && sale.lote?.codigo) {
                       return (
                         <Link

@@ -304,7 +304,8 @@ Cuando existe al menos un pago tipo `INICIAL`:
 
 Regla adicional:
 
-- el recalculo por pagos no debe hacer retroceder un estado manual ya consolidado como `CONTRATO_FIRMADO`
+- el recalculo por pagos puede hacer retroceder la venta si la evidencia economica ya no sostiene el estado superior
+- ejemplo: si deja de existir un pago `INICIAL`, la venta puede volver automaticamente a `SEPARADA`
 
 ### 7.3. Paso a `CONTRATO_FIRMADO`
 
@@ -322,7 +323,7 @@ Cuando existe al menos un pago tipo `CUOTA`:
 
 Regla adicional:
 
-- si la venta ya estaba en `PAGANDO` o `COMPLETADA`, el recalculo por pagos no debe degradarla a un estado menor
+- si se corrigen o eliminan cuotas y ya no hay evidencia para `PAGANDO`, la venta debe volver al estado coherente anterior
 
 ### 7.5. Paso a `COMPLETADA`
 
@@ -339,6 +340,9 @@ Accion manual solo de admin:
 - `estado_venta = CAIDA`
 - `lote.estado_comercial = DISPONIBLE`
 - se inserta historial
+- operativamente, la venta deja de quedar navegable para `ASESOR`
+- solo `ADMIN` puede abrir detalle y editar una venta `CAIDA`
+- en reportes operativos y dashboards generales, `CAIDA` no entra en series activas (solo en vistas especificas de anuladas/caidas)
 
 ## 8. Reglas financieras
 
@@ -564,6 +568,7 @@ Debe:
 - crear cliente secundario si no existe
 - crear venta
 - crear pagos
+- eliminar pagos (solo admin)
 - recalcular montos consolidados
 - mover estado de venta segun reglas
 - sincronizar `lotes.estado_comercial`
@@ -571,6 +576,7 @@ Debe:
 - aplicar reglas de permisos
 - impedir que un asesor toque ventas ajenas
 - impedir que un asesor cree ventas para otro asesor
+- bloquear apertura de detalle de ventas `CAIDA` para `ASESOR`
 
 La trazabilidad de cambios de estado:
 
@@ -689,6 +695,7 @@ Sin fijar aun rutas finales, el backend debera cubrir al menos:
 - editar informacion permitida del flujo comercial
 - solo sobre sus propias ventas
 - no reasignar ventas a otro asesor
+- no abrir detalle de ventas `CAIDA`
 
 ### Admin
 
@@ -697,6 +704,7 @@ Sin fijar aun rutas finales, el backend debera cubrir al menos:
 - marcar ventas como `CAIDA`
 - supervisar dashboard y reportes
 - importar ventas historicas asignando asesor segun la fuente
+- eliminar pagos y retroceder estado manualmente cuando corresponda
 
 ## 16. Consideraciones de implementacion
 

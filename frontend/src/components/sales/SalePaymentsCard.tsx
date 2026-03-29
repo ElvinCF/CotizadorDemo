@@ -63,8 +63,10 @@ type SalePaymentsTableProps = {
   disabled?: boolean;
   loading?: boolean;
   showShellChrome?: boolean;
+  canDeletePayments?: boolean;
   onAddPayment: () => void;
   onEditPayment?: (payment: SalePayment) => void;
+  onDeletePayment?: (payment: SalePayment) => void;
 };
 
 type SalePaymentsModalProps = SalePaymentsTableProps & {
@@ -91,6 +93,14 @@ const IconList = () => (
     <circle cx="4.5" cy="7" r="1.2" fill="currentColor" />
     <circle cx="4.5" cy="12" r="1.2" fill="currentColor" />
     <circle cx="4.5" cy="17" r="1.2" fill="currentColor" />
+  </svg>
+);
+
+const IconTrash = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M4 7h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M9 7V5h6v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M7 7l1 12h8l1-12" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
   </svg>
 );
 
@@ -152,6 +162,8 @@ export function SalePaymentsModal({
   onClose,
   onAddPayment,
   onEditPayment,
+  onDeletePayment,
+  canDeletePayments = false,
 }: SalePaymentsModalProps) {
   const summary = summarizeSalePayments(sale);
 
@@ -183,6 +195,8 @@ export function SalePaymentsModal({
             showShellChrome={false}
             onAddPayment={onAddPayment}
             onEditPayment={onEditPayment}
+            onDeletePayment={onDeletePayment}
+            canDeletePayments={canDeletePayments}
           />
         </div>
 
@@ -214,8 +228,10 @@ export function SalePaymentsTable({
   disabled = false,
   loading = false,
   showShellChrome = true,
+  canDeletePayments = false,
   onAddPayment,
   onEditPayment,
+  onDeletePayment,
 }: SalePaymentsTableProps) {
   const [sort, setSort] = useState<SortState<PaymentSortKey>>({ key: "fecha", direction: "desc" });
 
@@ -301,16 +317,30 @@ export function SalePaymentsTable({
                 <td>{payment.nroCuota ?? "-"}</td>
                 <td>{payment.observacion || "-"}</td>
                 <td>
-                  <button
-                    type="button"
-                    className="btn ghost sales-payments-table__edit"
-                    onClick={() => onEditPayment?.(payment)}
-                    title="Editar pago"
-                    disabled={disabled}
-                  >
-                    <IconEdit />
-                    <span>Editar</span>
-                  </button>
+                  <div className="sales-payments-table__actions">
+                    <button
+                      type="button"
+                      className="btn ghost sales-payments-table__edit"
+                      onClick={() => onEditPayment?.(payment)}
+                      title="Editar pago"
+                      disabled={disabled}
+                    >
+                      <IconEdit />
+                      <span>Editar</span>
+                    </button>
+                    {canDeletePayments ? (
+                      <button
+                        type="button"
+                        className="btn ghost sales-payments-table__delete"
+                        onClick={() => onDeletePayment?.(payment)}
+                        title="Eliminar pago"
+                        disabled={disabled}
+                      >
+                        <IconTrash />
+                        <span>Eliminar</span>
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

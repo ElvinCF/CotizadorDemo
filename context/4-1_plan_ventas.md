@@ -1,6 +1,6 @@
 # Plan de Ventas
 
-Actualizado: `2026-03-27`
+Actualizado: `2026-03-29`
 Rol: `Plan por fases`
 
 ## Uso de este documento
@@ -145,6 +145,7 @@ Pendientes:
 - revisar automatismo que actualiza estados segun `monto_inicial_total`
 - validar que separar, inicial pagada y pagando no dependan de una cifra fija incorrecta
 - revisar sincronizacion con `lotes.estado_comercial`
+- validar en QA extendido que ventas `CAIDA` queden fuera de panel asesor y reportes generales
 
 Entregables tecnicos:
 
@@ -152,7 +153,9 @@ Entregables tecnicos:
   - recalculo coherente despues de crear o editar pagos
   - transicion de estados sin dependencia fija de `6000`
   - en alta, si los pagos registrados evidencian un estado superior al elegido en UI, la venta debe promocionarse automaticamente al estado coherente
-  - el recalculo por pagos no debe hacer retroceder estados manuales ya consolidados como `CONTRATO_FIRMADO`
+  - el recalculo por pagos debe poder promover o retroceder el estado segun evidencia real
+  - eliminar pagos solo para admin, con recálculo completo de montos/estado/lote
+  - ventas `CAIDA` visibles/editables solo por admin en detalle
 - reglas:
   - documentar como se interpreta `monto_inicial_total`
   - documentar que esta flexibilidad es operativa y no una regla general de cierre comercial
@@ -162,7 +165,8 @@ Criterio de cierre:
 - una venta con inicial baja no rompe guardado ni estados
 - una venta con pago `INICIAL` puede crearse como `INICIAL_PAGADA` aunque no exista `SEPARACION` previa
 - el estado comercial del lote se sincroniza bien con la venta activa
-- editar o registrar pagos no debe forzar regresion desde `CONTRATO_FIRMADO`, `PAGANDO` o `COMPLETADA`
+- editar o eliminar pagos puede regresar a `SEPARADA` o `INICIAL_PAGADA` cuando corresponda por evidencia
+- un admin puede retroceder manualmente `CONTRATO_FIRMADO -> INICIAL_PAGADA`
 
 ## Fase 4. Ajustes, trazabilidad y calculo visible
 
@@ -378,6 +382,7 @@ Cuando estas fases se apliquen, se debe actualizar en paralelo:
 - [x] `Ajustes`: modal operativo con tabs `Historial`, `Llenado de la venta` y `Administrativo`
 - [x] modal de historico de venta visible en `ventaId`
 - [x] `progress bar` de completitud: retirado del alcance de esta fase
+- [x] fase 3 (incremento): recálculo de estado por pagos con regresión, eliminación de pagos solo admin y detalle `CAIDA` restringido a admin
 
 ## Backlog siguiente aprobado
 

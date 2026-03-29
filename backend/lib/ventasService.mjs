@@ -189,13 +189,10 @@ const deriveStateFromPayments = (payments, precioVenta, currentState) => {
     derivedState = "INICIAL_PAGADA";
   }
 
-  if (normalizedCurrentState === "CAIDA" || normalizedCurrentState === "COMPLETADA") {
+  if (normalizedCurrentState === "CAIDA") {
     return normalizedCurrentState;
   }
-
-  return getStatePriority(normalizedCurrentState) > getStatePriority(derivedState)
-    ? normalizedCurrentState
-    : derivedState;
+  return derivedState;
 };
 
 const resolveCreateState = (requestedState, payments, precioVenta) => {
@@ -227,15 +224,6 @@ const MANUAL_TRANSITIONS = new Map([
   ["CAIDA", new Set([])],
 ]);
 
-const PAYMENT_TRANSITIONS = new Map([
-  ["SEPARADA", new Set(["SEPARADA", "INICIAL_PAGADA", "PAGANDO", "COMPLETADA"])],
-  ["INICIAL_PAGADA", new Set(["INICIAL_PAGADA", "PAGANDO", "COMPLETADA"])],
-  ["CONTRATO_FIRMADO", new Set(["CONTRATO_FIRMADO", "PAGANDO", "COMPLETADA"])],
-  ["PAGANDO", new Set(["PAGANDO", "COMPLETADA"])],
-  ["COMPLETADA", new Set(["COMPLETADA"])],
-  ["CAIDA", new Set(["CAIDA"])],
-]);
-
 const assertValidSaleTransition = (currentState, nextState, context) => {
   const current = normalizeSaleState(currentState);
   const next = normalizeSaleState(nextState);
@@ -245,6 +233,9 @@ const assertValidSaleTransition = (currentState, nextState, context) => {
   }
 
   if (context.source === "manual") {
+    if (context.actorRole === "admin") {
+      return next;
+    }
     const allowed = MANUAL_TRANSITIONS.get(current) ?? new Set();
     if (next === "CAIDA" && context.actorRole !== "admin") {
       throw forbidden("Solo un admin puede marcar una venta como caida.");
@@ -255,9 +246,8 @@ const assertValidSaleTransition = (currentState, nextState, context) => {
     return next;
   }
 
-  const allowed = PAYMENT_TRANSITIONS.get(current) ?? new Set();
-  if (!allowed.has(next)) {
-    throw conflict(`Los pagos no permiten mover la venta de ${current} a ${next}.`);
+  if (current === "CAIDA") {
+    return "CAIDA";
   }
   return next;
 };
@@ -835,7 +825,7 @@ export const listSalesAsync = async (username, pin) => {
          left join ${schema}.lotes l on l.id = v.lote_id
          left join ${schema}.clientes c on c.id = v.cliente_id
          left join ${schema}.usuarios u on u.id = v.asesor_id
-        ${scopedByAsesor ? "where v.asesor_id = $1" : ""}
+        ${scopedByAsesor ? "where v.asesor_id = $1 and v.estado_venta <> 'CAIDA'" : ""}
          order by v.fecha_venta desc, v.created_at desc`
         ,
         scopedByAsesor ? [operator.id] : []
@@ -937,6 +927,9 @@ export const listSaleAccessByLotAsync = async (username, pin) => {
 export const getSaleByIdAsync = async (username, pin, saleId) => {
   const operator = await requireOperator(username, pin);
   const sale = await getSaleDetail(saleId);
+  if (sale.estadoVenta === "CAIDA" && !canManageAnySale(operator)) {
+    throw forbidden("No puedes abrir el detalle de una venta caida.");
+  }
   assertOperatorOwnsSale(operator, sale.asesor?.id ?? null);
   return sale;
 };
@@ -1043,6 +1036,9 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
   try {
     updatedSaleId = await withPgTransaction(async (client) => {
       const existing = await getSaleBaseByIdTx(client, schema, saleId);
+      if (existing.estado_venta === "CAIDA" && !canManageAnySale(operator)) {
+        throw forbidden("Solo admin puede editar una venta caida.");
+      }
       assertOperatorOwnsSale(operator, existing.asesor_id);
       const payments = await getSalePaymentsTx(client, schema, existing.id);
       const montoInicialTotal = getInitialTotalFromPayments(payments);
@@ -1257,6 +1253,89 @@ export const updateSalePaymentAsync = async (username, pin, saleId, paymentId, p
           paymentPayload.nro_cuota,
           paymentPayload.observacion,
         ]
+      );
+
+      const payments = await getSalePaymentsTx(client, schema, existing.id);
+      const montoInicialTotal = getInitialTotalFromPayments(payments);
+      const derivedState = deriveStateFromPayments(payments, existing.precio_venta, existing.estado_venta);
+      const nextState = assertValidSaleTransition(existing.estado_venta, derivedState, {
+        actorRole: operator.role,
+        source: "payment",
+      });
+
+      const financing = calculateFinancing({
+        precioVenta: existing.precio_venta,
+        montoInicialTotal,
+        tipoFinanciamiento: existing.tipo_financiamiento,
+        cantidadCuotas: existing.cantidad_cuotas,
+        montoCuota: existing.monto_cuota,
+      });
+
+      await client.query(
+        `update ${schema}.ventas
+            set monto_inicial_total = $2,
+                monto_financiado = $3,
+                cantidad_cuotas = $4,
+                monto_cuota = $5,
+                estado_venta = $6
+          where id = $1`,
+        [
+          existing.id,
+          montoInicialTotal,
+          financing.montoFinanciado,
+          financing.cantidadCuotas,
+          financing.montoCuota,
+          nextState,
+        ]
+      );
+
+      if (existing.estado_venta !== nextState) {
+        await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
+      }
+
+      await syncLoteCommercialStateTx(client, schema, existing.lote_id, nextState);
+      return existing.id;
+    });
+  } catch (error) {
+    rethrowMutationError(error);
+  }
+
+  return getSaleDetail(updatedSaleId);
+};
+
+export const deleteSalePaymentAsync = async (username, pin, saleId, paymentId) => {
+  const operator = await requireOperator(username, pin);
+  const schema = resolveDbSchema();
+  const paymentRowId = asTrimmed(paymentId);
+  if (!paymentRowId) {
+    throw badRequest("Falta id del pago.");
+  }
+  if (!canManageAnySale(operator)) {
+    throw forbidden("Solo admin puede eliminar pagos.");
+  }
+
+  let updatedSaleId;
+  try {
+    updatedSaleId = await withPgTransaction(async (client) => {
+      const existing = await getSaleBaseByIdTx(client, schema, saleId);
+
+      const paymentExists = await client.query(
+        `select id
+           from ${schema}.pagos
+          where id = $1
+            and venta_id = $2
+          for update`,
+        [paymentRowId, existing.id]
+      );
+      if (!paymentExists.rows[0]) {
+        throw notFound("Pago no encontrado para la venta.");
+      }
+
+      await client.query(
+        `delete from ${schema}.pagos
+          where id = $1
+            and venta_id = $2`,
+        [paymentRowId, existing.id]
       );
 
       const payments = await getSalePaymentsTx(client, schema, existing.id);

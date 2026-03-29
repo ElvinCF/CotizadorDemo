@@ -123,6 +123,7 @@ Responsabilidades:
 
 - `vendido` y `cobrado` son metricas distintas
 - ambas deben verse en paralelo
+- en dashboards operativos generales no se incluyen ventas `CAIDA`; esas quedan para vistas especificas de anuladas/caidas
 
 ## Filtros vigentes
 

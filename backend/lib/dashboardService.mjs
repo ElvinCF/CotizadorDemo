@@ -195,16 +195,21 @@ const parsePage = (value) => {
   return parsed;
 };
 
-const parseSaleState = (query) =>
-  parseOptionalEnum(query?.estadoVenta ?? query?.etapaVenta, SALE_STATES, "estadoVenta");
+const parseSaleState = (query, { allowCaidaState = false } = {}) => {
+  const parsed = parseOptionalEnum(query?.estadoVenta ?? query?.etapaVenta, SALE_STATES, "estadoVenta");
+  if (!allowCaidaState && parsed === "CAIDA") {
+    throw badRequest("estadoVenta=CAIDA no esta permitido en este reporte.");
+  }
+  return parsed;
+};
 
-const buildCommonFilters = (query, { allowAdvisorId = false } = {}) => {
+const buildCommonFilters = (query, { allowAdvisorId = false, allowCaidaState = false } = {}) => {
   const filters = {
     from: parseOptionalDate(query?.from, "from"),
     to: parseOptionalDate(query?.to, "to"),
     manzana: parseOptionalText(query?.manzana),
     estadoLote: parseOptionalEnum(query?.estadoLote, LOT_STATES, "estadoLote"),
-    estadoVenta: parseSaleState(query),
+    estadoVenta: parseSaleState(query, { allowCaidaState }),
   };
 
   if (filters.from && filters.to && filters.from > filters.to) {
@@ -850,7 +855,7 @@ export const getAdminDashboardActiveSalesAsync = async (username, pin, query) =>
 
 export const getAdminDashboardCancelledSalesAsync = async (username, pin, query) => {
   await requireAdminUserAsync(username, pin);
-  const filters = buildCommonFilters(query, { allowAdvisorId: true });
+  const filters = buildCommonFilters(query, { allowAdvisorId: true, allowCaidaState: true });
   const pagination = buildPagination(query);
 
   return queryMany("dashboard_admin_operaciones_caidas", [

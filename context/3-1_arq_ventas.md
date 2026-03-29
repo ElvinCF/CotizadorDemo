@@ -156,7 +156,9 @@ Reglas vigentes:
 
 - pagos alimentan calculos y trazabilidad economica
 - pagos se muestran en tabla operativa dentro del expediente
-- el recalculo por pagos promueve estados por evidencia economica, pero no debe hacer retroceder hitos manuales ya consolidados como `CONTRATO_FIRMADO`
+- el recalculo por pagos promueve o retrocede estados segun evidencia economica real
+- si se corrige o elimina un pago y desaparece la evidencia de `INICIAL` o `CUOTA`, la venta puede volver automaticamente a un estado previo coherente
+- eliminar pagos es una accion reservada a `ADMIN`
 
 ### Permisos
 
@@ -167,6 +169,7 @@ Reglas vigentes:
 - en UI, el selector de asesor aparece solo para admin en alta y edicion de venta
 - en UI, admin puede dejar la venta como `Sin asesor` de forma explicita
 - en UI, mapa, tabla del mapa y drawer no deben ofrecer navegacion operativa sobre ventas activas de otro asesor
+- una venta `CAIDA` solo puede abrirse y editarse en detalle por `ADMIN`
 
 ### Persistencia parcial actual
 
@@ -183,4 +186,5 @@ Actualizar este documento solo cuando el flujo de ventas ya este aplicado en cod
 - Si el lote solo tiene una venta `CAIDA`, la UI debe ofrecer `Crear venta` y no `Ver venta`.
 - La venta `CAIDA` sigue existiendo como historial, pero no bloquea el inicio de una nueva venta sobre el mismo lote.
 - En la vista de venta, `CAIDA` no se edita desde el bloque principal de estado; se gestiona solo en `Ajustes > Administrativo` y solo para `admin`.
+- En modo operativo, `CAIDA` queda desvinculada de lote y cliente para accesos de negocio: no cuenta como venta activa ni entra en reportes operativos generales.
 - Para mapa, tabla del mapa y drawer, la decision final de `Ver venta` o `Crear venta` se apoya en un endpoint de accesos por lote que devuelve `saleId` y `ownerUsername`.

@@ -1,4 +1,4 @@
-import { updateSalePaymentAsync } from "../../../../backend/lib/ventasService.mjs";
+import { deleteSalePaymentAsync, updateSalePaymentAsync } from "../../../../backend/lib/ventasService.mjs";
 import { getErrorStatus } from "../../../../backend/lib/errors.mjs";
 
 const getAuthCredentials = (req) => {
@@ -14,8 +14,8 @@ const getAuthCredentials = (req) => {
 };
 
 export default async function handler(req, res) {
-  if (req.method !== "PUT") {
-    res.setHeader("Allow", "PUT");
+  if (req.method !== "PUT" && req.method !== "DELETE") {
+    res.setHeader("Allow", "PUT, DELETE");
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
@@ -27,10 +27,15 @@ export default async function handler(req, res) {
       return;
     }
 
-    const sale = await updateSalePaymentAsync(username, pin, req.query.id, req.query.pagoId, req.body ?? {});
-    res.status(200).json({ sale });
+    const sale =
+      req.method === "DELETE"
+        ? await deleteSalePaymentAsync(username, pin, req.query.id, req.query.pagoId)
+        : await updateSalePaymentAsync(username, pin, req.query.id, req.query.pagoId, req.body ?? {});
+    res.status(req.method === "DELETE" ? 200 : 200).json({ sale });
   } catch (error) {
-    console.error("Vercel API PUT /api/ventas/:id/pagos/:pagoId error:", error);
-    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar el pago." });
+    console.error(`Vercel API ${req.method} /api/ventas/:id/pagos/:pagoId error:`, error);
+    res
+      .status(getErrorStatus(error, 500))
+      .json({ error: error.message || (req.method === "DELETE" ? "No se pudo eliminar el pago." : "No se pudo actualizar el pago.") });
   }
 }

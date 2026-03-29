@@ -29,7 +29,7 @@ import type {
 import { formatSaleStateLabel, saleStateClassName } from "../../domain/ventas";
 import { listAdminUsers } from "../../services/adminUsers";
 import { loadLotesFromApi } from "../../services/lotes";
-import { addSalePayment, createSale, findClientByDni, getSaleById, updateSale, updateSalePayment } from "../../services/ventas";
+import { addSalePayment, createSale, deleteSalePayment, findClientByDni, getSaleById, updateSale, updateSalePayment } from "../../services/ventas";
 
 const todayInput = () => {
   const now = new Date();
@@ -887,6 +887,26 @@ export default function SaleFormPage() {
     setNotice("");
   };
 
+  const handleDeletePayment = async (payment: SalePayment) => {
+    if (!saleId || role !== "admin" || !canEditCurrentSale) return;
+    const confirmed = window.confirm(`Eliminar pago ${payment.tipoPago}?`);
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError(null);
+    setNotice("");
+    try {
+      const updated = await deleteSalePayment(saleId, payment.id);
+      setSale(updated);
+      setForm((current) => ({ ...current, estadoVenta: updated.estadoVenta }));
+      setNotice("Pago eliminado.");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el pago.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const selectedAdvisorLabel =
     advisorOptions.find((advisor) => advisor.id === form.asesorId)?.name ??
     (role === "asesor" ? loginUsername ?? "Asesor actual" : "Sin asesor");
@@ -1145,6 +1165,8 @@ export default function SaleFormPage() {
             onClose={() => setPaymentsListModalOpen(false)}
             onAddPayment={handleOpenCreatePayment}
             onEditPayment={handleEditPayment}
+            onDeletePayment={handleDeletePayment}
+            canDeletePayments={role === "admin"}
           />
         ) : null}
         {isEdit && sale ? (
