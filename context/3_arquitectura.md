@@ -262,6 +262,11 @@ Aqui solo se documentan patrones compartidos que ventas reutiliza:
   - la unicidad de venta activa queda delegada al indice parcial de BD y a su manejo de error
   - el detalle de venta ya expone `Ajustes` con tabs `Historial`, `Llenado de la venta` y `Administrativo`
   - `Administrativo` concentra lectura de control y edicion de `asesor asignado` solo para admin mas `fecha_pago_pactada`
+  - contrato multi-lote en transicion:
+    - request de venta admite `loteCodigos[]` (manteniendo `loteCodigo` por compatibilidad)
+    - response de venta devuelve `lote` (principal) y `lotes` (coleccion)
+    - backend opera por `venta_lotes`; `ventas.lote_id` queda como espejo legado temporal
+    - cotizador/proforma/venta comparten la lista de lotes seleccionados como contexto de expediente
 
 ## Modulo dashboards
 

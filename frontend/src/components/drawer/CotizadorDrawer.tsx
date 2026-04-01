@@ -1,5 +1,5 @@
 import ValidatedNumberField from "../forms/ValidatedNumberField";
-import { formatArea, formatMoney, normalizeStatusLabel, statusToClass } from "../../domain/formatters";
+import { formatArea, formatMoney, statusToClass } from "../../domain/formatters";
 import type { Lote, QuoteState } from "../../domain/types";
 
 const IconClose = () => (
@@ -14,6 +14,12 @@ const IconPlus = () => (
   </svg>
 );
 
+const IconTrash = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M4 7h16M10 11v6M14 11v6M9 4h6l1 2H8l1-2Zm-1 3h10l-1 12H8L7 7Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const IconSale = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path d="M5 19V9M12 19V5M19 19v-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -24,6 +30,7 @@ const IconSale = () => (
 type CotizadorDrawerProps = {
   rightOpen: boolean;
   selectedLote: Lote | null;
+  selectedLotes: Lote[];
   pulseMz: boolean;
   pulseLote: boolean;
   quote: QuoteState;
@@ -35,6 +42,7 @@ type CotizadorDrawerProps = {
   onOpenProforma: () => void;
   onOpenSale?: () => void;
   onChangeQuote: (next: QuoteState) => void;
+  onRemoveSelectedLot: (loteId: string) => void;
   hideProformaButton?: boolean;
   showSaleButton?: boolean;
   saleButtonDisabled?: boolean;
@@ -45,6 +53,7 @@ type CotizadorDrawerProps = {
 function CotizadorDrawer({
   rightOpen,
   selectedLote,
+  selectedLotes,
   pulseMz,
   pulseLote,
   quote,
@@ -56,20 +65,19 @@ function CotizadorDrawer({
   onOpenProforma,
   onOpenSale,
   onChangeQuote,
+  onRemoveSelectedLot,
   hideProformaButton = false,
   showSaleButton = false,
   saleButtonDisabled = false,
   saleButtonLabel = "Crear venta",
   saleButtonTitle,
 }: CotizadorDrawerProps) {
-  const precioLote = selectedLote?.price ?? quote.precio ?? 0;
-  const loteStatusClass = statusToClass(selectedLote?.condicion);
-  const precioM2 =
-    selectedLote?.price != null &&
-    selectedLote.areaM2 != null &&
-    selectedLote.areaM2 > 0
-      ? selectedLote.price / selectedLote.areaM2
-      : null;
+  const lotesSeleccionados = selectedLotes.length > 0 ? selectedLotes : selectedLote ? [selectedLote] : [];
+  const loteBase = selectedLote ?? lotesSeleccionados[0] ?? null;
+  const precioLote = quote.precio ?? 0;
+  const loteStatusClass = statusToClass(loteBase?.condicion);
+  const totalPrecioRef = lotesSeleccionados.reduce((sum, lote) => sum + Math.max(Number(lote.price ?? 0), 0), 0);
+  const showTotalsRow = lotesSeleccionados.length > 1;
   const initialSliderMax = Math.max(6000, Math.ceil(precioLote / 500) * 500);
 
   const applyMonthsPreset = (meses: number) => {
@@ -83,42 +91,59 @@ function CotizadorDrawer({
           <div className="drawer__header-copy">
             <h3>Cotizador</h3>
           </div>
-          {selectedLote ? (
-            <div className="drawer__header-chips">
-              <span className={`chip chip-emphasis ${pulseMz ? "pulse" : ""}`}>MZ {selectedLote.mz}</span>
-              <span className={`chip chip-emphasis ${pulseLote ? "pulse" : ""}`}>Lote {selectedLote.lote}</span>
-            </div>
-          ) : null}
         </div>
         <div className="drawer__header-actions">
-          <button className="btn ghost drawer-close-btn icon-only" onClick={onClose} aria-label="Cerrar cotizador">
+          <button className="btn ghost drawer-close-btn" onClick={onClose} aria-label="Cerrar cotizador">
             <IconClose />
+            <span>Cerrar</span>
           </button>
         </div>
       </div>
-      <div className="drawer__body">
-        {selectedLote ? (
-          <>
-            <div className="drawer-summary-grid">
-              <div className="drawer-summary-stack">
-                <span className={`chip drawer-status-chip status-pill ${statusToClass(selectedLote.condicion)}`}>
-                  {normalizeStatusLabel(selectedLote.condicion)}
-                </span>
-                <div className="drawer-card area-card">
-                  <small className="drawer-card__label">Area total</small>
-                  <strong>{formatArea(selectedLote.areaM2)}</strong>
-                </div>
-              </div>
-              <div
-                className={`drawer-card price-card drawer-card--main price-card--${loteStatusClass} ${pulseMz || pulseLote ? "price-card--pulse" : ""}`}
-              >
-                <small className="drawer-card__label">Precio del lote</small>
-                <strong>{formatMoney(selectedLote.price)}</strong>
-                <small className="drawer-card__meta">
-                  Precio m2 <b>{precioM2 != null ? formatMoney(precioM2) : "-"}</b>
-                </small>
-              </div>
-            </div>
+      <div className="cotizador-drawer__content">
+        <div className="drawer__body">
+          {lotesSeleccionados.length > 0 ? (
+            <>
+            <section className="drawer-selected-lotes-table" aria-label="Lotes seleccionados">
+              <table className="drawer-selected-lotes-grid">
+                <thead>
+                  <tr>
+                    <th>Lote</th>
+                    <th>Precio m2</th>
+                    <th>Area m2</th>
+                    <th>Precio ref.</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lotesSeleccionados.map((lote) => (
+                    <tr key={lote.id} className={!showTotalsRow ? "is-single" : ""}>
+                      <td className="drawer-selected-lotes-grid__lote">{lote.id}</td>
+                      <td className="drawer-selected-lotes-grid__price-m2">
+                        {lote.areaM2 && lote.areaM2 > 0 ? formatMoney((lote.price ?? 0) / lote.areaM2) : "-"}
+                      </td>
+                      <td className="drawer-selected-lotes-grid__area">{formatArea(lote.areaM2)}</td>
+                      <td className="drawer-selected-lotes-table__price">{formatMoney(lote.price)}</td>
+                      <td className="drawer-selected-lotes-grid__actions">
+                        <button className="btn ghost icon-only" type="button" onClick={() => onRemoveSelectedLot(lote.id)} aria-label={`Quitar ${lote.id}`}>
+                          <IconTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {showTotalsRow ? (
+                  <tfoot>
+                    <tr>
+                      <td className="drawer-selected-lotes-table__footer-label">Total</td>
+                      <td />
+                      <td />
+                      <td className="drawer-selected-lotes-table__price"><strong>{formatMoney(totalPrecioRef)}</strong></td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
+            </section>
 
             <div className={`quote-hero quote-hero--${loteStatusClass} ${pulseMz || pulseLote ? "quote-hero--pulse" : ""}`}>
               <div className="quote-hero__head">
@@ -127,11 +152,11 @@ function CotizadorDrawer({
               <div className="quote-hero__content">
                 <div className="quote-hero__details">
                   <div className="quote-hero__detail">
-                    <small>Inicial:</small>
+                    <small>Inicial</small>
                     <b>{formatMoney(quote.inicialMonto)}</b>
                   </div>
                   <div className="quote-hero__detail">
-                    <small>Meses:</small>
+                    <small>Meses</small>
                     <b>{quote.cuotas}</b>
                   </div>
                 </div>
@@ -142,12 +167,9 @@ function CotizadorDrawer({
             <div className="quote-box compact">
               <div className="quote-box__head">
                 <h4>Ajusta tu plan</h4>
+                <small className="quote-box__hint">: Elige una cuota rapida o ajusta los valores.</small>
               </div>
               <div className="quick-quotes quick-quotes--inside">
-                <div className="quick-quotes__head">
-                  <h5>Meses (1-36)</h5>
-                  <small>Elige una cuota rapida o ajusta los valores.</small>
-                </div>
                 <div className="quick-list quick-list--interactive">
                   {[12, 24, 36].map((meses) => (
                     <button
@@ -213,11 +235,17 @@ function CotizadorDrawer({
                 </div>
               </div>
             </div>
-
+            </>
+          ) : (
+            <p className="muted">Selecciona un lote para ver detalles.</p>
+          )}
+        </div>
+        {lotesSeleccionados.length > 0 ? (
+          <div className="cotizador-drawer__footer">
             <div className="drawer-footer-actions">
               {showSaleButton && onOpenSale ? (
                 <button
-                  className="btn ghost drawer-footer-btn drawer-footer-btn--secondary"
+                  className={`btn drawer-footer-btn ${saleButtonLabel === "Ver venta" ? "drawer-footer-btn--existing" : "drawer-footer-btn--secondary"}`}
                   onClick={onOpenSale}
                   disabled={saleButtonDisabled}
                   title={saleButtonTitle}
@@ -226,17 +254,15 @@ function CotizadorDrawer({
                   <span>{saleButtonLabel}</span>
                 </button>
               ) : null}
-              {selectedLote.condicion !== "VENDIDO" && !hideProformaButton ? (
+              {!hideProformaButton ? (
                 <button className="btn drawer-footer-btn drawer-footer-btn--primary" onClick={onOpenProforma}>
                   <IconPlus />
                   <span>Generar proforma</span>
                 </button>
               ) : null}
             </div>
-          </>
-        ) : (
-          <p className="muted">Selecciona un lote para ver detalles.</p>
-        )}
+          </div>
+        ) : null}
       </div>
     </aside>
   );

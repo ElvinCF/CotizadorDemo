@@ -736,3 +736,14 @@ Con este documento y `1_esquema_bd.md` aprobados, el siguiente paso correcto es:
 - La transicion a `CAIDA` es una accion administrativa.
 - Solo un usuario con rol `admin` puede verla y aplicarla desde `Ajustes > Administrativo`.
 - El select principal de estado en la vista de venta no expone la opcion `CAIDA`.
+
+## 18. Reglas multi-lote (fase 5)
+
+- La fuente primaria de relacion venta-lote es `venta_lotes`.
+- `ventas.lote_id` queda como campo legado temporal (primer lote del expediente).
+- Un lote no puede pertenecer a dos ventas activas (`estado_venta <> 'CAIDA'`).
+- Si una venta pasa a `CAIDA`, sus lotes quedan libres para reasignacion.
+- La sincronizacion de `lotes.estado_comercial` se aplica a todos los lotes ligados al expediente.
+- API de ventas puede recibir `loteCodigos[]`; para compatibilidad sigue aceptando `loteCodigo`.
+- API de detalle/listado devuelve `lote` (principal) y `lotes` (coleccion completa).
+- En cotizador mapa (PC), la seleccion multiple solo permite lotes `DISPONIBLE`.

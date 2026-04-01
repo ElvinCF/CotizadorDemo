@@ -49,6 +49,8 @@ type LoteSaleAccess = {
   ownerUsername: string | null;
 };
 
+const PROFORMA_SALE_DRAFT_KEY = "arenas.proforma.to.sale.v1";
+
 const createProformaLotId = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
@@ -70,6 +72,11 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedLotIds, setSelectedLotIds] = useState<string[]>([]);
+  const [multiSelectEnabled, setMultiSelectEnabled] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState<boolean>(
+    () => typeof window !== "undefined" && window.innerWidth <= 640
+  );
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoveredPos, setHoveredPos] = useState({ x: 0, y: 0 });
   const [rightOpen, setRightOpen] = useState(false);
@@ -131,6 +138,16 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const isCotizadorRoute = publicView && location.pathname.startsWith("/cotizador");
   const DRAWER_PULSE_MS = 900;
   const currentUsername = loginUsername?.trim().toLowerCase() ?? null;
+  const lotes = rawLotes;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 640px)");
+    const sync = () => setIsSmallScreen(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   const canAccessSaleFromLot = useCallback(
     (saleAccess?: LoteSaleAccess | null) => {
@@ -141,11 +158,52 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     [currentUsername, role]
   );
 
+  const addLotToSelection = useCallback(
+    (loteId: string) => {
+      const normalizedId = loteId.trim().toUpperCase();
+      const lote = lotes.find((item) => item.id === normalizedId);
+      if (!lote || lote.condicion !== "DISPONIBLE") {
+        return;
+      }
+      setSelectedLotIds((current) => (current.includes(normalizedId) ? current : [...current, normalizedId]));
+    },
+    [lotes]
+  );
+
+  const toggleLotSelection = useCallback(
+    (loteId: string) => {
+      const normalizedId = loteId.trim().toUpperCase();
+      const lote = lotes.find((item) => item.id === normalizedId);
+      if (!lote || lote.condicion !== "DISPONIBLE") {
+        return;
+      }
+      setSelectedLotIds((current) =>
+        current.includes(normalizedId)
+          ? current.filter((id) => id !== normalizedId)
+          : [...current, normalizedId]
+      );
+    },
+    [lotes]
+  );
+
   const openQuoteDrawer = useCallback(
-    (loteId?: string | null) => {
+    (loteId?: string | null, options?: { preserveSelection?: boolean }) => {
       const nextSelectedId = loteId?.trim().toUpperCase() ?? null;
       if (nextSelectedId) {
+        const lote = lotes.find((item) => item.id === nextSelectedId) ?? null;
+        if (multiSelectEnabled && !options?.preserveSelection && lote?.condicion !== "DISPONIBLE") {
+          return;
+        }
         setSelectedId(nextSelectedId);
+        if (options?.preserveSelection) {
+          if (multiSelectEnabled) {
+            setSelectedLotIds((current) => (current.length === 0 ? [nextSelectedId] : current));
+          }
+        } else if (!multiSelectEnabled) {
+          setSelectedLotIds([nextSelectedId]);
+        } else {
+          addLotToSelection(nextSelectedId);
+        }
       }
       setRightOpen(true);
 
@@ -156,17 +214,28 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         }
       }
     },
-    [location.pathname, navigate, publicView]
+    [addLotToSelection, location.pathname, lotes, multiSelectEnabled, navigate, publicView]
   );
 
   const closeQuoteDrawer = useCallback(() => {
     setRightOpen(false);
-    setSelectedId(null);
+    if (!isSmallScreen) {
+      setSelectedId(null);
+      setSelectedLotIds([]);
+    }
 
     if (publicView && isCotizadorRoute) {
       navigate("/", { replace: true });
     }
-  }, [isCotizadorRoute, navigate, publicView]);
+  }, [isCotizadorRoute, isSmallScreen, navigate, publicView]);
+
+  const openCotizadorFromFloatingCard = useCallback(() => {
+    if (selectedLotIds.length === 0 && !selectedId) return;
+    if (!selectedId && selectedLotIds[0]) {
+      setSelectedId(selectedLotIds[0]);
+    }
+    setRightOpen(true);
+  }, [selectedId, selectedLotIds]);
 
   useEffect(() => {
     if (!publicView) return;
@@ -175,21 +244,29 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       setRightOpen(true);
       if (routeLoteCodigo) {
         setSelectedId(routeLoteCodigo);
+        setSelectedLotIds([routeLoteCodigo]);
       }
       return;
     }
 
     setRightOpen(false);
-    setSelectedId(null);
-  }, [isCotizadorRoute, publicView, routeLoteCodigo]);
+    if (!isSmallScreen) {
+      setSelectedId(null);
+      setSelectedLotIds([]);
+    }
+  }, [isCotizadorRoute, isSmallScreen, publicView, routeLoteCodigo]);
 
   useEffect(() => {
     if (!publicView || !isCotizadorRoute) return;
     if (routeLoteCodigo) return;
 
     setRightOpen(false);
+    if (!isSmallScreen) {
+      setSelectedId(null);
+      setSelectedLotIds([]);
+    }
     navigate("/", { replace: true });
-  }, [isCotizadorRoute, navigate, publicView, routeLoteCodigo]);
+  }, [isCotizadorRoute, isSmallScreen, navigate, publicView, routeLoteCodigo]);
 
   useEffect(() => {
     let active = true;
@@ -293,8 +370,6 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     localStorage.setItem(PROFORMA_VENDOR_KEY, JSON.stringify(proforma.vendedor));
   }, [proforma.vendedor]);
 
-  const lotes = rawLotes;
-
   const filteredLotes = useMemo(() => {
     const mz = filters.mz.trim().toUpperCase();
     const status = filters.status.toUpperCase();
@@ -320,6 +395,27 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     () => lotes.find((item) => item.id === selectedId) ?? null,
     [lotes, selectedId]
   );
+  const selectedLotes = useMemo(
+    () => selectedLotIds.map((id) => lotes.find((item) => item.id === id)).filter((item): item is Lote => Boolean(item)),
+    [lotes, selectedLotIds]
+  );
+  const drawerLotes = selectedLotes.length > 0 ? selectedLotes : selectedLote ? [selectedLote] : [];
+  const drawerTotalPrice = drawerLotes.reduce((sum, lote) => sum + Math.max(Number(lote.price ?? 0), 0), 0);
+  const drawerActiveSales = useMemo(
+    () =>
+      drawerLotes
+        .map((lote) => salesByLoteCode[lote.id])
+        .filter((item): item is LoteSaleAccess => Boolean(item)),
+    [drawerLotes, salesByLoteCode]
+  );
+  const selectedAvailableCount = useMemo(
+    () =>
+      selectedLotIds.filter((id) => {
+        const lote = lotes.find((item) => item.id === id);
+        return lote?.condicion === "DISPONIBLE";
+      }).length,
+    [lotes, selectedLotIds]
+  );
 
   useEffect(() => {
     if (!selectedLote) return;
@@ -328,9 +424,18 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     setQuote({
       ...defaultQuote,
       ...cachedQuote,
-      precio: selectedLote.price ?? cachedQuote?.precio ?? 0,
+      precio: drawerTotalPrice > 0 ? drawerTotalPrice : selectedLote.price ?? cachedQuote?.precio ?? 0,
     });
-  }, [selectedLote]);
+  }, [drawerTotalPrice, selectedLote]);
+
+  useEffect(() => {
+    if (!selectedLote) return;
+    if (!multiSelectEnabled) {
+      setSelectedLotIds([selectedLote.id]);
+      return;
+    }
+    setSelectedLotIds((current) => (current.length === 0 ? [selectedLote.id] : current));
+  }, [multiSelectEnabled, selectedLote]);
 
   useEffect(() => {
     if (!selectedLote) return;
@@ -341,12 +446,21 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   }, [quote, selectedLote]);
 
   useEffect(() => {
+    if (!rightOpen) return;
+    setQuote((current) => ({
+      ...current,
+      precio: drawerTotalPrice > 0 ? drawerTotalPrice : current.precio,
+    }));
+  }, [drawerTotalPrice, rightOpen]);
+
+  useEffect(() => {
     if (!publicView || !isCotizadorRoute || !routeLoteCodigo || lotes.length === 0) return;
     const hasSelectedLote = lotes.some((item) => item.id === routeLoteCodigo);
     if (hasSelectedLote) return;
 
     setRightOpen(false);
     setSelectedId(null);
+    setSelectedLotIds([]);
     navigate("/", { replace: true });
   }, [isCotizadorRoute, lotes, navigate, publicView, routeLoteCodigo]);
 
@@ -395,6 +509,30 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     }
     lastSelectedRef.current = selectedId;
   }, [selectedId, view]);
+
+  useEffect(() => {
+    const root = svgRef.current;
+    if (!root || view !== "mapa") return;
+
+    const previous = new Set(
+      Array.from(root.querySelectorAll(".is-multi-selected[id]")).map((node) => node.getAttribute("id")).filter(Boolean) as string[]
+    );
+    const current = new Set(selectedLotIds);
+
+    current.forEach((id) => {
+      if (!previous.has(id)) {
+        const target = root.querySelector(`#${CSS.escape(id)}`);
+        target?.classList.add("is-multi-selected");
+      }
+    });
+
+    previous.forEach((id) => {
+      if (!current.has(id)) {
+        const target = root.querySelector(`#${CSS.escape(id)}`);
+        target?.classList.remove("is-multi-selected");
+      }
+    });
+  }, [selectedLotIds, view]);
 
   useEffect(() => {
     const root = svgRef.current;
@@ -504,6 +642,15 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           draggedRef.current = false;
           return;
         }
+        if (multiSelectEnabled) {
+          const lote = lotes.find((item) => item.id === id) ?? null;
+          if (lote?.condicion !== "DISPONIBLE") {
+            return;
+          }
+          setSelectedId(id);
+          toggleLotSelection(id);
+          return;
+        }
         openQuoteDrawer(id);
         return;
       }
@@ -517,7 +664,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         hoverRafRef.current = null;
       });
     }
-  }, [hoveredId, openQuoteDrawer]);
+  }, [hoveredId, lotes, multiSelectEnabled, openQuoteDrawer, toggleLotSelection]);
 
   const handleSvgLeave = useCallback(() => {
     setHoveredId(null);
@@ -602,8 +749,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     36: Math.max(monto / 36, 0),
   });
 
-  const refreshProformaFromLote = (lote: Lote) => {
-    const regular = Math.max(quote.precio || lote.price || 0, 0);
+  const refreshProformaFromLotes = (lotesSeleccionados: Lote[]) => {
+    const totalLotes = lotesSeleccionados.reduce((sum, lote) => sum + Math.max(Number(lote.price ?? 0), 0), 0);
+    const regular = Math.max(quote.precio || totalLotes || 0, 0);
     const promo = regular;
     const inicialCotizada = Math.max(Math.round(quote.inicialMonto || 0), 6000);
     const inicial = clamp(inicialCotizada, 6000, promo || 6000);
@@ -613,7 +761,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     setProforma({
       cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
       proyecto: { proyecto: PROYECTO_FIJO, ubicacion: projectInfo.locationText },
-      lotes: [toProformaLotRow(lote)],
+      lotes: lotesSeleccionados.map((lote) => toProformaLotRow(lote)),
       precioRegular: regular,
       precioPromocional: promo,
       descuentoSoles: Math.max(regular - promo, 0),
@@ -944,8 +1092,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             .logo { height: 34px; object-fit: contain; }
             .section { border: 1px solid #efd4c1; border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
             .section h2 { margin: 0 0 8px; font-size: 12px; color: #8f3a18; text-transform: uppercase; letter-spacing: 0.02em; }
-            .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; }
-            .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+            .grid-client { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 1fr); gap: 8px 10px; }
+            .grid-project { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 1.8fr); gap: 10px 14px; }
             .label { font-size: 11px; color: #6a5c4c; display: block; }
             .value { font-weight: 600; font-size: 12px; }
             .price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
@@ -986,7 +1134,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
             <section class="section">
               <h2>Datos del cliente</h2>
-              <div class="grid-4">
+              <div class="grid-client">
                 <div><span class="label">Nombre completo</span><span class="value">${clientName}</span></div>
                 <div><span class="label">DNI</span><span class="value">${clientDni}</span></div>
                 <div><span class="label">Celular</span><span class="value">${clientCel}</span></div>
@@ -997,8 +1145,11 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
             <section class="section">
               <h2>Proyecto</h2>
-              <div class="grid-2">
+              <div class="grid-project">
                 <div><span class="label">Proyecto</span><span class="value">${proforma.proyecto.proyecto}</span></div>
+                <div><span class="label">Etapa</span><span class="value">${projectInfo.stage || "-"}</span></div>
+                <div><span class="label">Razon social</span><span class="value">${projectInfo.owner || "-"}</span></div>
+                <div><span class="label">RUC</span><span class="value">${projectInfo.ownerRuc || "-"}</span></div>
                 <div><span class="label">Ubicacion referencial</span><span class="value">${proforma.proyecto.ubicacion}</span></div>
               </div>
             </section>
@@ -1088,30 +1239,144 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     if (hidePublicRestrictedActions) {
       return;
     }
-    if (!selectedLote) {
+    if (drawerLotes.length === 0) {
       setProformaAlert("Selecciona un lote para crear la proforma.");
       return;
     }
-    if (selectedLote.condicion === "VENDIDO") {
-      setProformaAlert("Este lote esta vendido. No se puede crear proforma.");
+    if (drawerLotes.some((lote) => lote.condicion !== "DISPONIBLE")) {
+      setProformaAlert("Solo puedes generar proforma con lotes disponibles.");
       return;
     }
-    refreshProformaFromLote(selectedLote);
+    refreshProformaFromLotes(drawerLotes);
     setProformaOpen(true);
   };
 
+  const persistSaleDraft = (payload: {
+    loteCodigos: string[];
+    precioVenta: number;
+    inicial: number;
+    separacion: number;
+    meses: number;
+    montoCuota: number;
+    cliente?: {
+      nombreCompleto: string;
+      dni: string;
+      celular: string;
+      direccion: string;
+      ocupacion: string;
+    };
+  }) => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      PROFORMA_SALE_DRAFT_KEY,
+      JSON.stringify({
+        loteCodigos: payload.loteCodigos,
+        precioVenta: payload.precioVenta,
+        inicial: payload.inicial,
+        separacion: payload.separacion,
+        meses: payload.meses,
+        montoCuota: payload.montoCuota,
+        tipoFinanciamiento: "REDUCIR_CUOTA",
+        cliente: payload.cliente,
+      })
+    );
+  };
+
   const openSaleFromDrawer = () => {
-    if (!selectedLote) return;
-    const activeSale = salesByLoteCode[selectedLote.id] ?? null;
-    if (activeSale) {
-      if (!canAccessSaleFromLot(activeSale)) {
-        return;
-      }
-      navigate(`/ventas/${activeSale.saleId}`);
+    if (drawerLotes.length === 0) return;
+
+    const blockedSale = drawerLotes
+      .map((lote) => salesByLoteCode[lote.id] ?? null)
+      .find((saleAccess) => saleAccess && !canAccessSaleFromLot(saleAccess));
+    if (blockedSale) {
       return;
     }
-    navigate(`/ventas/nueva?lote=${selectedLote.id}&target=${selectedLote.condicion}`);
+
+    const firstActiveSale = drawerLotes
+      .map((lote) => salesByLoteCode[lote.id] ?? null)
+      .find((saleAccess) => Boolean(saleAccess));
+
+    if (firstActiveSale) {
+      navigate(`/ventas/${firstActiveSale.saleId}`);
+      return;
+    }
+
+    const lotesParam = encodeURIComponent(drawerLotes.map((lote) => lote.id).join(","));
+    const firstLote = drawerLotes[0];
+    const draftCuotas = Math.min(Math.max(Math.round(Number(quote.cuotas || 24)), 1), 36);
+    const draftInicial = Math.max(Number(quote.inicialMonto || 0), 0);
+    const draftPrecio = Math.max(Number(drawerTotalPrice || quote.precio || firstLote.price || 0), 0);
+    const draftMontoCuota = draftCuotas > 0 ? Number((Math.max(draftPrecio - draftInicial, 0) / draftCuotas).toFixed(2)) : 0;
+    persistSaleDraft({
+      loteCodigos: drawerLotes.map((lote) => lote.id),
+      precioVenta: draftPrecio,
+      inicial: draftInicial,
+      separacion: 0,
+      meses: draftCuotas,
+      montoCuota: draftMontoCuota,
+    });
+    navigate(`/ventas/nueva?lote=${firstLote.id}&lotes=${lotesParam}&target=${firstLote.condicion}`);
   };
+
+  const openSaleFromProforma = () => {
+    if (proforma.lotes.length === 0) return;
+    const lotCodes = proforma.lotes
+      .map((row) =>
+        lotes.find((item) => item.mz === row.mz && String(item.lote) === String(row.lote))?.id ?? ""
+      )
+      .filter(Boolean);
+    if (lotCodes.length === 0) return;
+
+    const lotesParam = encodeURIComponent(lotCodes.join(","));
+    const firstLot = lotes.find((item) => item.id === lotCodes[0]) ?? null;
+    const draftCuotas = Math.min(Math.max(Math.round(Number(proforma.meses || 24)), 1), 36);
+    const draftInicial = Math.max(Number(proforma.inicial || 0), 0);
+    const draftSeparacion = Math.max(Number(proforma.separacion || 0), 0);
+    const draftPrecio = Math.max(Number(proforma.precioPromocional || proforma.precioRegular || 0), 0);
+    const draftMontoCuota =
+      draftCuotas > 0 ? Number((Math.max(draftPrecio - draftInicial - draftSeparacion, 0) / draftCuotas).toFixed(2)) : 0;
+
+    persistSaleDraft({
+      loteCodigos: lotCodes,
+      precioVenta: draftPrecio,
+      inicial: draftInicial,
+      separacion: draftSeparacion,
+      meses: draftCuotas,
+      montoCuota: draftMontoCuota,
+      cliente: {
+        nombreCompleto: proforma.cliente.nombre.trim(),
+        dni: proforma.cliente.dni.trim(),
+        celular: proforma.cliente.celular.trim(),
+        direccion: proforma.cliente.direccion.trim(),
+        ocupacion: "",
+      },
+    });
+
+    setProformaOpen(false);
+    navigate(
+      `/ventas/nueva?lote=${lotCodes[0]}&lotes=${lotesParam}&target=${firstLot?.condicion ?? "DISPONIBLE"}`
+    );
+  };
+
+  const handleToggleMultiSelect = (enabled: boolean) => {
+    setMultiSelectEnabled(enabled);
+    if (!enabled) {
+      const firstSelectedId = selectedLotIds[0] ?? selectedId;
+      setSelectedId(firstSelectedId ?? null);
+      setSelectedLotIds(firstSelectedId ? [firstSelectedId] : []);
+    }
+  };
+
+  const handleRemoveSelectedLot = (loteId: string) => {
+    setSelectedLotIds((current) => {
+      const next = current.filter((id) => id !== loteId);
+      if (selectedId === loteId) {
+        setSelectedId(next[0] ?? null);
+      }
+      return next;
+    });
+  };
+
 
   const mapShellClassName = rightOpen ? "map-shell has-drawer" : "map-shell";
   const MapView = (
@@ -1271,7 +1536,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                     navigate(`/ventas/${activeSale.saleId}`);
                     return;
                   }
-                  navigate(`/ventas/nueva?lote=${lote.id}&target=${lote.condicion}`);
+                  navigate(`/ventas/nueva?lote=${lote.id}&lotes=${encodeURIComponent(lote.id)}&target=${lote.condicion}`);
                 }}
               />
             )}
@@ -1286,11 +1551,33 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 <span>{hoveredLote.condicion}</span>
               </div>
             )}
+            {selectedAvailableCount > 0 ? (
+              <div className="map-multi-floating-card">
+                <label className="map-multi-floating-card__check">
+                  <input
+                    type="checkbox"
+                    checked={multiSelectEnabled}
+                    onChange={(event) => handleToggleMultiSelect(event.target.checked)}
+                  />
+                  <span>Multi-seleccion</span>
+                </label>
+                <span className="map-multi-floating-card__count">{selectedAvailableCount} lote(s)</span>
+                <button
+                  className="btn ghost map-multi-floating-card__cta"
+                  type="button"
+                  onClick={openCotizadorFromFloatingCard}
+                  disabled={!selectedId && selectedLotIds.length === 0}
+                >
+                  Cotizar
+                </button>
+              </div>
+            ) : null}
           </div>
         </section>
         <CotizadorDrawer
           rightOpen={rightOpen}
           selectedLote={selectedLote}
+          selectedLotes={drawerLotes}
           pulseMz={pulseMz}
           pulseLote={pulseLote}
           quote={quote}
@@ -1302,15 +1589,25 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           onOpenSale={openSaleFromDrawer}
           onClose={closeQuoteDrawer}
           onChangeQuote={setQuote}
+          onRemoveSelectedLot={handleRemoveSelectedLot}
           hideProformaButton={hidePublicRestrictedActions}
-          showSaleButton={!hidePublicRestrictedActions && Boolean(selectedLote)}
-          saleButtonDisabled={selectedLote ? !canAccessSaleFromLot(salesByLoteCode[selectedLote.id] ?? null) : false}
+          showSaleButton={!hidePublicRestrictedActions && drawerLotes.length > 0}
+          saleButtonDisabled={
+            drawerLotes.length === 0 ||
+            drawerLotes.some((lote) => {
+              const saleAccess = salesByLoteCode[lote.id] ?? null;
+              return saleAccess ? !canAccessSaleFromLot(saleAccess) : false;
+            })
+          }
           saleButtonTitle={
-            selectedLote && !canAccessSaleFromLot(salesByLoteCode[selectedLote.id] ?? null)
+            drawerLotes.some((lote) => {
+              const saleAccess = salesByLoteCode[lote.id] ?? null;
+              return saleAccess ? !canAccessSaleFromLot(saleAccess) : false;
+            })
               ? "No puedes abrir ni crear ventas sobre un lote con venta activa de otro asesor"
               : undefined
           }
-          saleButtonLabel={selectedLote && salesByLoteCode[selectedLote.id] ? "Ver venta" : "Crear venta"}
+          saleButtonLabel={drawerActiveSales.length > 0 ? "Ver venta" : "Crear venta"}
         />
       </section>
     </section>
@@ -1365,6 +1662,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             lastPriceEditedRef.current = "promo";
             updateProforma((current) => ({ ...current, precioPromocional: value }));
           }}
+          onCreateSaleFromProforma={openSaleFromProforma}
         />
       )}
 

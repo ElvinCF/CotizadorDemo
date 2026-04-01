@@ -1,6 +1,6 @@
 # Plan de Ventas
 
-Actualizado: `2026-03-29`
+Actualizado: `2026-03-31`
 Rol: `Plan por fases`
 
 ## Uso de este documento
@@ -213,107 +213,185 @@ Avance aplicado:
 
 ## Fase 5. Multi-lote en cotizador y venta
 
-Estado: `Pendiente`
+Estado: `En curso`
 
 Meta:
 
-- permitir seleccionar varios lotes y tratarlos como un solo expediente comercial
-
-Pendientes:
-
-- seleccionar varios lotes en mapa
-- ver los lotes seleccionados en el drawer cotizador
-- mantener la seleccion visible en proforma abierta
-- mantener la seleccion visible en venta nueva y en edicion
-- cotizar varios lotes como un solo expediente
-- facilitar calculos en inputs para el agregado multi-lote
-- mantener la regla actual de maximo `2` titulares por expediente completo
+- permitir seleccionar varios lotes y tratarlos como un solo expediente comercial, con despliegue seguro sobre schema `public`
 
 Decisiones cerradas:
 
-- una venta multi-lote se implementara con tabla nueva `venta_lotes`
-- no se resolvera agrupando varias ventas separadas solo en frontend o backend
-- `ventas` seguira siendo el expediente padre
-- pagos, historial, titulares y documentos seguiran viviendo a nivel expediente
-- la proforma, la venta nueva y `ventaId` deben poder agregar y quitar lotes visualmente sin depender solo del mapa
+- la rama de ejecucion para esta fase es `lotes` (hija de `dev`)
+- el despliegue objetivo final queda en schema `public`
+- la fuente operativa multi-lote sera `venta_lotes` (sin depender en logica nueva de `ventas.lote_id`)
+- no se borrara data existente durante la migracion
+- `ventas` sigue siendo el expediente padre; pagos, historial, titulares y documentos se mantienen a nivel expediente
+- si el expediente tiene solo `1` lote, la UI debe mantenerse equivalente a la actual
 
-Estrategia de no-ruptura:
+### Incremento 5.1. Preparacion y clon de esquema a `public`
 
-- cualquier cambio de BD para esta fase se valida primero en entorno de prueba
-- si se usa schema alterno o branch de pruebas, la migracion multi-lote se rompe y valida ahi primero
-- la migracion en produccion debe ser compatible hacia atras
-- durante la transicion, `ventas.lote_id` se mantiene activo como campo legado
-- en paralelo se crea `venta_lotes` como detalle real de lotes por expediente
-- en una primera etapa, cada venta existente de un lote genera una fila espejo en `venta_lotes` con el mismo `venta_id` y `lote_id`
-- mientras exista compatibilidad, backend puede seguir leyendo primero `ventas.lote_id` y luego `venta_lotes` cuando corresponda
-- una vez migradas las lecturas y escrituras del modulo, la UI deja de mostrar `ventas.lote_id` como fuente principal y pasa a mostrar la coleccion de `venta_lotes`
-- solo cuando todo el flujo dependa de `venta_lotes`, `ventas.lote_id` puede marcarse para retiro
-- en consolidacion heredada, varias filas de `venta_lotes` pueden compartir el mismo `venta_id` para representar un solo expediente multi-lote
-- esas filas compartidas deben corresponder a ventas heredadas del mismo cliente o del mismo par `cliente_id` + `cliente2_id`
-- la meta de esa consolidacion es que dejen de existir como ventas separadas y pasen a pertenecer a una sola venta padre
-- si durante la consolidacion aparecen ventas con clientes repetidos pero financiacion, pagos o estado claramente incompatibles, no se fusionan automaticamente: se marcan para depuracion manual antes de eliminar duplicados
+Estado: `Aplicado`
 
-Modelo de transicion propuesto:
+Objetivo:
 
-- etapa 1:
-  - crear `venta_lotes`
-  - mantener `ventas.lote_id`
-  - para cada venta existente, crear una fila en `venta_lotes` con el mismo lote
-- etapa 2:
-  - backend empieza a escribir siempre en `venta_lotes`
-  - backend sigue leyendo con compatibilidad mixta
-- etapa 3:
-  - frontend deja de renderizar un lote unico como fuente principal y pasa a consumir la lista de lotes del expediente
-- etapa 4:
-  - una vez estabilizado el modulo, evaluar eliminar `ventas.lote_id`
+- duplicar `devsimple` completo en `public` antes del cambio funcional multi-lote
 
-Consolidacion de ventas heredadas:
+Entregables:
 
-- si varias ventas existentes pertenecen al mismo cliente o al mismo par de titulares y representan una sola operacion comercial, deben consolidarse bajo un solo `venta_id`
-- en esa consolidacion, `venta_lotes` tendra varias filas con el mismo `venta_id` y distintos `lote_id`
-- la venta padre resultante sera la unica visible como expediente
-- las ventas separadas originales pasaran a estado de depuracion o eliminacion controlada solo despues de validar:
-  - misma logica comercial
-  - financiacion compatible
-  - pagos compatibles
-  - estado consolidable
-- si la financiacion es muy distinta o los pagos no son reconciliables, esas ventas no deben fusionarse automaticamente
-
-Entregables tecnicos:
-
-- frontend:
-  - seleccion multiple en mapa
-  - drawer cotizador con lista o tabla de lotes seleccionados
-  - proforma abierta reutilizando la misma seleccion multiple
-  - vista de venta con `Datos del lote` en tabla cuando haya mas de un lote
-- backend:
-  - definir asociacion de varios lotes a un mismo expediente de venta
-  - mantener unicidad de venta activa por lote
-- BD:
-  - crear `venta_lotes`
-  - poblar filas espejo desde ventas existentes
-  - mantener compatibilidad temporal con `ventas.lote_id`
-- reglas:
-  - un expediente multi-lote no puede tener mas de `2` titulares
-  - los calculos de precio, inicial, financiado y cuotas se hacen sobre el total agregado
-  - un lote con venta activa no-caida no puede entrar al nuevo expediente
-
-Decisiones por cerrar antes de construir:
-
-- comportamiento al quitar un lote de un expediente ya creado
-- sincronizacion de estado comercial por lote dentro del expediente multi-lote
-- si impresion y pagos se emiten por expediente o por lote
-- mecanismo exacto de despliegue seguro:
-  - schema de pruebas
-  - branch de BD
-  - o ambas
+- clonado de objetos: tipos, secuencias, tablas, indices, funciones, vistas, triggers, grants/policies
+- clonado de data de `devsimple` hacia `public`
+- validacion de conteos y paridad funcional basica entre schemas
 
 Criterio de cierre:
 
-- mapa, drawer, proforma y venta nueva comparten la misma seleccion multiple
-- el expediente calcula como uno solo
-- la regla de `2` titulares se mantiene sobre todo el expediente
-- los lotes seleccionados se muestran de forma consistente en cotizacion y venta
+- `public` queda operativo con la misma base funcional de `devsimple`
+
+### Incremento 5.2. Modelo de datos multi-lote
+
+Estado: `Aplicado`
+
+Objetivo:
+
+- introducir relacion N:N entre venta y lote en `public`
+
+Entregables:
+
+- crear tabla `public.venta_lotes` con:
+  - `id`
+  - `venta_id` fk a `ventas`
+  - `lote_id` fk a `lotes`
+  - `created_at`
+  - `unique (venta_id, lote_id)`
+- crear indices por `venta_id` y `lote_id`
+- crear guard de integridad para impedir un `lote_id` en dos ventas activas (`estado_venta <> 'CAIDA'`)
+
+Criterio de cierre:
+
+- el modelo permite multi-lote sin romper unicidad de lote activo
+
+### Incremento 5.3. Backfill y consistencia inicial
+
+Estado: `Aplicado`
+
+Objetivo:
+
+- cargar `venta_lotes` para ventas existentes sin perdida de historial
+
+Entregables:
+
+- poblar `venta_lotes` desde `ventas.lote_id` para ventas existentes con lote
+- validar que no queden ventas legacy sin su fila espejo en `venta_lotes`
+- validar que no existan colisiones de lote activo post-backfill
+
+Criterio de cierre:
+
+- todos los expedientes existentes quedan representados en `venta_lotes`
+
+### Incremento 5.4. Backend cutover a `venta_lotes`
+
+Estado: `Aplicado`
+
+Objetivo:
+
+- mover reglas y contratos backend para operar por coleccion de lotes
+
+Entregables:
+
+- create/update sale: recibir y persistir `lotes` del expediente en `venta_lotes`
+- get/list sale: exponer lista de lotes del expediente
+- accesos por lote (mapa/tabla/drawer): resolver por `venta_lotes` + ventas activas
+- sincronizacion de `lotes.estado_comercial` por cada lote asociado al expediente
+
+Regla funcional:
+
+- la logica nueva no depende de `ventas.lote_id`
+- `ventas.lote_id` queda solo como legado fisico temporal
+
+Criterio de cierre:
+
+- todas las rutas backend de ventas y accesos por lote operan con `venta_lotes`
+
+### Incremento 5.5. Frontend multi-lote
+
+Estado: `En curso`
+
+Objetivo:
+
+- habilitar experiencia multi-lote completa sin degradar el caso single-lote
+
+Entregables:
+
+- mapa: seleccion multiple de lotes
+- drawer cotizador: lista/tabla de seleccion multiple
+- proforma: render de lotes seleccionados y totales agregados
+- venta nueva y `ventaId`: agregar/quitar lotes en expediente
+- mantener UI actual cuando el expediente tenga solo `1` lote
+
+Criterio de cierre:
+
+- mapa, cotizador, proforma y venta comparten la misma seleccion multiple
+- el flujo single-lote conserva experiencia equivalente
+
+### Incremento 5.6. Rollout, QA y corte a `public`
+
+Estado: `Pendiente`
+
+Objetivo:
+
+- desplegar sin ruptura y con plan de reversa
+
+Entregables:
+
+- secuencia de release:
+  - migraciones `public`
+  - backend
+  - frontend
+  - cambio de config a `SUPABASE_DB_SCHEMA=public`
+- smoke tests operativos por rol
+- plan de rollback documentado por capa (db/app)
+
+Criterio de cierre:
+
+- operacion diaria estable sobre `public`
+- incidencias criticas en cero durante ventana de estabilizacion
+
+Reglas de negocio de la fase:
+
+- un expediente multi-lote mantiene maximo `2` titulares por expediente
+- calculos (`precio`, `inicial`, `financiado`, `cuotas`) se hacen sobre total agregado del expediente
+- un lote con venta activa no-`CAIDA` no puede agregarse a otro expediente
+- si una venta cae, sus lotes quedan liberados para reutilizacion comercial posterior
+
+Avance aplicado (2026-03-30):
+
+- schema `public` clonado completo desde `devsimple` para operar la fase multi-lote sin drift
+- tabla `public.venta_lotes` creada y poblada desde `ventas.lote_id`
+- trigger de integridad activo para impedir lote en dos ventas activas (`venta_lotes_lote_activo_unique`)
+- backend de ventas opera sobre `venta_lotes` con fallback legado:
+  - create/update persisten relacion en `venta_lotes`
+  - get/list exponen lote principal desde `venta_lotes` y lista `lotes` del expediente
+  - accesos por lote (`/api/ventas/accesos-lote`) resuelven por `venta_lotes`
+  - sincronizacion de estado comercial de lote se aplica a todos los lotes asociados
+- `ventas.lote_id` queda como espejo legado temporal para compatibilidad
+- frontend (parcial 5.5):
+  - mapa con card flotante para activar modo multi-seleccion y abrir `Cotizar`
+  - lotes seleccionados visibles en tabla del drawer con opcion de eliminar fila
+  - cotizacion del drawer calculada sobre total agregado de lotes seleccionados
+  - `Generar proforma` y `Crear venta` propagan lista de lotes seleccionados
+  - alta de venta recibe `lotes` por query y muestra card de `Lotes del expediente` con agregar/quitar
+
+Avance aplicado (2026-03-31):
+
+- venta nueva y venta existente unifican la seccion de lotes con titulo dinamico:
+  - `Datos del lote` si hay 1 lote
+  - `Datos de los lotes` si hay mas de 1
+- la tabla de lotes en ventas usa el mismo componente/estilos de proforma (`proforma-lote-table`), con columnas y total consistentes
+- en ventas, el selector de lotes ya no depende de `lotes.estado_comercial`; ahora filtra por **lote sin venta activa** y permite conservar los lotes ya seleccionados del expediente
+- en mapa/proforma se persiste un draft temporal (`sessionStorage`) para abrir venta nueva con:
+  - lotes seleccionados
+  - precio, inicial, separacion, meses y cuota
+  - cliente de proforma (si existe)
+- en backend (`ventasService`) se corrige update de expediente para persistir cambios de `venta_lotes` y sincronizar estado comercial de todos los lotes asociados
 
 ## Fase 6. Documentos e impresion del expediente de venta
 

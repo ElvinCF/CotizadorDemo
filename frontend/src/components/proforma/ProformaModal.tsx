@@ -52,6 +52,7 @@ type ProformaModalProps = {
   onDiscountSoles: (value: number) => void;
   onDiscountPct: (value: number) => void;
   onPromoPrice: (value: number) => void;
+  onCreateSaleFromProforma?: () => void;
 };
 
 const createRowId = () =>
@@ -77,8 +78,11 @@ function ProformaModal({
   onDiscountSoles,
   onDiscountPct,
   onPromoPrice,
+  onCreateSaleFromProforma,
 }: ProformaModalProps) {
-  const mzOptions = Array.from(new Set(lotesCatalog.map((item) => item.mz).filter(Boolean))).sort((a, b) =>
+  const mzOptions = Array.from(
+    new Set(lotesCatalog.filter((item) => item.condicion === "DISPONIBLE").map((item) => item.mz).filter(Boolean))
+  ).sort((a, b) =>
     a.localeCompare(b, "es", { numeric: true, sensitivity: "base" })
   );
 
@@ -146,18 +150,20 @@ function ProformaModal({
     <div className="modal-backdrop" onClick={onBackdropClose}>
       <div className="proforma-modal" onClick={(event) => event.stopPropagation()}>
         <div className="proforma-header">
-          <div>
+          <div className="proforma-header__intro">
             <h3>Proforma Arenas Malabrigo</h3>
             <p className="muted">
               {new Date(proforma.creadoEn).toLocaleString("es-PE")} · Vendedor: {proforma.vendedor.nombre || "-"}
             </p>
           </div>
           <div className="proforma-actions">
-            <button className="btn ghost icon-only" onClick={onPrint} aria-label="Imprimir proforma">
+            <button className="btn ghost proforma-actions__btn" onClick={onPrint} aria-label="Imprimir proforma">
               <IconPrinter />
+              <span className="proforma-actions__label">Imprimir</span>
             </button>
-            <button className="btn ghost" onClick={onRequestClose}>
-              <IconClose /> Cerrar
+            <button className="btn ghost proforma-actions__btn" onClick={onRequestClose}>
+              <IconClose />
+              <span className="proforma-actions__label">Cerrar</span>
             </button>
           </div>
         </div>
@@ -281,21 +287,24 @@ function ProformaModal({
                 <h4>Proyecto y lotes</h4>
               </div>
             <div className="proforma-project-card">
-              <strong>{proforma.proyecto.proyecto}</strong>
-              <div className="proforma-project-card__meta">
+              <div className="proforma-project-card__meta proforma-project-card__meta--project">
+                <div>
+                  <span className="proforma-project-card__label">Proyecto</span>
+                  <span>{proforma.proyecto.proyecto || "-"}</span>
+                </div>
                 <div>
                   <span className="proforma-project-card__label">Etapa</span>
-                  <span>{projectInfo.stage}</span>
+                  <span>{projectInfo.stage || "-"}</span>
                 </div>
                 <div>
                   <span className="proforma-project-card__label">Razon social</span>
-                  <span>{projectInfo.owner}</span>
+                  <span>{projectInfo.owner || "-"}</span>
                 </div>
                 <div>
                   <span className="proforma-project-card__label">RUC</span>
-                  <span>{projectInfo.ownerRuc}</span>
+                  <span>{projectInfo.ownerRuc || "-"}</span>
                 </div>
-                <div className="proforma-project-card__wide">
+                <div>
                   <span className="proforma-project-card__label">Ubicacion</span>
                   <span>{proforma.proyecto.ubicacion || "-"}</span>
                 </div>
@@ -307,18 +316,23 @@ function ProformaModal({
                   <tr>
                     <th>MZ</th>
                     <th>Lote</th>
+                    <th>Precio m2</th>
                     <th>Area total (m2)</th>
                     <th>Precio ref.</th>
-                    <th>Accion</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
                   {proforma.lotes.map((row) => {
+                    const selectedLoteId =
+                      lotesCatalog
+                        .filter((item) => item.mz === row.mz)
+                        .find((item) => String(item.lote) === row.lote)?.id ?? "";
                     const lotesByMz = lotesCatalog
                       .filter((item) => item.mz === row.mz)
+                      .filter((item) => item.condicion === "DISPONIBLE" || item.id === selectedLoteId)
                       .sort((a, b) => a.lote - b.lote);
-                    const selectedLoteId =
-                      lotesByMz.find((item) => String(item.lote) === row.lote)?.id ?? "";
+                    const selectedLote = selectedLoteId ? lotesCatalog.find((item) => item.id === selectedLoteId) ?? null : null;
 
                     return (
                       <tr key={row.id}>
@@ -346,6 +360,11 @@ function ProformaModal({
                             ))}
                           </select>
                         </td>
+                        <td>
+                          {selectedLote && Number(selectedLote.areaM2) > 0
+                            ? formatMoney(Math.max(Number(selectedLote.price ?? 0), 0) / Number(selectedLote.areaM2))
+                            : "-"}
+                        </td>
                         <td>{row.area || "-"}</td>
                         <td>{formatMoney(row.precioReferencial)}</td>
                         <td>
@@ -370,8 +389,9 @@ function ProformaModal({
                       </button>
                     </td>
                     <td />
+                    <td />
                     <td className="proforma-lote-table__total">
-                      <span className="proforma-lote-table__total-label">Total precio referencial</span>
+                      <span className="proforma-lote-table__total-label">Total precio:</span>
                       <span>{formatMoney(totalPrecioRef)}</span>
                     </td>
                     <td />
@@ -566,6 +586,11 @@ function ProformaModal({
             </div>
             <div className="proforma-summary">
               Ahorro en: <strong>{formatMoney(proformaAhorro)}</strong>
+              {onCreateSaleFromProforma ? (
+                <button className="btn proforma-summary__create-sale" type="button" onClick={onCreateSaleFromProforma}>
+                  Crear venta
+                </button>
+              ) : null}
             </div>
           </section>
         </div>

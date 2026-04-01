@@ -16,6 +16,11 @@ const SvgComponent = ({ svgRef, ...props }: ArenasSvgProps) => (
     {...props}
   >
     <defs id="defs1">
+      <radialGradient id="lot-select-radial" cx="50%" cy="50%" r="65%">
+        <stop offset="0%" stopColor="#7fe0a0" stopOpacity="0.24" />
+        <stop offset="72%" stopColor="#62cf92" stopOpacity="0.18" />
+        <stop offset="100%" stopColor="#2f8cff" stopOpacity="0.14" />
+      </radialGradient>
       <clipPath id="clipPath7" clipPathUnits="userSpaceOnUse">
         <path id="path7" d="M0 21h9685v6170H0V21" />
       </clipPath>

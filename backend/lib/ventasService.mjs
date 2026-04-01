@@ -276,6 +276,19 @@ const mapHistory = (row) => ({
     : null,
 });
 
+const mapLot = (row) =>
+  row?.lote_id
+    ? {
+        id: row.lote_id,
+        codigo: row.lote_codigo ?? toLoteId(row.lote_manzana, row.lote_numero),
+        mz: row.lote_manzana,
+        lote: row.lote_numero,
+        areaM2: row.lote_area_m2,
+        precioReferencial: Number(row.lote_precio_referencial ?? 0),
+        estadoComercial: row.lote_estado_comercial,
+      }
+    : null;
+
 const mapSaleRow = (row) => ({
   id: row.id,
   fechaVenta: row.fecha_venta,
@@ -450,7 +463,27 @@ const getClientByDni = async (client, schema, dni) => {
   return result.rows[0] ?? null;
 };
 
-const ensureLoteAvailableForSale = async (client, schema, loteCodigo) => {
+const normalizeLotCodes = (saleInput) => {
+  const codes = [];
+  if (Array.isArray(saleInput?.loteCodigos)) {
+    codes.push(...saleInput.loteCodigos);
+  }
+  if (Array.isArray(saleInput?.lotes)) {
+    codes.push(
+      ...saleInput.lotes.map((entry) => {
+        if (typeof entry === "string") return entry;
+        return entry?.codigo ?? entry?.loteCodigo ?? "";
+      })
+    );
+  }
+  if (hasValue(saleInput?.loteCodigo)) {
+    codes.push(saleInput.loteCodigo);
+  }
+
+  return [...new Set(codes.map((value) => asTrimmed(value)).filter(Boolean))];
+};
+
+const ensureLoteAvailableForSale = async (client, schema, loteCodigo, excludeSaleId = null) => {
   const code = asTrimmed(loteCodigo);
   if (!code) {
     throw badRequest("Falta codigo de lote.");
@@ -469,7 +502,36 @@ const ensureLoteAvailableForSale = async (client, schema, loteCodigo) => {
     throw notFound("Lote no encontrado.");
   }
 
+  const activeUsage = await client.query(
+    `select 1
+       from ${schema}.ventas v
+       join ${schema}.venta_lotes vl on vl.venta_id = v.id
+      where vl.lote_id = $1
+        and v.estado_venta <> 'CAIDA'
+        and ($2::uuid is null or v.id <> $2::uuid)
+      limit 1`,
+    [lote.id, excludeSaleId]
+  );
+
+  if (activeUsage.rows[0]) {
+    throw conflict("Ese lote ya tiene una venta activa.");
+  }
+
   return lote;
+};
+
+const resolveSaleLotesForMutationTx = async (client, schema, saleInput, excludeSaleId = null) => {
+  const lotCodes = normalizeLotCodes(saleInput);
+  if (lotCodes.length === 0) {
+    return [];
+  }
+
+  const resolved = [];
+  for (const lotCode of lotCodes) {
+    const lote = await ensureLoteAvailableForSale(client, schema, lotCode, excludeSaleId);
+    resolved.push(lote);
+  }
+  return resolved;
 };
 
 const upsertClientByDniTx = async (client, schema, clienteInput) => {
@@ -516,12 +578,47 @@ const insertHistoryTx = async (client, schema, ventaId, previousState, nextState
   );
 };
 
-const syncLoteCommercialStateTx = async (client, schema, loteId, saleState) => {
-  if (!loteId) {
+const replaceSaleLotesTx = async (client, schema, ventaId, lotes = []) => {
+  await client.query(`delete from ${schema}.venta_lotes where venta_id = $1`, [ventaId]);
+
+  if (lotes.length > 0) {
+    for (let index = 0; index < lotes.length; index += 1) {
+      await client.query(
+        `insert into ${schema}.venta_lotes (venta_id, lote_id, orden)
+         values ($1, $2, $3)`,
+        [ventaId, lotes[index].id, index + 1]
+      );
+    }
+  }
+
+  const primaryLoteId = lotes[0]?.id ?? null;
+  await client.query(`update ${schema}.ventas set lote_id = $2 where id = $1`, [ventaId, primaryLoteId]);
+};
+
+const getSaleLotIdsTx = async (client, schema, ventaId, fallbackLoteId = null) => {
+  const result = await client.query(
+    `select distinct x.lote_id
+       from (
+         select vl.lote_id
+           from ${schema}.venta_lotes vl
+          where vl.venta_id = $1
+         union all
+         select $2::uuid as lote_id
+       ) as x
+      where x.lote_id is not null`,
+    [ventaId, fallbackLoteId]
+  );
+
+  return result.rows.map((row) => row.lote_id).filter(Boolean);
+};
+
+const syncSaleLotsCommercialStateTx = async (client, schema, ventaId, saleState, fallbackLoteId = null) => {
+  const loteIds = await getSaleLotIdsTx(client, schema, ventaId, fallbackLoteId);
+  if (loteIds.length === 0) {
     return;
   }
   const mappedState = syncLoteStatusFromSaleState(saleState);
-  await client.query(`update ${schema}.lotes set estado_comercial = $1 where id = $2`, [mappedState, loteId]);
+  await client.query(`update ${schema}.lotes set estado_comercial = $1 where id = any($2::uuid[])`, [mappedState, loteIds]);
 };
 
 const getSalePaymentsTx = async (client, schema, ventaId) => {
@@ -534,6 +631,87 @@ const getSalePaymentsTx = async (client, schema, ventaId) => {
   );
 
   return result.rows;
+};
+
+const getSaleLotsTx = async (client, schema, ventaId, fallbackLoteId = null) => {
+  const result = await client.query(
+    `select
+       l.id as lote_id,
+       l.codigo as lote_codigo,
+       l.manzana as lote_manzana,
+       l.lote as lote_numero,
+       l.area_m2 as lote_area_m2,
+       l.precio_referencial as lote_precio_referencial,
+       l.estado_comercial as lote_estado_comercial
+     from ${schema}.lotes l
+     join (
+       select vl.lote_id, vl.orden, vl.created_at, vl.id
+         from ${schema}.venta_lotes vl
+        where vl.venta_id = $1
+       union all
+       select $2::uuid as lote_id, 1 as orden, now() as created_at, null::uuid as id
+        where $2::uuid is not null
+          and not exists (
+            select 1
+              from ${schema}.venta_lotes vlf
+             where vlf.venta_id = $1
+          )
+     ) x on x.lote_id = l.id
+     order by x.orden asc, x.created_at asc, x.id asc nulls last`,
+    [ventaId, fallbackLoteId]
+  );
+
+  return result.rows.map(mapLot).filter(Boolean);
+};
+
+const getSaleLotsBySaleIdsTx = async (client, schema, saleIds = []) => {
+  if (!Array.isArray(saleIds) || saleIds.length === 0) {
+    return new Map();
+  }
+
+  const result = await client.query(
+    `select
+       v.id as venta_id,
+       l.id as lote_id,
+       l.codigo as lote_codigo,
+       l.manzana as lote_manzana,
+       l.lote as lote_numero,
+       l.area_m2 as lote_area_m2,
+       l.precio_referencial as lote_precio_referencial,
+       l.estado_comercial as lote_estado_comercial,
+       x.orden,
+       x.created_at,
+       x.link_id
+     from ${schema}.ventas v
+     join lateral (
+       select vl.lote_id, vl.orden, vl.created_at, vl.id as link_id
+         from ${schema}.venta_lotes vl
+        where vl.venta_id = v.id
+       union all
+       select v.lote_id as lote_id, 1 as orden, now() as created_at, null::uuid as link_id
+        where v.lote_id is not null
+          and not exists (
+            select 1
+              from ${schema}.venta_lotes vlf
+             where vlf.venta_id = v.id
+          )
+     ) x on true
+     join ${schema}.lotes l on l.id = x.lote_id
+    where v.id = any($1::uuid[])
+    order by v.id asc, x.orden asc, x.created_at asc, x.link_id asc nulls last`,
+    [saleIds]
+  );
+
+  const grouped = new Map();
+  for (const row of result.rows) {
+    const mapped = mapLot(row);
+    if (!mapped) continue;
+    if (!grouped.has(row.venta_id)) {
+      grouped.set(row.venta_id, []);
+    }
+    grouped.get(row.venta_id).push(mapped);
+  }
+  return grouped;
 };
 
 const getSaleDetail = async (saleId) => {
@@ -557,7 +735,7 @@ const getSaleDetail = async (saleId) => {
          v.cantidad_cuotas,
          v.monto_cuota,
          v.observacion,
-         l.id as lote_id,
+         coalesce(vl_primary.lote_id, v.lote_id) as lote_id,
          l.codigo as lote_codigo,
          l.manzana as lote_manzana,
          l.lote as lote_numero,
@@ -581,7 +759,14 @@ const getSaleDetail = async (saleId) => {
          u.nombres as asesor_nombres,
          u.apellidos as asesor_apellidos
        from ${schema}.ventas v
-       left join ${schema}.lotes l on l.id = v.lote_id
+       left join lateral (
+         select vl.lote_id
+           from ${schema}.venta_lotes vl
+          where vl.venta_id = v.id
+          order by vl.orden asc, vl.created_at asc, vl.id asc
+          limit 1
+       ) as vl_primary on true
+       left join ${schema}.lotes l on l.id = coalesce(vl_primary.lote_id, v.lote_id)
        left join ${schema}.clientes c on c.id = v.cliente_id
        left join ${schema}.clientes c2 on c2.id = v.cliente2_id
        left join ${schema}.usuarios u on u.id = v.asesor_id
@@ -619,6 +804,7 @@ const getSaleDetail = async (saleId) => {
       order by h.fecha_cambio asc`,
       [id]
     );
+    const lotes = await getSaleLotsTx(client, schema, id, row.lote_id);
 
     return {
       id: row.id,
@@ -632,17 +818,8 @@ const getSaleDetail = async (saleId) => {
       cantidadCuotas: Number(row.cantidad_cuotas ?? 0),
       montoCuota: Number(row.monto_cuota ?? 0),
       observacion: row.observacion ?? "",
-      lote: row.lote_id
-        ? {
-            id: row.lote_id,
-            codigo: row.lote_codigo ?? toLoteId(row.lote_manzana, row.lote_numero),
-            mz: row.lote_manzana,
-            lote: row.lote_numero,
-            areaM2: row.lote_area_m2,
-            precioReferencial: Number(row.lote_precio_referencial ?? 0),
-            estadoComercial: row.lote_estado_comercial,
-          }
-        : null,
+      lote: lotes[0] ?? mapLot(row),
+      lotes,
       cliente: row.cliente_id
         ? {
             id: row.cliente_id,
@@ -692,11 +869,33 @@ const getSaleBaseByIdTx = async (client, schema, saleId) => {
   }
 
   const result = await client.query(
-    `select id, lote_id, cliente_id, cliente2_id, asesor_id, precio_venta, estado_venta, tipo_financiamiento,
-            monto_inicial_total, monto_financiado, cantidad_cuotas, monto_cuota, observacion, fecha_venta, fecha_pago_pactada
-       from ${schema}.ventas
-      where id = $1
-      for update`,
+    `select
+       v.id,
+       v.lote_id,
+       coalesce(vl_primary.lote_id, v.lote_id) as primary_lote_id,
+       v.cliente_id,
+       v.cliente2_id,
+       v.asesor_id,
+       v.precio_venta,
+       v.estado_venta,
+       v.tipo_financiamiento,
+       v.monto_inicial_total,
+       v.monto_financiado,
+       v.cantidad_cuotas,
+       v.monto_cuota,
+       v.observacion,
+       v.fecha_venta,
+       v.fecha_pago_pactada
+     from ${schema}.ventas v
+     left join lateral (
+       select vl.lote_id
+         from ${schema}.venta_lotes vl
+        where vl.venta_id = v.id
+        order by vl.orden asc, vl.created_at asc, vl.id asc
+        limit 1
+     ) as vl_primary on true
+    where v.id = $1
+    for update of v`,
     [id]
   );
 
@@ -761,6 +960,9 @@ const rethrowMutationError = (error) => {
   if (error?.code === "23505" && String(error?.constraint || "").includes("ventas_lote_activa_unique_idx")) {
     throw conflict("Ese lote ya tiene una venta activa.");
   }
+  if (error?.code === "23505" && String(error?.constraint || "").includes("venta_lotes_lote_activo_unique")) {
+    throw conflict("Uno de los lotes seleccionados ya tiene una venta activa.");
+  }
   if (error?.code === "23505" && String(error?.constraint || "").toLowerCase().includes("clientes_dni")) {
     throw conflict("Ya existe un cliente con ese DNI.");
   }
@@ -796,6 +998,7 @@ export const listSalesAsync = async (username, pin) => {
         `select
            v.id,
            v.fecha_venta,
+           v.fecha_pago_pactada,
            v.precio_venta,
            v.estado_venta,
            v.tipo_financiamiento,
@@ -804,7 +1007,7 @@ export const listSalesAsync = async (username, pin) => {
            v.cantidad_cuotas,
            v.monto_cuota,
            v.observacion,
-           l.id as lote_id,
+           coalesce(vl_primary.lote_id, v.lote_id) as lote_id,
            l.codigo as lote_codigo,
            l.manzana as lote_manzana,
            l.lote as lote_numero,
@@ -822,7 +1025,14 @@ export const listSalesAsync = async (username, pin) => {
            u.nombres as asesor_nombres,
            u.apellidos as asesor_apellidos
          from ${schema}.ventas v
-         left join ${schema}.lotes l on l.id = v.lote_id
+         left join lateral (
+           select vl.lote_id
+             from ${schema}.venta_lotes vl
+            where vl.venta_id = v.id
+            order by vl.orden asc, vl.created_at asc, vl.id asc
+            limit 1
+         ) as vl_primary on true
+         left join ${schema}.lotes l on l.id = coalesce(vl_primary.lote_id, v.lote_id)
          left join ${schema}.clientes c on c.id = v.cliente_id
          left join ${schema}.usuarios u on u.id = v.asesor_id
         ${scopedByAsesor ? "where v.asesor_id = $1 and v.estado_venta <> 'CAIDA'" : ""}
@@ -830,6 +1040,8 @@ export const listSalesAsync = async (username, pin) => {
         ,
         scopedByAsesor ? [operator.id] : []
       );
+      const saleIds = result.rows.map((row) => row.id).filter(Boolean);
+      const lotsBySaleId = await getSaleLotsBySaleIdsTx(client, schema, saleIds);
 
       return result.rows.map((row) => ({
         id: row.id,
@@ -843,17 +1055,8 @@ export const listSalesAsync = async (username, pin) => {
         cantidadCuotas: Number(row.cantidad_cuotas ?? 0),
         montoCuota: Number(row.monto_cuota ?? 0),
         observacion: row.observacion ?? "",
-        lote: row.lote_id
-          ? {
-              id: row.lote_id,
-              codigo: row.lote_codigo ?? toLoteId(row.lote_manzana, row.lote_numero),
-              mz: row.lote_manzana,
-              lote: row.lote_numero,
-              areaM2: row.lote_area_m2,
-              precioReferencial: Number(row.lote_precio_referencial ?? 0),
-              estadoComercial: row.lote_estado_comercial,
-            }
-          : null,
+        lote: (lotsBySaleId.get(row.id) ?? [])[0] ?? mapLot(row),
+        lotes: lotsBySaleId.get(row.id) ?? (mapLot(row) ? [mapLot(row)] : []),
         cliente: row.cliente_id
           ? {
               id: row.cliente_id,
@@ -896,7 +1099,20 @@ export const listSaleAccessByLotAsync = async (username, pin) => {
                 l.codigo as lote_codigo,
                 u.username as asesor_username
            from ${schema}.ventas v
-           join ${schema}.lotes l on l.id = v.lote_id
+           left join lateral (
+             select vl.lote_id
+               from ${schema}.venta_lotes vl
+              where vl.venta_id = v.id
+              union
+              select v.lote_id
+              where v.lote_id is not null
+                and not exists (
+                  select 1
+                    from ${schema}.venta_lotes vl2
+                   where vl2.venta_id = v.id
+                )
+           ) as vl_all on true
+           join ${schema}.lotes l on l.id = vl_all.lote_id
       left join ${schema}.usuarios u on u.id = v.asesor_id
           where v.estado_venta <> 'CAIDA'
           order by v.created_at desc, v.fecha_venta desc`
@@ -952,9 +1168,8 @@ export const createSaleAsync = async (username, pin, saleInput) => {
   let saleId;
   try {
     saleId = await withPgTransaction(async (client) => {
-      const lote = hasValue(saleInput?.loteCodigo)
-        ? await ensureLoteAvailableForSale(client, schema, saleInput?.loteCodigo)
-        : null;
+      const lotes = await resolveSaleLotesForMutationTx(client, schema, saleInput);
+      const lotePrincipal = lotes[0] ?? null;
       const cliente =
         hasValue(saleInput?.cliente?.dni) && hasValue(saleInput?.cliente?.nombreCompleto)
           ? await upsertClientByDniTx(client, schema, saleInput?.cliente ?? {})
@@ -987,7 +1202,7 @@ export const createSaleAsync = async (username, pin, saleInput) => {
          ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           returning id`,
         [
-          lote?.id ?? null,
+          lotePrincipal?.id ?? null,
           cliente?.id ?? null,
           cliente2?.id ?? null,
           await resolveAsesorIdForCreate(client, schema, operator, saleInput),
@@ -1005,6 +1220,7 @@ export const createSaleAsync = async (username, pin, saleInput) => {
       );
 
       const createdSale = saleResult.rows[0];
+      await replaceSaleLotesTx(client, schema, createdSale.id, lotes);
 
       if (initialPayments.length > 0) {
         for (const payment of initialPayments) {
@@ -1017,7 +1233,7 @@ export const createSaleAsync = async (username, pin, saleInput) => {
       }
 
       await insertHistoryTx(client, schema, createdSale.id, null, finalState, operator.id);
-      await syncLoteCommercialStateTx(client, schema, lote?.id ?? null, finalState);
+      await syncSaleLotsCommercialStateTx(client, schema, createdSale.id, finalState, lotePrincipal?.id ?? null);
 
       return createdSale.id;
     });
@@ -1043,6 +1259,14 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
       const payments = await getSalePaymentsTx(client, schema, existing.id);
       const montoInicialTotal = getInitialTotalFromPayments(payments);
       const asesorId = await resolveAsesorIdForUpdate(client, schema, operator, existing, patchInput);
+      const hasLotesPatch =
+        Object.prototype.hasOwnProperty.call(patchInput || {}, "loteCodigo") ||
+        Object.prototype.hasOwnProperty.call(patchInput || {}, "loteCodigos") ||
+        Object.prototype.hasOwnProperty.call(patchInput || {}, "lotes");
+      const lotes = hasLotesPatch
+        ? await resolveSaleLotesForMutationTx(client, schema, patchInput, existing.id)
+        : [];
+      const primaryLoteId = hasLotesPatch ? lotes[0]?.id ?? null : existing.primary_lote_id;
 
       let clienteId = existing.cliente_id;
       if (patchInput?.cliente?.dni) {
@@ -1119,11 +1343,15 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
         ]
       );
 
+      if (hasLotesPatch) {
+        await replaceSaleLotesTx(client, schema, existing.id, lotes);
+      }
+
       if (existing.estado_venta !== nextState) {
         await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
       }
 
-      await syncLoteCommercialStateTx(client, schema, existing.lote_id, nextState);
+      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState, primaryLoteId);
       return existing.id;
     });
   } catch (error) {
@@ -1196,7 +1424,7 @@ export const addSalePaymentAsync = async (username, pin, saleId, paymentInput) =
         await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
       }
 
-      await syncLoteCommercialStateTx(client, schema, existing.lote_id, nextState);
+      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState, existing.primary_lote_id);
       return existing.id;
     });
   } catch (error) {
@@ -1293,7 +1521,7 @@ export const updateSalePaymentAsync = async (username, pin, saleId, paymentId, p
         await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
       }
 
-      await syncLoteCommercialStateTx(client, schema, existing.lote_id, nextState);
+      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState, existing.primary_lote_id);
       return existing.id;
     });
   } catch (error) {
@@ -1376,7 +1604,7 @@ export const deleteSalePaymentAsync = async (username, pin, saleId, paymentId) =
         await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
       }
 
-      await syncLoteCommercialStateTx(client, schema, existing.lote_id, nextState);
+      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState, existing.primary_lote_id);
       return existing.id;
     });
   } catch (error) {

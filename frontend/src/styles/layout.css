@@ -91,12 +91,14 @@
 }
 
 .brand__title {
-  font-size: clamp(1rem, 2.8vw, 1.8rem);
+  font-size: clamp(0.7rem, 2.8vw, 1.8rem);
   font-weight: 700;
   letter-spacing: 0.04em;
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
   max-width: min(80vw, 980px);
   color: var(--color-text);
 }
@@ -470,7 +472,7 @@
   }
 
   .brand__title {
-    font-size: 0.92rem;
+    font-size: 1.12rem;
     max-width: calc(100vw - 86px);
     line-height: 1.1;
   }

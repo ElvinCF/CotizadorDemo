@@ -194,6 +194,45 @@ Indice unico parcial muy necesario:
 
 ### `devsimple.pagos`
 
+### `public.venta_lotes` (fase 5 multi-lote)
+
+Objetivo:
+
+- representar la relacion N:N entre expediente de venta y lotes
+- habilitar multi-lote sin perder compatibilidad con `ventas.lote_id`
+
+Columnas:
+
+- `id uuid pk default gen_random_uuid()`
+- `venta_id uuid not null`
+- `lote_id uuid not null`
+- `orden integer not null default 1`
+- `created_at timestamptz not null default now()`
+
+Relaciones:
+
+- `venta_id -> public.ventas(id) on delete cascade`
+- `lote_id -> public.lotes(id)`
+
+Restricciones:
+
+- `unique (venta_id, lote_id)`
+- `orden >= 1`
+- trigger `trg_venta_lotes_check_activo` usando funcion `check_venta_lote_activo_unico()`
+  - bloquea duplicidad de lote en ventas activas (`estado_venta <> 'CAIDA'`)
+  - levanta constraint logical: `venta_lotes_lote_activo_unique`
+
+Indices:
+
+- `venta_lotes_venta_id_idx`
+- `venta_lotes_lote_id_idx`
+- `venta_lotes_venta_orden_idx`
+
+Nota de compatibilidad:
+
+- `ventas.lote_id` se mantiene como espejo legado temporal (primer lote del expediente)
+- la logica nueva de backend usa `venta_lotes` como fuente primaria
+
 Objetivo:
 
 - registrar los pagos reales de cada venta

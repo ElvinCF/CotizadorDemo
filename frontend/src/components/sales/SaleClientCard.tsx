@@ -53,7 +53,7 @@ export default function SaleClientCard({
   const addButtonAction = hasPrimaryClient ? onAddCliente2 : onEditCliente;
 
   return (
-    <article className="sales-form-card sales-client-card">
+    <article className="sales-form-card sales-client-card sales-mobile-keep-header">
       <header className="sales-client-card__header">
         <h3>{title}</h3>
         {showAddButton ? (

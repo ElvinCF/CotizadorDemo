@@ -3,20 +3,22 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import AdminTextInput from "../../components/admin/AdminTextInput";
+import DataTable from "../../components/data-table/DataTable";
 import SaleClientCard from "../../components/sales/SaleClientCard";
 import SaleClientModal from "../../components/sales/SaleClientModal";
 import {
   SaleContractSummaryCard,
   SaleDataCard,
   SaleFinancingCard,
-  SaleLotCard,
 } from "../../components/sales/SaleEditableCard";
 import SalePaymentModal from "../../components/sales/SalePaymentModal";
 import { SalePaymentsModal, SalePaymentsOverviewCard } from "../../components/sales/SalePaymentsCard";
 import SaleSettingsModal from "../../components/sales/SaleSettingsModal";
 import { readCachedCotizadorQuote } from "../../domain/cotizador";
+import { formatArea, formatMoney } from "../../domain/formatters";
 import type { Lote } from "../../domain/types";
 import type { AdminUser } from "../../domain/adminUsers";
+import { projectInfo } from "../../data/projectInfo";
 import type {
   InitialPaymentInput,
   SalePayment,
@@ -29,7 +31,7 @@ import type {
 import { formatSaleStateLabel, saleStateClassName } from "../../domain/ventas";
 import { listAdminUsers } from "../../services/adminUsers";
 import { loadLotesFromApi } from "../../services/lotes";
-import { addSalePayment, createSale, deleteSalePayment, findClientByDni, getSaleById, updateSale, updateSalePayment } from "../../services/ventas";
+import { addSalePayment, createSale, deleteSalePayment, findClientByDni, getSaleById, listSaleAccessByLot, updateSale, updateSalePayment } from "../../services/ventas";
 
 const todayInput = () => {
   const now = new Date();
@@ -55,6 +57,7 @@ const emptyClient = {
 
 const createEmptySaleForm = (loteCodigo = "", targetState: SaleState = "SEPARADA"): SaleFormValues => ({
   loteCodigo,
+  loteCodigos: loteCodigo ? [loteCodigo] : [],
   asesorId: null,
   fechaVenta: todayInput(),
   fechaPagoPactada: "",
@@ -86,6 +89,36 @@ const computeInitialTotal = (payments: InitialPaymentInput[]) =>
 
 const filterFilledInitialPayments = (payments: InitialPaymentInput[]) =>
   payments.filter((payment) => String(payment.monto || "").trim() !== "");
+
+const parseLotCodesFromParam = (rawValue: string | null) =>
+  [...new Set(String(rawValue ?? "")
+    .split(",")
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean))];
+
+const PROFORMA_SALE_DRAFT_KEY = "arenas.proforma.to.sale.v1";
+
+type SaleLotRow = {
+  rowId: string;
+  mz: string;
+  loteCode: string;
+};
+
+type ProformaSaleDraft = {
+  loteCodigos: string[];
+  precioVenta?: number;
+  inicial?: number;
+  separacion?: number;
+  meses?: number;
+  montoCuota?: number;
+  tipoFinanciamiento?: SaleFormValues["tipoFinanciamiento"];
+  cliente?: SaleFormValues["cliente"];
+};
+
+const createLotRowId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `sale-lot-row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const computePaidInstallments = (payments: SalePayment[]) =>
   payments.filter((payment) => payment.tipoPago === "CUOTA").reduce((acc, payment) => acc + Number(payment.monto || 0), 0);
@@ -214,6 +247,20 @@ const IconSpinner = () => (
   </svg>
 );
 
+const IconTrash = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M4 7h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path
+      d="m9 7 .6-2h4.8L15 7m-8.2 0 .9 11.1a2 2 0 0 0 2 1.9h4.6a2 2 0 0 0 2-1.9L17.2 7"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M10 11v5M14 11v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
 type MobileAccordionSectionProps = {
   title: string;
   defaultOpen?: boolean;
@@ -241,6 +288,8 @@ type SaleExpedienteTemplateProps = {
   onSave: () => void;
   onOpenSettings?: () => void;
   onMobilePayment?: () => void;
+  onPrintSeparation?: (() => void) | null;
+  printSeparationDisabled?: boolean;
   mainSections: ExpedienteSection[];
   sideSections: ExpedienteSection[];
 };
@@ -278,6 +327,8 @@ function SaleExpedienteTemplate({
   onSave,
   onOpenSettings,
   onMobilePayment,
+  onPrintSeparation = null,
+  printSeparationDisabled = true,
   mainSections,
   sideSections,
 }: SaleExpedienteTemplateProps) {
@@ -334,7 +385,10 @@ function SaleExpedienteTemplate({
           </div>
         </div>
         <div className="sales-form-page__summary">
-          <DisabledPrintMenu />
+          <PrintMenu
+            onPrintSeparation={onPrintSeparation}
+            printSeparationDisabled={printSeparationDisabled}
+          />
           {showSettings ? (
             <button
               type="button"
@@ -399,32 +453,34 @@ function SaleInitialPaymentsCard({
   onChange: (index: number, field: keyof InitialPaymentInput, value: string) => void;
 }) {
   return (
-    <article className="sales-form-card">
+    <article className="sales-form-card sales-form-card--compact-payments">
       <header className="sales-client-card__header">
         <h3>Pagos iniciales</h3>
       </header>
       <div className="sales-form-fields sales-form-fields--payments">
         {payments.map((payment, index) => (
           <div key={payment.tipoPago} className="sales-payment-inline">
-            <strong>{payment.tipoPago}</strong>
-            <div className="sales-payment-inline__date">
-              <AdminTextInput type="date" value={payment.fechaPago} onChange={(event) => onChange(index, "fechaPago", event.target.value)} />
-            </div>
-            <div className="sales-payment-inline__amount">
-              <AdminTextInput
-                type="number"
-                step="0.01"
-                placeholder="Monto"
-                value={payment.monto}
-                onChange={(event) => onChange(index, "monto", event.target.value)}
-              />
-            </div>
-            <div className="sales-payment-inline__note">
-              <AdminTextInput
-                placeholder="Observacion"
-                value={payment.observacion}
-                onChange={(event) => onChange(index, "observacion", event.target.value)}
-              />
+            <strong className="sales-payment-inline__type">{payment.tipoPago}</strong>
+            <div className="sales-payment-inline__fields">
+              <div className="sales-payment-inline__date">
+                <AdminTextInput type="date" value={payment.fechaPago} onChange={(event) => onChange(index, "fechaPago", event.target.value)} />
+              </div>
+              <div className="sales-payment-inline__amount">
+                <AdminTextInput
+                  type="number"
+                  step="0.01"
+                  placeholder="Monto"
+                  value={payment.monto}
+                  onChange={(event) => onChange(index, "monto", event.target.value)}
+                />
+              </div>
+              <div className="sales-payment-inline__note">
+                <AdminTextInput
+                  placeholder="Observacion"
+                  value={payment.observacion}
+                  onChange={(event) => onChange(index, "observacion", event.target.value)}
+                />
+              </div>
             </div>
           </div>
         ))}
@@ -433,18 +489,35 @@ function SaleInitialPaymentsCard({
   );
 }
 
-function DisabledPrintMenu() {
+function PrintMenu({
+  onPrintSeparation,
+  printSeparationDisabled,
+}: {
+  onPrintSeparation?: (() => void) | null;
+  printSeparationDisabled?: boolean;
+}) {
+  const separationDisabled = printSeparationDisabled || !onPrintSeparation;
   return (
     <details className="sales-header-print-menu">
-      <summary className="btn ghost sales-header-action sales-header-action--print-menu is-disabled" aria-disabled="true">
+      <summary className="btn ghost sales-header-action sales-header-action--print-menu" aria-label="Imprimir">
         <IconPrinter />
         <span className="sales-header-action__label">Imprimir</span>
         <IconChevronDown />
       </summary>
       <div className="sales-header-print-menu__dropdown">
-        <button type="button" className="btn ghost sales-header-print-menu__item" disabled>
+        <button
+          type="button"
+          className="btn ghost sales-header-print-menu__item"
+          disabled={separationDisabled}
+          onClick={(event) => {
+            if (!onPrintSeparation) return;
+            const details = event.currentTarget.closest("details");
+            if (details) details.removeAttribute("open");
+            onPrintSeparation();
+          }}
+        >
           <IconPrinter />
-          <span>Separacion</span>
+          <span>Ficha separacion</span>
         </button>
         <button type="button" className="btn ghost sales-header-print-menu__item" disabled>
           <IconPrinter />
@@ -463,13 +536,22 @@ const normalizeClientForCompare = (client: SaleFormValues["cliente"] | null | un
   ocupacion: String(client?.ocupacion || "").trim(),
 });
 
+const escapeHtml = (value: string) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 export default function SaleFormPage() {
   const { id: saleId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { role, loginUsername, loginPin } = useAuth();
   const isEdit = Boolean(saleId);
-  const [selectedLote, setSelectedLote] = useState<Lote | null>(null);
+  const [lotesCatalog, setLotesCatalog] = useState<Lote[]>([]);
+  const [lotRows, setLotRows] = useState<SaleLotRow[]>([]);
   const [sale, setSale] = useState<SaleRecord | null>(null);
   const [form, setForm] = useState<SaleFormValues>(() =>
     createEmptySaleForm("", searchParams.get("target") === "VENDIDO" ? "INICIAL_PAGADA" : "SEPARADA")
@@ -486,6 +568,7 @@ export default function SaleFormPage() {
   const [notice, setNotice] = useState<string>("");
   const [advisorOptions, setAdvisorOptions] = useState<{ id: string; name: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [activeSaleByLotCode, setActiveSaleByLotCode] = useState<Record<string, string>>({});
 
   const goBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -499,11 +582,27 @@ export default function SaleFormPage() {
     const run = async () => {
       try {
         setLoading(true);
+        const [allLotes, lotAccess] = await Promise.all([
+          loadLotesFromApi(),
+          listSaleAccessByLot().catch(() => []),
+        ]);
+        setLotesCatalog(allLotes);
+        setActiveSaleByLotCode(
+          lotAccess.reduce<Record<string, string>>((acc, item) => {
+            const lotCode = String(item.loteCodigo || "").trim().toUpperCase();
+            if (!lotCode) return acc;
+            acc[lotCode] = item.saleId;
+            return acc;
+          }, {})
+        );
         if (isEdit && saleId) {
           const detail = await getSaleById(saleId);
           setSale(detail);
+          const editLotCodes =
+            detail.lotes?.map((item) => item.codigo).filter(Boolean) ?? (detail.lote?.codigo ? [detail.lote.codigo] : []);
           setForm({
             loteCodigo: detail.lote?.codigo ?? "",
+            loteCodigos: editLotCodes,
             asesorId: detail.asesor?.id ?? null,
             fechaVenta: detail.fechaVenta.slice(0, 10),
             fechaPagoPactada: detail.fechaPagoPactada?.slice(0, 10) ?? "",
@@ -531,47 +630,92 @@ export default function SaleFormPage() {
               : null,
             pagosIniciales: [defaultInitialPayment("SEPARACION"), defaultInitialPayment("INICIAL")],
           });
-          setSelectedLote(
-            detail.lote
-              ? {
-                  id: detail.lote.codigo,
-                  dbId: detail.lote.id,
-                  mz: detail.lote.mz,
-                  lote: detail.lote.lote,
-                  areaM2: detail.lote.areaM2,
-                  price: detail.lote.precioReferencial,
-                  condicion: detail.lote.estadoComercial,
-                }
-              : null
+          setLotRows(
+            editLotCodes.map((code) => {
+              const fromCatalog = allLotes.find((item) => item.id === code);
+              const fromSale = detail.lotes?.find((item) => item.codigo === code);
+              return {
+                rowId: createLotRowId(),
+                mz: fromCatalog?.mz ?? fromSale?.mz ?? "",
+                loteCode: code,
+              };
+            })
           );
           return;
         }
 
-        const loteCode = searchParams.get("lote") || "";
-        const allLotes = await loadLotesFromApi();
-        const lote = allLotes.find((item) => item.id === loteCode) ?? null;
+        let draftFromProforma: ProformaSaleDraft | null = null;
+        const rawDraft = typeof window !== "undefined" ? window.sessionStorage.getItem(PROFORMA_SALE_DRAFT_KEY) : null;
+        if (rawDraft) {
+          try {
+            draftFromProforma = JSON.parse(rawDraft) as ProformaSaleDraft;
+          } catch {
+            draftFromProforma = null;
+          }
+          if (typeof window !== "undefined") {
+            window.sessionStorage.removeItem(PROFORMA_SALE_DRAFT_KEY);
+          }
+        }
+
+        const loteCode = searchParams.get("lote") || draftFromProforma?.loteCodigos?.[0] || "";
+        const lotCodesFromQuery = parseLotCodesFromParam(searchParams.get("lotes"));
+        const lotCodesFromDraft = Array.isArray(draftFromProforma?.loteCodigos)
+          ? draftFromProforma!.loteCodigos.map((code) => String(code).trim().toUpperCase()).filter(Boolean)
+          : [];
+        const mergedLotCodes = [...new Set([...(loteCode ? [loteCode] : []), ...lotCodesFromQuery, ...lotCodesFromDraft])];
+        const selectedFromCatalog = loteCode ? allLotes.find((item) => item.id === loteCode) ?? null : null;
         const cachedQuote = loteCode ? readCachedCotizadorQuote(loteCode) : null;
         const cachedCuotas = Math.min(Math.max(Math.round(cachedQuote?.cuotas ?? 24), 1), 36);
         const cachedInicial = Math.max(Number(cachedQuote?.inicialMonto ?? 0), 0);
-        const cachedPrecioVenta = Math.max(Number(cachedQuote?.precio ?? lote?.price ?? 0), 0);
-        const cachedMontoCuota =
-          cachedCuotas > 0 ? Number((Math.max(cachedPrecioVenta - cachedInicial, 0) / cachedCuotas).toFixed(2)) : 0;
-        setSelectedLote(lote);
+        const cachedPrecioVenta = Math.max(Number(cachedQuote?.precio ?? selectedFromCatalog?.price ?? 0), 0);
+        const draftCuotas = Math.min(Math.max(Math.round(Number(draftFromProforma?.meses ?? cachedCuotas)), 1), 36);
+        const draftInicial = Math.max(Number(draftFromProforma?.inicial ?? cachedInicial), 0);
+        const draftSeparacion = Math.max(Number(draftFromProforma?.separacion ?? 0), 0);
+        const draftPrecioVenta = Math.max(Number(draftFromProforma?.precioVenta ?? cachedPrecioVenta), 0);
+        const draftMontoCuota =
+          draftCuotas > 0
+            ? Number(
+                (
+                  Number.isFinite(Number(draftFromProforma?.montoCuota))
+                    ? Number(draftFromProforma?.montoCuota)
+                    : Math.max(draftPrecioVenta - draftInicial - draftSeparacion, 0) / draftCuotas
+                ).toFixed(2)
+              )
+            : 0;
+
         setForm((current) => ({
           ...current,
           loteCodigo: loteCode,
-          precioVenta: String(cachedPrecioVenta || 0),
-          cantidadCuotas: String(cachedCuotas),
-          montoCuota: String(cachedMontoCuota),
+          loteCodigos: mergedLotCodes,
+          precioVenta: String(draftPrecioVenta || 0),
+          cantidadCuotas: String(draftCuotas),
+          montoCuota: String(draftMontoCuota),
+          tipoFinanciamiento: draftFromProforma?.tipoFinanciamiento ?? current.tipoFinanciamiento,
+          cliente: draftFromProforma?.cliente ? { ...draftFromProforma.cliente } : current.cliente,
           pagosIniciales: current.pagosIniciales.map((payment) =>
             payment.tipoPago === "INICIAL"
               ? {
                   ...payment,
-                  monto: cachedInicial > 0 ? String(cachedInicial) : payment.monto,
+                  monto: draftInicial > 0 ? String(draftInicial) : payment.monto,
                 }
+              : payment.tipoPago === "SEPARACION"
+                ? {
+                    ...payment,
+                    monto: draftSeparacion > 0 ? String(draftSeparacion) : payment.monto,
+                  }
               : payment
           ),
         }));
+        setLotRows(
+          mergedLotCodes.map((code) => {
+            const fromCatalog = allLotes.find((item) => item.id === code);
+            return {
+              rowId: createLotRowId(),
+              mz: fromCatalog?.mz ?? "",
+              loteCode: code,
+            };
+          })
+        );
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "No se pudo cargar la venta.");
       } finally {
@@ -581,6 +725,21 @@ export default function SaleFormPage() {
 
     void run();
   }, [isEdit, saleId, searchParams]);
+
+  useEffect(() => {
+    const nextCodes = [...new Set(lotRows.map((row) => row.loteCode).filter(Boolean))];
+    setForm((current) => {
+      const currentCodes = current.loteCodigos ?? (current.loteCodigo ? [current.loteCodigo] : []);
+      if (JSON.stringify(currentCodes) === JSON.stringify(nextCodes)) {
+        return current;
+      }
+      return {
+        ...current,
+        loteCodigo: nextCodes[0] ?? "",
+        loteCodigos: nextCodes,
+      };
+    });
+  }, [lotRows]);
 
   useEffect(() => {
     if (role !== "admin" || !loginUsername || !loginPin) {
@@ -782,6 +941,8 @@ export default function SaleFormPage() {
     try {
       if (isEdit && saleId) {
         const payload: SalePatchPayload = {
+          loteCodigo: form.loteCodigo,
+          loteCodigos: form.loteCodigos ?? (form.loteCodigo ? [form.loteCodigo] : []),
           ...(role === "admin" ? { asesorId: form.asesorId ?? null } : {}),
           fechaVenta: form.fechaVenta,
           fechaPagoPactada: form.fechaPagoPactada || null,
@@ -802,6 +963,7 @@ export default function SaleFormPage() {
 
       const created = await createSale({
         ...form,
+        loteCodigos: form.loteCodigos ?? (form.loteCodigo ? [form.loteCodigo] : []),
         pagosIniciales: filterFilledInitialPayments(form.pagosIniciales),
         asesorId: role === "admin" ? form.asesorId ?? currentUserId ?? null : currentUserId ?? null,
       });
@@ -915,84 +1077,358 @@ export default function SaleFormPage() {
   const suggestedDefaultPaymentAmount =
     suggestedNextPaymentType === "CUOTA" ? String(Number(sale?.montoCuota ?? 0).toFixed(2)) : "";
 
-  const lotPreview = sale?.lote
-    ? {
-        codigo: sale.lote.codigo,
-        mz: sale.lote.mz,
-        lote: sale.lote.lote,
-        areaM2: sale.lote.areaM2,
-        estadoComercial: sale.lote.estadoComercial,
-        precioReferencial: sale.lote.precioReferencial,
-      }
-    : selectedLote
-      ? {
-          codigo: selectedLote.id,
-          mz: selectedLote.mz,
-          lote: selectedLote.lote,
-          areaM2: selectedLote.areaM2,
-          estadoComercial: selectedLote.condicion,
-          precioReferencial: selectedLote.price,
-        }
-      : null;
+  const addLotRow = () => {
+    setLotRows((current) => [...current, { rowId: createLotRowId(), mz: "", loteCode: "" }]);
+  };
+
+  const updateLotRowMz = (rowId: string, mz: string) => {
+    setLotRows((current) => current.map((row) => (row.rowId === rowId ? { ...row, mz, loteCode: "" } : row)));
+  };
+
+  const updateLotRowCode = (rowId: string, loteCode: string) => {
+    const selected = lotesCatalog.find((item) => item.id === loteCode) ?? null;
+    setLotRows((current) =>
+      current.map((row) =>
+        row.rowId === rowId
+          ? { ...row, loteCode, mz: selected?.mz ?? row.mz }
+          : row
+      )
+    );
+  };
+
+  const removeLotRow = (rowId: string) => {
+    setLotRows((current) => current.filter((row) => row.rowId !== rowId));
+  };
 
   const renderAdvisorCard = (disabled: boolean) => (
-    <article className="sales-form-card sales-advisor-card">
-      <header className="sales-client-card__header">
+    <article className="sales-form-card sales-advisor-card sales-mobile-keep-header">
+      <header className="sales-client-card__header sales-advisor-card__header">
         <h3>Asesor asignado</h3>
+        {role === "admin" ? (
+          <select
+            className="sales-advisor-card__select"
+            value={form.asesorId ?? ""}
+            disabled={disabled}
+            onChange={(event) => setForm((current) => ({ ...current, asesorId: event.target.value || null }))}
+          >
+            <option value="">Sin asesor</option>
+            {advisorOptions.map((advisor) => (
+              <option key={advisor.id} value={advisor.id}>
+                {advisor.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
       </header>
       <div className="sales-form-fields">
-        {role === "admin" ? (
-          <label className="sales-form-fields__full">
-            Usuario responsable
-            <select
-              value={form.asesorId ?? ""}
-              disabled={disabled}
-              onChange={(event) => setForm((current) => ({ ...current, asesorId: event.target.value || null }))}
-            >
-              <option value="">Sin asesor</option>
-              {advisorOptions.map((advisor) => (
-                <option key={advisor.id} value={advisor.id}>
-                  {advisor.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
+        {role !== "admin" ? (
           <label className="sales-form-fields__full">
             Usuario responsable
             <AdminTextInput value={selectedAdvisorLabel} disabled />
           </label>
-        )}
+        ) : null}
       </div>
     </article>
   );
 
-  const baseMainSections: ExpedienteSection[] = [
-    {
-      key: "lot",
-      title: "Datos del lote",
-      node: <SaleLotCard lote={lotPreview} />,
-    },
-    {
-      key: "sale",
-      title: "Datos de la venta",
-      node: (
-        <SaleDataCard
-          form={form}
-          role={role}
-          disabled={isEdit ? !canEditCurrentSale : false}
-          onFormChange={(updater) => setForm((current) => updater(current))}
-        />
-      ),
-    },
-    {
-      key: "summary",
-      title: "Resumen del contrato",
-      node: <SaleContractSummaryCard preview={preview} />,
-    },
-  ];
+  const renderSaleLotsCard = (disabled: boolean) => {
+    const currentSelectedCodes = lotRows.map((row) => row.loteCode).filter(Boolean);
+    const selectableLots = lotesCatalog.filter((item) => {
+      if (currentSelectedCodes.includes(item.id)) {
+        return true;
+      }
+      const activeSaleId = activeSaleByLotCode[item.id] ?? null;
+      if (!activeSaleId) {
+        return true;
+      }
+      return isEdit && Boolean(saleId) && activeSaleId === saleId;
+    });
+    const mzOptions = Array.from(new Set(selectableLots.map((item) => item.mz).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, "es", { numeric: true, sensitivity: "base" })
+    );
+    const totalPrecioRef = lotRows.reduce((sum, row) => {
+      const selected = selectableLots.find((item) => item.id === row.loteCode) ?? null;
+      return sum + Math.max(Number(selected?.price ?? 0), 0);
+    }, 0);
+    const selectedCount = lotRows.filter((row) => row.loteCode).length;
 
-  const baseClientSection: ExpedienteSection = {
+    return (
+      <article className="sales-form-card sales-editable-card sales-editable-card--lot-list">
+        <header className="sales-section-card__header">
+          <h3>{selectedCount > 1 ? "Datos de los lotes" : "Datos del lote"}</h3>
+        </header>
+        <DataTable className="proforma-lote-table-view sale-lot-list-table">
+          <table className="sales-table proforma-lote-table">
+            <thead>
+              <tr>
+                <th>MZ</th>
+                <th>Lote</th>
+                <th>Precio m2</th>
+                <th>Area total (m2)</th>
+                <th>Precio ref.</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {lotRows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="muted">
+                    Sin lotes asociados.
+                  </td>
+                </tr>
+              ) : (
+                lotRows.map((row) => {
+                  const selectedCodesExceptCurrent = lotRows
+                    .filter((candidate) => candidate.rowId !== row.rowId)
+                    .map((candidate) => candidate.loteCode)
+                    .filter(Boolean);
+                  const lotesByMz = selectableLots
+                    .filter((item) => item.mz === row.mz)
+                    .filter((item) => !selectedCodesExceptCurrent.includes(item.id) || item.id === row.loteCode)
+                    .sort((a, b) => a.lote - b.lote);
+                  const selectedLoteRow = selectableLots.find((item) => item.id === row.loteCode) ?? null;
+
+                  return (
+                    <tr key={row.rowId}>
+                      <td>
+                        <select
+                          value={row.mz}
+                          disabled={disabled}
+                          onChange={(event) => updateLotRowMz(row.rowId, event.target.value)}
+                        >
+                          <option value="">Mz</option>
+                          {mzOptions.map((mz) => (
+                            <option key={mz} value={mz}>
+                              {mz}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          value={row.loteCode}
+                          disabled={disabled || !row.mz}
+                          onChange={(event) => updateLotRowCode(row.rowId, event.target.value)}
+                        >
+                          <option value="">Lt</option>
+                          {lotesByMz.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.lote}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        {selectedLoteRow && Number(selectedLoteRow.areaM2) > 0
+                          ? formatMoney(Math.max(Number(selectedLoteRow.price ?? 0), 0) / Number(selectedLoteRow.areaM2))
+                          : "-"}
+                      </td>
+                      <td>{formatArea(selectedLoteRow?.areaM2 ?? null)}</td>
+                      <td>{selectedLoteRow ? formatMoney(selectedLoteRow.price) : "-"}</td>
+                      <td>
+                        <button
+                          className="btn ghost icon-only"
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => removeLotRow(row.rowId)}
+                          aria-label="Eliminar lote"
+                        >
+                          <IconTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={2}>
+                  <button className="btn ghost proforma-add-lote" type="button" disabled={disabled} onClick={addLotRow}>
+                    Agregar lote
+                  </button>
+                </td>
+                <td />
+                <td />
+                <td className="proforma-lote-table__total">
+                  <span className="proforma-lote-table__total-label">Total precio:</span>
+                  <span>{formatMoney(totalPrecioRef)}</span>
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </DataTable>
+      </article>
+    );
+  };
+
+  const lotSectionTitle = lotRows.filter((row) => row.loteCode).length > 1
+    ? "Datos de los lotes"
+    : "Datos del lote";
+
+  const lotesDisabled = isEdit ? !canEditCurrentSale : false;
+
+  const lotsSection: ExpedienteSection = {
+    key: "lots",
+    title: lotSectionTitle,
+    node: renderSaleLotsCard(lotesDisabled),
+  };
+
+  const handlePrintSeparation = () => {
+    const activeLotCodes = (form.loteCodigos ?? []).filter(Boolean);
+    const lotsText = activeLotCodes.length > 0 ? activeLotCodes.join(", ") : form.loteCodigo || "-";
+    const separacionAmount =
+      sale?.pagos.find((payment) => payment.tipoPago === "SEPARACION")?.monto ??
+      asNumber(form.pagosIniciales.find((payment) => payment.tipoPago === "SEPARACION")?.monto ?? "");
+    const inicialAmount =
+      sale?.montoInicialTotal ??
+      asNumber(form.pagosIniciales.find((payment) => payment.tipoPago === "INICIAL")?.monto ?? "");
+    const precioVenta = asNumber(form.precioVenta);
+    const montoFinanciado = Math.max(precioVenta - inicialAmount - separacionAmount, 0);
+    const cuotas = Math.max(Number(form.cantidadCuotas || 0), 1);
+    const cuotaMonto = asNumber(form.montoCuota) || Number((montoFinanciado / cuotas).toFixed(2));
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, "0");
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const year = String(today.getFullYear());
+    const clientName = form.cliente.nombreCompleto || "-";
+    const clientDni = form.cliente.dni || "-";
+    const clientOcupacion = form.cliente.ocupacion || "-";
+    const clientPhone = form.cliente.celular || "-";
+    const clientAddress = form.cliente.direccion || "-";
+    const advisorName = selectedAdvisorLabel || "-";
+    const advisorPhone = "-";
+    const projectName = projectInfo.name || "Arenas Malabrigo";
+    const projectLocation = projectInfo.locationText || "-";
+    const empresaRuc = projectInfo.ownerRuc || "20606633131";
+    const empresaNombre = projectInfo.owner || "HOLA TRUJILLO S.A.C";
+
+    const printHtml = `
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <title>Ficha de separacion</title>
+          <style>
+            @page { size: A4; margin: 14mm; }
+            body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #1d1d1d; }
+            .doc { width: 100%; }
+            .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+            .head img { height: 40px; object-fit: contain; }
+            .title { text-align: center; font-size: 20px; font-weight: 700; text-decoration: underline; margin: 8px 0 14px; }
+            p { font-size: 14.5px; line-height: 1.46; margin: 8px 0; }
+            .line { display: inline-block; min-width: 120px; border-bottom: 1px solid #222; font-weight: 700; padding: 0 4px 1px; }
+            .line.wide { min-width: 260px; }
+            .line.mid { min-width: 170px; }
+            .line.short { min-width: 90px; }
+            .summary { margin: 14px 0 6px; display: grid; gap: 6px; font-size: 15px; }
+            .summary-row { display: flex; align-items: baseline; gap: 8px; }
+            .note { margin-top: 12px; font-style: italic; font-weight: 700; text-align: center; }
+            .date-row { margin-top: 20px; text-align: right; font-size: 16px; }
+            .signatures { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+            .signature { min-height: 130px; }
+            .signature .field { margin-top: 6px; font-size: 15px; }
+            .advisor { margin-top: 22px; width: 48%; }
+            .accounts { margin-top: 18px; text-align: right; font-family: Arial, sans-serif; font-size: 14px; }
+            .accounts strong { color: #c96f28; font-size: 24px; line-height: 1.05; display: inline-block; text-align: left; }
+            .accounts .bank { margin-top: 6px; font-weight: 700; color: #1f3c7a; }
+          </style>
+        </head>
+        <body>
+          <div class="doc">
+            <div class="head">
+              <img src="/assets/HOLA-TRUJILLO_LOGOTIPO.webp" alt="Hola Trujillo" />
+              <img src="/assets/Logo_Arenas_Malabrigo.svg" alt="Arenas Malabrigo" />
+            </div>
+            <div class="title">PRE-ACUERDO DE PAGO POR SEPARACION DE LOTE</div>
+            <p>
+              Por el presente documento, el(la) sr(a) <span class="line wide">${escapeHtml(clientName)}</span> de ocupacion
+              <span class="line mid">${escapeHtml(clientOcupacion)}</span>, identificado(a) con DNI
+              N° <span class="line mid">${escapeHtml(clientDni)}</span>, domiciliado en
+              <span class="line wide">${escapeHtml(clientAddress)}</span>, realizo el deposito de
+              S/ <span class="line short">${escapeHtml(formatMoney(separacionAmount).replace("S/", "").trim())}</span>
+              por concepto de pago de separacion del lote
+              <span class="line mid">${escapeHtml(lotsText)}</span> del proyecto denominado
+              <strong>${escapeHtml(projectName)}</strong>, ubicado en ${escapeHtml(projectLocation)}, a nombre de la empresa
+              <strong>${escapeHtml(empresaNombre)}</strong> con RUC ${escapeHtml(empresaRuc)}.
+            </p>
+
+            <div class="summary">
+              <div class="summary-row"><strong>Precio total:</strong> S/ <span class="line mid">${escapeHtml(formatMoney(precioVenta).replace("S/", "").trim())}</span></div>
+              <div class="summary-row"><strong>Monto de separacion:</strong> S/ <span class="line mid">${escapeHtml(formatMoney(separacionAmount).replace("S/", "").trim())}</span></div>
+              <div class="summary-row"><strong>Inicial:</strong> S/ <span class="line mid">${escapeHtml(formatMoney(inicialAmount).replace("S/", "").trim())}</span></div>
+              <div class="summary-row"><strong>Fecha de pago de la inicial:</strong> <span class="line mid">${escapeHtml(form.fechaPagoPactada || form.fechaVenta || "-")}</span></div>
+              <div class="summary-row"><strong>Tiempo de pago total:</strong> <span class="line short">${escapeHtml(String(cuotas))}</span> meses</div>
+              <div class="summary-row"><strong>Monto a financiar:</strong> S/ <span class="line mid">${escapeHtml(formatMoney(montoFinanciado).replace("S/", "").trim())}</span> &nbsp; <strong>Cuota:</strong> S/ <span class="line short">${escapeHtml(formatMoney(cuotaMonto).replace("S/", "").trim())}</span></div>
+            </div>
+
+            <p>
+              En tal sentido queda acordado que, en el plazo indicado, el promitente comprador se compromete
+              a cumplir con el cronograma pactado. Se firma el presente documento en senal de conformidad,
+              adjuntando copia de DNI y voucher de pagos para fines correspondientes.
+            </p>
+            <p class="note">
+              Asimismo, queda estipulado que al no cumplir con el pago o desistir de la compra,
+              el comprador pierde automaticamente su separacion sin opcion a reclamo.
+            </p>
+
+            <div class="date-row">Trujillo, <span class="line short">${day}</span> de <span class="line short">${month}</span> del 20<span class="line short">${year.slice(-2)}</span></div>
+
+            <div class="signatures">
+              <div class="signature">
+                <div class="field"><strong>Firma</strong></div>
+                <div class="field"><strong>Nombre:</strong> ${escapeHtml(clientName)}</div>
+                <div class="field"><strong>DNI:</strong> ${escapeHtml(clientDni)}</div>
+                <div class="field"><strong>Ocupacion:</strong> ${escapeHtml(clientOcupacion)}</div>
+                <div class="field"><strong>Celular:</strong> ${escapeHtml(clientPhone)}</div>
+              </div>
+              <div class="signature">
+                <div class="field"><strong>Firma</strong></div>
+                <div class="field"><strong>Nombre:</strong> _____________________</div>
+                <div class="field"><strong>DNI:</strong> _____________________</div>
+                <div class="field"><strong>Ocupacion:</strong> _____________________</div>
+                <div class="field"><strong>Celular:</strong> _____________________</div>
+              </div>
+            </div>
+
+            <div class="advisor">
+              <div class="field"><strong>Firma</strong></div>
+              <div class="field"><strong>Asesor:</strong> ${escapeHtml(advisorName)}</div>
+              <div class="field"><strong>Celular:</strong> ${escapeHtml(advisorPhone)}</div>
+            </div>
+
+            <div class="accounts">
+              <strong>CUENTAS<br/>OFICIALES</strong>
+              <div class="bank">BCP: 5707328977043</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank", "width=1024,height=900");
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const saleSection: ExpedienteSection = {
+    key: "sale",
+    title: "Datos de la venta",
+    node: (
+      <SaleDataCard
+        form={form}
+        role={role}
+        disabled={isEdit ? !canEditCurrentSale : false}
+        onFormChange={(updater) => setForm((current) => updater(current))}
+      />
+    ),
+  };
+
+  const clientSection: ExpedienteSection = {
     key: "clients",
     title: "Datos del cliente",
     node: (
@@ -1009,7 +1445,7 @@ export default function SaleFormPage() {
     ),
   };
 
-  const baseFinancingSection: ExpedienteSection = {
+  const financingSection: ExpedienteSection = {
     key: "finance",
     title: "Datos de la financiacion",
     node: (
@@ -1023,13 +1459,17 @@ export default function SaleFormPage() {
     ),
   };
 
-  const editSideSections: ExpedienteSection[] = sale
-    ? [
-        baseClientSection,
-        baseFinancingSection,
-        {
+  const summarySection: ExpedienteSection = {
+    key: "summary",
+    title: "Resumen de la financiacion",
+    node: <SaleContractSummaryCard preview={preview} />,
+  };
+
+  const paymentsSection: ExpedienteSection =
+    isEdit && sale
+      ? {
           key: "payments",
-          title: "Pagos",
+          title: "Pagos realizados",
           node: (
             <SalePaymentsOverviewCard
               sale={sale}
@@ -1038,24 +1478,33 @@ export default function SaleFormPage() {
               onAddPayment={handleOpenCreatePayment}
             />
           ),
-        },
-      ]
-    : [];
+        }
+      : {
+          key: "initial-payments",
+          title: "Pagos iniciales",
+          node: <SaleInitialPaymentsCard payments={form.pagosIniciales} onChange={updateInitialPayment} />,
+        };
 
-  const createSideSections: ExpedienteSection[] = [
-    {
-      key: "advisor",
-      title: "Asesor asignado",
-      node: renderAdvisorCard(false),
-    },
-    baseClientSection,
-    baseFinancingSection,
-    {
-      key: "initial-payments",
-      title: "Pagos iniciales",
-      node: <SaleInitialPaymentsCard payments={form.pagosIniciales} onChange={updateInitialPayment} />,
-    },
+  const advisorSection: ExpedienteSection | null =
+    role === "admin"
+      ? {
+          key: "advisor",
+          title: "Asesor asignado",
+          node: renderAdvisorCard(isEdit ? !canEditCurrentSale : false),
+        }
+      : null;
+
+  const baseMainSections: ExpedienteSection[] = [
+    saleSection,
+    clientSection,
+    lotsSection,
+    financingSection,
   ];
+
+  const sharedSideSections: ExpedienteSection[] = [summarySection, paymentsSection];
+  if (advisorSection) {
+    sharedSideSections.push(advisorSection);
+  }
 
   const actions = (
     <nav className="topbar-nav">
@@ -1111,8 +1560,10 @@ export default function SaleFormPage() {
                 onSave={handleSubmit}
                 onOpenSettings={() => setSettingsModalOpen(true)}
                 onMobilePayment={handleOpenCreatePayment}
+                onPrintSeparation={handlePrintSeparation}
+                printSeparationDisabled={!Boolean(sale)}
                 mainSections={baseMainSections}
-                sideSections={editSideSections}
+                sideSections={sharedSideSections}
               />
               )
             : (
@@ -1125,8 +1576,10 @@ export default function SaleFormPage() {
                 saveShortLabel="Guardar"
                 onBack={goBack}
                 onSave={handleSubmit}
+                onPrintSeparation={null}
+                printSeparationDisabled
                 mainSections={baseMainSections}
-                sideSections={createSideSections}
+                sideSections={sharedSideSections}
               />
               )
           : null}

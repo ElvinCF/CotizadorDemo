@@ -69,6 +69,7 @@ export type SaleRecord = {
   montoCuota: number;
   observacion: string;
   lote: SalesLote | null;
+  lotes?: SalesLote[];
   cliente: SalesClient | null;
   cliente2: SalesClient | null;
   asesor: SaleAdvisor | null;
@@ -85,6 +86,7 @@ export type InitialPaymentInput = {
 
 export type SaleFormValues = {
   loteCodigo: string;
+  loteCodigos?: string[];
   asesorId: string | null;
   fechaVenta: string;
   fechaPagoPactada: string;
@@ -100,6 +102,8 @@ export type SaleFormValues = {
 };
 
 export type SalePatchPayload = {
+  loteCodigo?: string;
+  loteCodigos?: string[];
   asesorId?: string | null;
   fechaVenta: string;
   fechaPagoPactada?: string | null;

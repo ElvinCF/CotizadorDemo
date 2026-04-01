@@ -188,3 +188,23 @@ Actualizar este documento solo cuando el flujo de ventas ya este aplicado en cod
 - En la vista de venta, `CAIDA` no se edita desde el bloque principal de estado; se gestiona solo en `Ajustes > Administrativo` y solo para `admin`.
 - En modo operativo, `CAIDA` queda desvinculada de lote y cliente para accesos de negocio: no cuenta como venta activa ni entra en reportes operativos generales.
 - Para mapa, tabla del mapa y drawer, la decision final de `Ver venta` o `Crear venta` se apoya en un endpoint de accesos por lote que devuelve `saleId` y `ownerUsername`.
+
+## Actualizacion Fase 5 (2026-03-30)
+
+- `venta_lotes` pasa a ser la fuente primaria del vinculo venta-lote.
+- El backend de ventas queda en modo compatibilidad:
+  - `createSaleAsync` acepta `loteCodigos[]` y persiste en `venta_lotes`.
+  - `updateSaleAsync` acepta cambio de lotes y reemplaza la coleccion en `venta_lotes`.
+  - `getSaleById` y `listSales` exponen `lote` (principal) y `lotes` (coleccion completa).
+  - `listSaleAccessByLot` resuelve por todos los lotes activos del expediente.
+  - sincronizacion de `estado_comercial` se ejecuta sobre todos los lotes de la venta.
+- `ventas.lote_id` permanece como espejo legado temporal (primer lote del expediente).
+- flujo frontend en progreso:
+  - cotizador mapa (PC) permite modo de seleccion multiple de lotes disponibles.
+  - el toggle de multi-seleccion vive en un card flotante sobre mapa (fuera del drawer).
+  - el card flotante incluye boton `Cotizar` para abrir drawer, especialmente en mobile.
+  - cuando el viewport es menor a `1060px`, el card flotante se reposiciona sobre el bloque de controles de zoom.
+  - clic sobre lote disponible en modo multi hace toggle de seleccion (agrega o quita).
+  - drawer concentra lotes en tabla (agregar/quitar) y cotiza sobre total agregado.
+  - proforma abre con la coleccion seleccionada y mantiene capacidad de agregar mas lotes.
+  - venta nueva recibe `lotes` desde cotizador y muestra card editable de lotes del expediente.

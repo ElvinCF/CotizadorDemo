@@ -169,14 +169,9 @@ type SaleFinancingCardProps = SaleCardBaseProps & {
 export function SaleFinancingCard({ form, disabled = false, onFormChange, preview }: SaleFinancingCardProps) {
   const cantidadEditable = form.tipoFinanciamiento === "REDUCIR_CUOTA";
   const montoEditable = form.tipoFinanciamiento === "REDUCIR_MESES";
-  const cuotaCount = Number(form.cantidadCuotas || 0);
   const ultimaCuotaLabel =
     preview.ultimaCuotaAjustada && preview.ultimaCuota > preview.montoCuota
       ? `Ultima cuota: ${formatMoney(preview.ultimaCuota)} por ajuste.`
-      : null;
-  const cuotasWarning =
-    cantidadEditable && Number.isFinite(cuotaCount) && cuotaCount > 0 && cuotaCount < 36
-      ? "Plan menor a 36 cuotas. Permitido."
       : null;
 
   return (
@@ -237,7 +232,6 @@ export function SaleFinancingCard({ form, disabled = false, onFormChange, previe
             title="Puedes usar menos de 36 cuotas si el plan comercial lo requiere."
             onChange={(event) => onFormChange((current) => ({ ...current, cantidadCuotas: event.target.value }))}
           />
-          {cuotasWarning ? <span className="sales-editable-row__helper">{cuotasWarning}</span> : null}
         </label>
 
         <label className="sales-editable-row__field">
