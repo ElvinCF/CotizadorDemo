@@ -1,6 +1,6 @@
 # Correcciones e Ideas
 
-Actualizado: `2026-03-29`
+Actualizado: `2026-04-01`
 Rol: `Exploracion previa`
 
 ## Uso de este documento
@@ -284,3 +284,33 @@ Descripcion:
 Siguiente paso:
 
 - desarrollado ahora en `4-1_plan_ventas.md` como Fase 6
+
+### Cotizador: checklist comercial de plusvalia por habilitaciones
+
+Estado: `Idea`
+Modulo: `Ventas | Cotizador`
+Impacto: `Medio`
+
+Descripcion:
+
+- en el drawer cotizador, agregar un checklist interactivo (2 columnas) para estimar plusvalia comercial
+- cada item mostrara: icono, etiqueta, porcentaje y casilla
+- la grafica de plusvalia reaccionara en tiempo real segun checks activados
+- reemplaza texto estatico inferior del card por controles de simulacion comercial
+
+Checklist propuesto (borrador):
+
+- servicios basicos completos (luz + agua + desague)
+- gas domiciliario / GLP formal
+- vias asfaltadas y acceso vehicular
+- transporte publico cercano
+- saneamiento registral (titulo)
+- zonificacion favorable
+- equipamientos cercanos (salud/colegio/comercio)
+- seguridad e iluminacion publica
+
+Siguiente paso:
+
+- validar lista final y porcentajes comerciales
+- definir libreria de iconos (Lucide o Tabler)
+- mover a plan cuando se apruebe para implementacion

@@ -7,6 +7,7 @@ import DataTableShell from "../../components/data-table/DataTableShell";
 import DataTableToolbar from "../../components/data-table/DataTableToolbar";
 import { buildDateBounds, isDateInRange, withDefaultDateRange } from "../../components/data-table/dateRange";
 import type { SortState } from "../../components/data-table/types";
+import type { Lote } from "../../domain/types";
 import SalesTable from "../../components/sales/SalesTable";
 import type { SaleRecord, SaleState } from "../../domain/ventas";
 import { listSales } from "../../services/ventas";
@@ -49,6 +50,27 @@ const getClientKey = (sale: SaleRecord) => {
   return null;
 };
 
+const buildLotesByManzanaLabel = (sale: SaleRecord) => {
+  const lotes = (sale.lotes && sale.lotes.length > 0 ? sale.lotes : sale.lote ? [sale.lote] : [])
+    .filter(Boolean)
+    .map((lot) => ({ mz: String(lot.mz || "").trim().toUpperCase(), lote: Number(lot.lote) }))
+    .filter((lot) => lot.mz && Number.isFinite(lot.lote));
+
+  if (lotes.length === 0) return "";
+
+  const grouped = lotes.reduce<Map<string, number[]>>((acc, lot) => {
+    const current = acc.get(lot.mz) ?? [];
+    current.push(lot.lote);
+    acc.set(lot.mz, current);
+    return acc;
+  }, new Map());
+
+  return Array.from(grouped.entries())
+    .sort((a, b) => a[0].localeCompare(b[0], "es", { sensitivity: "base" }))
+    .map(([mz, nums]) => `${mz}: ${Array.from(new Set(nums)).sort((a, b) => a - b).map((n) => String(n).padStart(2, "0")).join(",")}`)
+    .join(" · ");
+};
+
 const IconMap = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path
@@ -65,7 +87,8 @@ const IconMap = () => (
 export default function SalesListPage() {
   const { role, loginUsername } = useAuth();
   const [items, setItems] = useState<SaleRecord[]>([]);
-  const [totalLotes, setTotalLotes] = useState(0);
+  const [soldLotes, setSoldLotes] = useState(0);
+  const [lotesConVenta, setLotesConVenta] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -84,10 +107,15 @@ export default function SalesListPage() {
         setItems(salesData);
 
         if (lotesResponse.ok) {
-          const payload = (await lotesResponse.json()) as { items?: unknown[] };
-          setTotalLotes(Array.isArray(payload.items) ? payload.items.length : 0);
+          const payload = (await lotesResponse.json()) as { items?: Lote[] };
+          const lotes = Array.isArray(payload.items) ? payload.items : [];
+          setSoldLotes(
+            lotes.filter((lote) => String(lote?.condicion ?? "").trim().toUpperCase() === "VENDIDO").length
+          );
+          setLotesConVenta(lotes.filter((lote) => Boolean(lote?.ventaActiva)).length);
         } else {
-          setTotalLotes(0);
+          setSoldLotes(0);
+          setLotesConVenta(0);
         }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "No se pudo cargar ventas.");
@@ -215,7 +243,7 @@ export default function SalesListPage() {
       if (!statusOk || !clientOk || !advisorOk || !dateOk) return false;
 
       if (!query) return true;
-      const loteLabel = sale.lote ? `${sale.lote.codigo} ${sale.lote.mz} lote ${sale.lote.lote}` : "";
+      const loteLabel = buildLotesByManzanaLabel(sale);
       const haystack = normalizeText(
         [loteLabel, sale.cliente?.nombreCompleto || "", sale.cliente?.dni || "", sale.asesor?.nombre || "", sale.estadoVenta].join(
           " "
@@ -229,7 +257,7 @@ export default function SalesListPage() {
     const sorted = [...filtered].sort((left, right) => {
       switch (sort.key) {
         case "lote":
-          return compareText(left.lote?.codigo || "", right.lote?.codigo || "");
+          return compareText(buildLotesByManzanaLabel(left), buildLotesByManzanaLabel(right));
         case "cliente":
           return compareText(left.cliente?.nombreCompleto || "", right.cliente?.nombreCompleto || "");
         case "asesor":
@@ -278,7 +306,13 @@ export default function SalesListPage() {
       <DataTableShell
         className="sales-page"
         title="Ventas registradas"
-        meta={<span className="data-table-shell__count">{`${items.length} de ${totalLotes}`}</span>}
+        meta={
+          <div className="sales-page__meta-badges">
+            <span className="data-table-shell__count">Ventas: {items.length}</span>
+            <span className="data-table-shell__count">Lotes vendidos: {soldLotes}</span>
+            <span className="data-table-shell__count">Lotes con venta: {lotesConVenta}</span>
+          </div>
+        }
         toolbar={
           <DataTableToolbar
             searchValue={search}
@@ -293,12 +327,15 @@ export default function SalesListPage() {
         filters={
           <DataTableFilters open={filtersOpen} className="data-table-filters--sales">
             <label className="data-table-filters__field">
-              <span>Estado</span>
-              <select value={filters.estado} onChange={(event) => setFilters((current) => ({ ...current, estado: event.target.value }))}>
-                <option value="TODAS">Todas</option>
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status.replaceAll("_", " ")}
+              <span>Asesor</span>
+              <select
+                value={filters.asesorId}
+                onChange={(event) => setFilters((current) => ({ ...current, asesorId: event.target.value }))}
+              >
+                <option value="TODOS">Todos</option>
+                {advisorOptions.map((advisor) => (
+                  <option key={advisor.id} value={advisor.id}>
+                    {advisor.name}
                   </option>
                 ))}
               </select>
@@ -320,15 +357,12 @@ export default function SalesListPage() {
             </label>
 
             <label className="data-table-filters__field">
-              <span>Asesor</span>
-              <select
-                value={filters.asesorId}
-                onChange={(event) => setFilters((current) => ({ ...current, asesorId: event.target.value }))}
-              >
-                <option value="TODOS">Todos</option>
-                {advisorOptions.map((advisor) => (
-                  <option key={advisor.id} value={advisor.id}>
-                    {advisor.name}
+              <span>Estado</span>
+              <select value={filters.estado} onChange={(event) => setFilters((current) => ({ ...current, estado: event.target.value }))}>
+                <option value="TODAS">Todas</option>
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status.replaceAll("_", " ")}
                   </option>
                 ))}
               </select>

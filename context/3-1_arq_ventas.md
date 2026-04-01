@@ -1,6 +1,6 @@
 # Arquitectura de Ventas
 
-Actualizado: `2026-03-26`
+Actualizado: `2026-04-01`
 Rol: `Fuente de verdad`
 
 ## Objetivo
@@ -198,7 +198,7 @@ Actualizar este documento solo cuando el flujo de ventas ya este aplicado en cod
   - `getSaleById` y `listSales` exponen `lote` (principal) y `lotes` (coleccion completa).
   - `listSaleAccessByLot` resuelve por todos los lotes activos del expediente.
   - sincronizacion de `estado_comercial` se ejecuta sobre todos los lotes de la venta.
-- `ventas.lote_id` permanece como espejo legado temporal (primer lote del expediente).
+- En el corte final de fase 5, `ventas.lote_id` se retira del schema `public`.
 - flujo frontend en progreso:
   - cotizador mapa (PC) permite modo de seleccion multiple de lotes disponibles.
   - el toggle de multi-seleccion vive en un card flotante sobre mapa (fuera del drawer).
@@ -208,3 +208,14 @@ Actualizar este documento solo cuando el flujo de ventas ya este aplicado en cod
   - drawer concentra lotes en tabla (agregar/quitar) y cotiza sobre total agregado.
   - proforma abre con la coleccion seleccionada y mantiene capacidad de agregar mas lotes.
   - venta nueva recibe `lotes` desde cotizador y muestra card editable de lotes del expediente.
+
+## Actualizacion UI Cotizador (2026-04-01)
+
+- el drawer de cotizador incluye card de `Plusvalia proyectada` sobre el total agregado de lotes seleccionados
+- la grafica usa `recharts` (linea + area + puntos) con hitos:
+  - `Hoy`, `Fin 2026`, `2030`, `2035`, `2040`
+- el calculo es acumulativo por hito y se recalcula en tiempo real segun total seleccionado
+- el eje Y del grafico ya no arranca en `0`; inicia en el valor base del total actual
+- tooltip del grafico muestra:
+  - valor monetario del hito
+  - porcentaje de plusvalia respecto al valor base

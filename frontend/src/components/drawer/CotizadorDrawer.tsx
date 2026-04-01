@@ -1,6 +1,25 @@
+import { useEffect, useState } from "react";
 import ValidatedNumberField from "../forms/ValidatedNumberField";
 import { formatArea, formatMoney, statusToClass } from "../../domain/formatters";
 import type { Lote, QuoteState } from "../../domain/types";
+import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+type PlusvaliaPoint = {
+  label: string;
+  value: number;
+  growth: number;
+};
+
+const PLUSVALIA_MILESTONES: Array<{ label: string; growth: number }> = [
+  { label: "Hoy", growth: 0 },
+  // Escenario comercial acumulativo (ajustable): el salto fuerte ocurre en el corto plazo.
+  { label: "Fin 2026", growth: 0.215 },
+  { label: "2030", growth: 0.242 },
+  { label: "2035", growth: 0.312 },
+  { label: "2040", growth: 0.386 },
+];
+
+const formatMoneyK = (value: number) => `S/ ${Math.round(Math.max(value, 0) / 1000)}k`;
 
 const IconClose = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
@@ -79,6 +98,35 @@ function CotizadorDrawer({
   const totalPrecioRef = lotesSeleccionados.reduce((sum, lote) => sum + Math.max(Number(lote.price ?? 0), 0), 0);
   const showTotalsRow = lotesSeleccionados.length > 1;
   const initialSliderMax = Math.max(6000, Math.ceil(precioLote / 500) * 500);
+  const plusvaliaBase = Math.max(totalPrecioRef || precioLote || 0, 0);
+
+  const plusvaliaSeries = PLUSVALIA_MILESTONES.reduce<PlusvaliaPoint[]>((acc, milestone, idx) => {
+    if (idx === 0) {
+      acc.push({ label: milestone.label, value: plusvaliaBase, growth: 0 });
+      return acc;
+    }
+    const prevValue = acc[idx - 1]?.value ?? plusvaliaBase;
+    acc.push({
+      label: milestone.label,
+      value: Math.round(prevValue * (1 + milestone.growth)),
+      growth: milestone.growth,
+    });
+    return acc;
+  }, []);
+
+  const plusvaliaFinal = plusvaliaSeries.at(-1)?.value ?? plusvaliaBase;
+  const plusvaliaGain = Math.max(plusvaliaFinal - plusvaliaBase, 0);
+  const plusvaliaGainPct = plusvaliaBase > 0 ? (plusvaliaGain / plusvaliaBase) * 100 : 0;
+  const yMin = Math.max(plusvaliaBase, 0);
+  const yMax = Math.max(plusvaliaFinal, yMin + 1);
+  const [plusvaliaGlow, setPlusvaliaGlow] = useState(false);
+
+  useEffect(() => {
+    if (plusvaliaBase <= 0) return;
+    setPlusvaliaGlow(true);
+    const timer = window.setTimeout(() => setPlusvaliaGlow(false), 760);
+    return () => window.clearTimeout(timer);
+  }, [plusvaliaBase, plusvaliaFinal, plusvaliaGainPct]);
 
   const applyMonthsPreset = (meses: number) => {
     onChangeQuote({ ...quote, cuotas: meses });
@@ -122,7 +170,13 @@ function CotizadorDrawer({
                         {lote.areaM2 && lote.areaM2 > 0 ? formatMoney((lote.price ?? 0) / lote.areaM2) : "-"}
                       </td>
                       <td className="drawer-selected-lotes-grid__area">{formatArea(lote.areaM2)}</td>
-                      <td className="drawer-selected-lotes-table__price">{formatMoney(lote.price)}</td>
+                      <td
+                        className={`drawer-selected-lotes-table__price drawer-selected-lotes-table__price--${statusToClass(
+                          lote.condicion
+                        )}`}
+                      >
+                        {formatMoney(lote.price)}
+                      </td>
                       <td className="drawer-selected-lotes-grid__actions">
                         <button className="btn ghost icon-only" type="button" onClick={() => onRemoveSelectedLot(lote.id)} aria-label={`Quitar ${lote.id}`}>
                           <IconTrash />
@@ -146,9 +200,6 @@ function CotizadorDrawer({
             </section>
 
             <div className={`quote-hero quote-hero--${loteStatusClass} ${pulseMz || pulseLote ? "quote-hero--pulse" : ""}`}>
-              <div className="quote-hero__head">
-                <span className="quote-hero__eyebrow">Tu cuota estimada mensual</span>
-              </div>
               <div className="quote-hero__content">
                 <div className="quote-hero__details">
                   <div className="quote-hero__detail">
@@ -160,7 +211,10 @@ function CotizadorDrawer({
                     <b>{quote.cuotas}</b>
                   </div>
                 </div>
-                <strong>{formatMoney(cuota)}</strong>
+                <div className="quote-hero__value-block">
+                  <span className="quote-hero__eyebrow">Tu cuota mensual estimada</span>
+                  <strong>{formatMoney(cuota)}</strong>
+                </div>
               </div>
             </div>
 
@@ -235,6 +289,80 @@ function CotizadorDrawer({
                 </div>
               </div>
             </div>
+
+            <section className="quote-plusvalia-card" aria-label="Proyeccion de plusvalia">
+              <div className="quote-plusvalia-card__head">
+                <h4>
+                  Plusvalía proyectada en{" "}
+                  <em className={plusvaliaGlow ? "quote-plusvalia-card__glow-text" : ""}>{`+${plusvaliaGainPct.toFixed(1)}%`}</em>
+                </h4>
+                <div className="quote-plusvalia-card__meta">
+                  <span>Por un valor de</span>
+                  <strong className={plusvaliaGlow ? "quote-plusvalia-card__glow-text" : ""}>{formatMoney(plusvaliaGain)}</strong>
+                </div>
+              </div>
+              <div className="quote-plusvalia-card__chart">
+                <ResponsiveContainer width="100%" height={182}>
+                  <AreaChart data={plusvaliaSeries} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="plusvaliaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--color-success)" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="var(--color-success)" stopOpacity={0.03} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="color-mix(in srgb, var(--color-primary) 14%, transparent)" strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      padding={{ right: 8 }}
+                      tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      width={56}
+                      domain={[yMin, yMax]}
+                      tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                      tickFormatter={(value) => formatMoneyK(Number(value))}
+                    />
+                    <Tooltip
+                      cursor={{ stroke: "color-mix(in srgb, var(--color-success) 50%, transparent)", strokeWidth: 1 }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const value = Number(payload[0]?.value ?? 0);
+                        const pct = plusvaliaBase > 0 ? ((value / plusvaliaBase - 1) * 100) : 0;
+                        return (
+                          <div className="quote-plusvalia-tooltip">
+                            <div className="quote-plusvalia-tooltip__row">
+                              <span>Valor</span>
+                              <strong>{formatMoney(value)}</strong>
+                            </div>
+                            <div className="quote-plusvalia-tooltip__row quote-plusvalia-tooltip__row--pct">
+                              <span>Plusvalía</span>
+                              <strong>{`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`}</strong>
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Area type="monotone" dataKey="value" stroke="none" fill="url(#plusvaliaGradient)" />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="var(--color-success)"
+                      strokeWidth={2.6}
+                      dot={{ r: 4, fill: "var(--color-success)", stroke: "var(--color-surface)", strokeWidth: 1.4 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="quote-plusvalia-card__note">
+                Proyección referencial de crecimiento del valor del lote para apoyar una decisión de compra con visión de mediano y largo plazo.
+              </p>
+            </section>
             </>
           ) : (
             <p className="muted">Selecciona un lote para ver detalles.</p>

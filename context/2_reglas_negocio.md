@@ -740,7 +740,7 @@ Con este documento y `1_esquema_bd.md` aprobados, el siguiente paso correcto es:
 ## 18. Reglas multi-lote (fase 5)
 
 - La fuente primaria de relacion venta-lote es `venta_lotes`.
-- `ventas.lote_id` queda como campo legado temporal (primer lote del expediente).
+- `ventas.lote_id` ya no forma parte del modelo operativo en `public`.
 - Un lote no puede pertenecer a dos ventas activas (`estado_venta <> 'CAIDA'`).
 - Si una venta pasa a `CAIDA`, sus lotes quedan libres para reasignacion.
 - La sincronizacion de `lotes.estado_comercial` se aplica a todos los lotes ligados al expediente.

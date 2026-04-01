@@ -2578,7 +2578,19 @@ input.is-invalid {
 .drawer-selected-lotes-table__price {
   color: color-mix(in srgb, var(--color-success) 88%, var(--color-text) 12%);
   font-weight: 800;
-  font-size: 1.18rem;
+  font-size: 1.3rem;
+}
+
+.drawer-selected-lotes-table__price--disponible {
+  color: color-mix(in srgb, var(--color-success) 90%, var(--color-text) 10%);
+}
+
+.drawer-selected-lotes-table__price--separado {
+  color: color-mix(in srgb, var(--color-warning) 92%, var(--color-text) 8%);
+}
+
+.drawer-selected-lotes-table__price--vendido {
+  color: color-mix(in srgb, var(--color-danger) 92%, var(--color-text) 8%);
 }
 
 .drawer-summary-stack {
@@ -2602,16 +2614,7 @@ input.is-invalid {
     radial-gradient(circle at top left, color-mix(in srgb, var(--quote-hero-accent) 18%, transparent), transparent 55%),
     linear-gradient(135deg, color-mix(in srgb, var(--quote-hero-accent-soft) 68%, var(--color-panel) 32%), color-mix(in srgb, var(--color-panel-contrast) 92%, transparent));
   display: grid;
-  gap: 1px;
-}
-
-.quote-hero__head {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 16px;
-  margin: 0;
-  padding: 0;
+  gap: 0;
 }
 
 .quote-hero--separado {
@@ -2653,7 +2656,7 @@ input.is-invalid {
 
 .quote-hero__eyebrow {
   display: block;
-  font-size: 0.9rem;
+  font-size: 0.94rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   line-height: 1;
@@ -2666,13 +2669,13 @@ input.is-invalid {
 .quote-hero__content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 14px;
 }
 
 .quote-hero__details {
   display: grid;
-  gap: 5px;
+  gap: 8px;
   align-content: center;
 }
 
@@ -2697,6 +2700,13 @@ input.is-invalid {
   font-weight: 800;
   flex: 0 0 auto;
   line-height: 1.05;
+}
+
+.quote-hero__value-block {
+  display: grid;
+  align-content: center;
+  justify-items: end;
+  gap: 9px;
 }
 
 .quote-hero strong {
@@ -2982,6 +2992,154 @@ input.is-invalid {
 
 .quote-highlight small {
   color: var(--color-muted);
+}
+
+.quote-plusvalia-card {
+  background: var(--color-panel-contrast);
+  border: 1px solid color-mix(in srgb, var(--color-success) 24%, transparent);
+  border-radius: 16px;
+  padding: 12px 12px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.quote-plusvalia-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.quote-plusvalia-card__head h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.quote-plusvalia-card__head h4 em {
+  color: var(--color-success);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.quote-plusvalia-card__glow-text {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: quotePlusvaliaGlowText 0.76s ease;
+}
+
+.quote-plusvalia-card__glow-text::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -62%;
+  width: 56%;
+  background: linear-gradient(
+    108deg,
+    transparent 18%,
+    color-mix(in srgb, white 90%, transparent) 48%,
+    transparent 82%
+  );
+  transform: translateX(0) skewX(-16deg);
+  pointer-events: none;
+  animation: quotePlusvaliaSweep 0.76s ease;
+}
+
+.quote-plusvalia-card__meta {
+  display: inline-grid;
+  justify-items: end;
+  line-height: 1.05;
+  gap: 2px;
+}
+
+.quote-plusvalia-card__meta span {
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.01em;
+}
+
+.quote-plusvalia-card__meta strong {
+  color: var(--color-success);
+  font-size: 1.04rem;
+  font-weight: 800;
+}
+
+.quote-plusvalia-card__chart {
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-success) 20%, transparent);
+  background: color-mix(in srgb, var(--color-success-soft) 26%, var(--color-panel) 74%);
+  padding: 6px 6px 0;
+}
+
+.quote-plusvalia-card__note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
+.quote-plusvalia-tooltip {
+  min-width: 168px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-success) 34%, transparent);
+  background: color-mix(in srgb, var(--color-panel) 94%, transparent);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--color-text) 22%, transparent);
+  display: grid;
+  gap: 6px;
+}
+
+.quote-plusvalia-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
+.quote-plusvalia-tooltip__row span {
+  color: var(--color-text-muted);
+}
+
+.quote-plusvalia-tooltip__row strong {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.quote-plusvalia-tooltip__row--pct strong {
+  color: var(--color-success);
+}
+
+@keyframes quotePlusvaliaGlowText {
+  0% {
+    text-shadow: 0 0 0 color-mix(in srgb, var(--color-success) 0%, transparent);
+  }
+  42% {
+    text-shadow:
+      0 0 10px color-mix(in srgb, var(--color-success) 46%, transparent),
+      0 0 18px color-mix(in srgb, var(--color-success) 30%, transparent);
+  }
+  100% {
+    text-shadow: 0 0 0 color-mix(in srgb, var(--color-success) 0%, transparent);
+  }
+}
+
+@keyframes quotePlusvaliaSweep {
+  0% {
+    transform: translateX(0) skewX(-16deg);
+    opacity: 0;
+  }
+  24% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(260%) skewX(-16deg);
+    opacity: 0;
+  }
 }
 
 .drawer-footer-actions {
@@ -3331,11 +3489,11 @@ input.is-invalid {
   }
 
   .drawer-selected-lotes-table__price {
-    font-size: 1.02rem;
+    font-size: 1.14rem;
   }
 
   .quote-hero__eyebrow {
-    font-size: 0.84rem;
+    font-size: 0.86rem;
     text-align: right;
   }
 
@@ -5957,6 +6115,17 @@ input.is-invalid {
   flex: 0 0 auto;
 }
 
+.sales-page__meta-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.sales-page .data-table-shell__head > .data-table-toolbar .data-table-toolbar__search {
+  flex: 1 1 320px;
+}
+
 .data-table-shell__count {
   display: inline-flex;
   align-items: center;
@@ -6188,11 +6357,38 @@ input.is-invalid {
   vertical-align: middle;
 }
 
+.data-table th,
+.data-table td {
+  padding: 8px 10px;
+}
+
+.data-table thead th {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+  padding-left: 14px;
+}
+
 .sales-table th,
 .sales-table td,
 .sales-table__lot,
 .sales-table__client {
   white-space: nowrap;
+}
+
+.sales-table__lotes-mzna {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table__row-action-label--short {
+  display: none;
 }
 
 .data-table thead th,
@@ -6223,6 +6419,21 @@ input.is-invalid {
   text-transform: inherit;
   padding: 0;
   cursor: pointer;
+}
+
+.sales-table-view .sales-table th,
+.sales-table-view .sales-table td {
+  padding: 8px 10px;
+}
+
+.sales-table-view .sales-table thead th {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.sales-table-view .sales-table th:first-child,
+.sales-table-view .sales-table td:first-child {
+  padding-left: 14px;
 }
 
 .data-table-sort__icon {
@@ -6683,12 +6894,12 @@ input.is-invalid {
 
 .sale-lot-list-table .proforma-lote-table th:nth-child(1),
 .sale-lot-list-table .proforma-lote-table td:nth-child(1) {
-  width: 64px;
+  width: 56px;
 }
 
 .sale-lot-list-table .proforma-lote-table th:nth-child(2),
 .sale-lot-list-table .proforma-lote-table td:nth-child(2) {
-  width: 76px;
+  width: 64px;
 }
 
 .sale-lot-list-table .proforma-lote-table th:nth-child(3),
@@ -6732,13 +6943,13 @@ input.is-invalid {
 
 .sale-lot-list-table .proforma-lote-table td:nth-child(1) select,
 .sale-lot-list-table .proforma-lote-table td:nth-child(2) select {
-  width: 56px;
-  min-width: 56px;
+  width: 50px;
+  min-width: 50px;
 }
 
 .sale-lot-list-table .proforma-lote-table td:nth-child(2) select {
-  width: 68px;
-  min-width: 68px;
+  width: 58px;
+  min-width: 58px;
 }
 
 .sale-lot-list-table .proforma-lote-table tfoot td {
@@ -6845,7 +7056,7 @@ input.is-invalid {
 }
 
 .sales-editable-row--finance {
-  grid-template-columns: minmax(140px, 0.9fr) minmax(180px, 1fr) minmax(112px, 0.6fr) minmax(132px, 0.7fr);
+  grid-template-columns: minmax(112px, 0.9fr) minmax(132px, 1fr) minmax(94px, 0.58fr) minmax(106px, 0.68fr);
 }
 
 .sales-editable-card--finance {
@@ -7163,6 +7374,10 @@ input.is-invalid {
   padding-inline: 10px;
 }
 
+.sales-payments-overview-card__actions--mobile {
+  display: none;
+}
+
 .sales-payments-overview-card__table-wrap {
   overflow-x: auto;
 }
@@ -7270,12 +7485,13 @@ input.is-invalid {
 
 .sales-expediente-layout {
   display: grid;
-  grid-template-columns: minmax(0, 58%) minmax(0, 42%);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   align-items: stretch;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 2px;
   width: 100%;
   max-width: 1320px;
@@ -7915,6 +8131,10 @@ input.is-invalid {
     min-width: 180px;
   }
 
+  .sales-page__meta-badges {
+    flex-wrap: wrap;
+  }
+
   .data-table-toolbar__actions {
     justify-content: flex-end;
     flex-wrap: wrap;
@@ -7998,6 +8218,11 @@ input.is-invalid {
 
   .data-table-shell__title-row {
     flex-wrap: wrap;
+  }
+
+  .sales-page__meta-badges {
+    width: 100%;
+    gap: 6px;
   }
 
   .sales-form-page__title-row {
@@ -8492,6 +8717,11 @@ input.is-invalid {
     margin-bottom: 2px;
   }
 
+  .sales-mobile-section__content > .sales-form-card.sales-mobile-keep-header .sales-payments-overview-card__header {
+    display: flex;
+    margin-bottom: 2px;
+  }
+
   .sales-mobile-section__content > .sales-form-card.sales-mobile-keep-header .sales-client-card__header h3,
   .sales-mobile-section__content > .sales-form-card.sales-mobile-keep-header .sales-section-card__header h3 {
     display: none;
@@ -8551,6 +8781,23 @@ input.is-invalid {
     width: 100%;
   }
 
+  .sales-mobile-section__content > .sales-form-card.sales-mobile-keep-header .sales-payments-overview-card__actions:not(.sales-payments-overview-card__actions--mobile) {
+    display: none;
+  }
+
+  .sales-mobile-section__content > .sales-form-card.sales-mobile-keep-header .sales-payments-overview-card__actions--mobile {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+    width: 100%;
+  }
+
+  .sales-mobile-section__content > .sales-form-card.sales-mobile-keep-header .sales-payments-overview-card__actions--mobile .sales-payments-overview-card__btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   .sales-payments-overview-card__btn {
     flex: 1 1 0;
   }
@@ -8563,15 +8810,27 @@ input.is-invalid {
       min-width: 600px;
     }
 
-    .sales-table th,
-    .sales-table td {
-      padding: 8px 6px;
-      font-size: 0.8rem;
-    }
+  .sales-table th,
+  .sales-table td {
+    padding: 8px 6px;
+    font-size: 0.8rem;
+  }
 
-    .sales-table th {
-      font-size: 0.7rem;
-    }
+  .sales-table__lotes-mzna {
+    max-width: 150px;
+  }
+
+  .data-table__row-action-label--long {
+    display: none;
+  }
+
+  .data-table__row-action-label--short {
+    display: inline;
+  }
+
+  .sales-table th {
+    font-size: 0.7rem;
+  }
 
     .sales-table .data-table-sort {
       gap: 4px;

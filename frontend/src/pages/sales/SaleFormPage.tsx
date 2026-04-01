@@ -283,11 +283,9 @@ type SaleExpedienteTemplateProps = {
   saveShortLabel: string;
   readOnlyNotice?: string | null;
   showSettings?: boolean;
-  showMobilePaymentAction?: boolean;
   onBack: () => void;
   onSave: () => void;
   onOpenSettings?: () => void;
-  onMobilePayment?: () => void;
   onPrintSeparation?: (() => void) | null;
   printSeparationDisabled?: boolean;
   mainSections: ExpedienteSection[];
@@ -322,11 +320,9 @@ function SaleExpedienteTemplate({
   saveShortLabel,
   readOnlyNotice,
   showSettings = false,
-  showMobilePaymentAction = false,
   onBack,
   onSave,
   onOpenSettings,
-  onMobilePayment,
   onPrintSeparation = null,
   printSeparationDisabled = true,
   mainSections,
@@ -428,19 +424,6 @@ function SaleExpedienteTemplate({
           ))}
         </div>
       </section>
-
-      {showMobilePaymentAction ? (
-        <div className="sales-mobile-footer" role="toolbar" aria-label="Acciones de pago">
-          <button
-            type="button"
-            className="btn ghost sales-mobile-footer__action sales-mobile-footer__action--payment"
-            onClick={onMobilePayment}
-          >
-            <span>+</span>
-            <span className="sales-mobile-footer__label">Pago</span>
-          </button>
-        </div>
-      ) : null}
     </>
   );
 }
@@ -1555,11 +1538,9 @@ export default function SaleFormPage() {
                 saveShortLabel="Guardar"
                 readOnlyNotice={!canEditCurrentSale ? "Modo solo lectura: esta venta pertenece a otro asesor." : null}
                 showSettings
-                showMobilePaymentAction={canEditCurrentSale}
                 onBack={goBack}
                 onSave={handleSubmit}
                 onOpenSettings={() => setSettingsModalOpen(true)}
-                onMobilePayment={handleOpenCreatePayment}
                 onPrintSeparation={handlePrintSeparation}
                 printSeparationDisabled={!Boolean(sale)}
                 mainSections={baseMainSections}

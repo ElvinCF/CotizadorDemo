@@ -25,15 +25,37 @@ const mapDbRowToLote = (row) => ({
   areaM2: row.area_m2,
   price: Number(row.precio_referencial ?? 0),
   condicion: normalizeStatus(row.estado_comercial),
+  ventaActiva: Boolean(row.venta_activa),
+  ventaActivaId: row.venta_activa_id ?? null,
 });
 
 export const listLotes = async () => {
   const schema = resolveDbSchema();
   return withPgClient(async (client) => {
     const result = await client.query(
-      `select id, manzana, lote, area_m2, precio_referencial, estado_comercial, codigo
-         from ${schema}.lotes
-        order by manzana asc, lote asc`
+      `select
+         l.id,
+         l.manzana,
+         l.lote,
+         l.area_m2,
+         l.precio_referencial,
+         l.estado_comercial,
+         l.codigo,
+         sale_active.venta_activa,
+         sale_active.venta_activa_id
+       from ${schema}.lotes l
+       left join lateral (
+         select
+           true as venta_activa,
+           v.id as venta_activa_id
+         from ${schema}.venta_lotes vl
+         join ${schema}.ventas v on v.id = vl.venta_id
+         where vl.lote_id = l.id
+           and v.estado_venta <> 'CAIDA'
+         order by v.fecha_venta desc nulls last, v.created_at desc, v.id desc
+         limit 1
+       ) sale_active on true
+       order by l.manzana asc, l.lote asc`
     );
 
     return result.rows.map(mapDbRowToLote);

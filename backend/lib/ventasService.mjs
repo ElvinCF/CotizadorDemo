@@ -591,29 +591,21 @@ const replaceSaleLotesTx = async (client, schema, ventaId, lotes = []) => {
     }
   }
 
-  const primaryLoteId = lotes[0]?.id ?? null;
-  await client.query(`update ${schema}.ventas set lote_id = $2 where id = $1`, [ventaId, primaryLoteId]);
 };
 
-const getSaleLotIdsTx = async (client, schema, ventaId, fallbackLoteId = null) => {
+const getSaleLotIdsTx = async (client, schema, ventaId) => {
   const result = await client.query(
-    `select distinct x.lote_id
-       from (
-         select vl.lote_id
-           from ${schema}.venta_lotes vl
-          where vl.venta_id = $1
-         union all
-         select $2::uuid as lote_id
-       ) as x
-      where x.lote_id is not null`,
-    [ventaId, fallbackLoteId]
+    `select distinct vl.lote_id
+       from ${schema}.venta_lotes vl
+      where vl.venta_id = $1`,
+    [ventaId]
   );
 
   return result.rows.map((row) => row.lote_id).filter(Boolean);
 };
 
-const syncSaleLotsCommercialStateTx = async (client, schema, ventaId, saleState, fallbackLoteId = null) => {
-  const loteIds = await getSaleLotIdsTx(client, schema, ventaId, fallbackLoteId);
+const syncSaleLotsCommercialStateTx = async (client, schema, ventaId, saleState) => {
+  const loteIds = await getSaleLotIdsTx(client, schema, ventaId);
   if (loteIds.length === 0) {
     return;
   }
@@ -633,7 +625,7 @@ const getSalePaymentsTx = async (client, schema, ventaId) => {
   return result.rows;
 };
 
-const getSaleLotsTx = async (client, schema, ventaId, fallbackLoteId = null) => {
+const getSaleLotsTx = async (client, schema, ventaId) => {
   const result = await client.query(
     `select
        l.id as lote_id,
@@ -648,17 +640,9 @@ const getSaleLotsTx = async (client, schema, ventaId, fallbackLoteId = null) => 
        select vl.lote_id, vl.orden, vl.created_at, vl.id
          from ${schema}.venta_lotes vl
         where vl.venta_id = $1
-       union all
-       select $2::uuid as lote_id, 1 as orden, now() as created_at, null::uuid as id
-        where $2::uuid is not null
-          and not exists (
-            select 1
-              from ${schema}.venta_lotes vlf
-             where vlf.venta_id = $1
-          )
      ) x on x.lote_id = l.id
      order by x.orden asc, x.created_at asc, x.id asc nulls last`,
-    [ventaId, fallbackLoteId]
+    [ventaId]
   );
 
   return result.rows.map(mapLot).filter(Boolean);
@@ -687,14 +671,6 @@ const getSaleLotsBySaleIdsTx = async (client, schema, saleIds = []) => {
        select vl.lote_id, vl.orden, vl.created_at, vl.id as link_id
          from ${schema}.venta_lotes vl
         where vl.venta_id = v.id
-       union all
-       select v.lote_id as lote_id, 1 as orden, now() as created_at, null::uuid as link_id
-        where v.lote_id is not null
-          and not exists (
-            select 1
-              from ${schema}.venta_lotes vlf
-             where vlf.venta_id = v.id
-          )
      ) x on true
      join ${schema}.lotes l on l.id = x.lote_id
     where v.id = any($1::uuid[])
@@ -735,7 +711,7 @@ const getSaleDetail = async (saleId) => {
          v.cantidad_cuotas,
          v.monto_cuota,
          v.observacion,
-         coalesce(vl_primary.lote_id, v.lote_id) as lote_id,
+         vl_primary.lote_id as lote_id,
          l.codigo as lote_codigo,
          l.manzana as lote_manzana,
          l.lote as lote_numero,
@@ -766,7 +742,7 @@ const getSaleDetail = async (saleId) => {
           order by vl.orden asc, vl.created_at asc, vl.id asc
           limit 1
        ) as vl_primary on true
-       left join ${schema}.lotes l on l.id = coalesce(vl_primary.lote_id, v.lote_id)
+       left join ${schema}.lotes l on l.id = vl_primary.lote_id
        left join ${schema}.clientes c on c.id = v.cliente_id
        left join ${schema}.clientes c2 on c2.id = v.cliente2_id
        left join ${schema}.usuarios u on u.id = v.asesor_id
@@ -804,7 +780,7 @@ const getSaleDetail = async (saleId) => {
       order by h.fecha_cambio asc`,
       [id]
     );
-    const lotes = await getSaleLotsTx(client, schema, id, row.lote_id);
+    const lotes = await getSaleLotsTx(client, schema, id);
 
     return {
       id: row.id,
@@ -871,8 +847,6 @@ const getSaleBaseByIdTx = async (client, schema, saleId) => {
   const result = await client.query(
     `select
        v.id,
-       v.lote_id,
-       coalesce(vl_primary.lote_id, v.lote_id) as primary_lote_id,
        v.cliente_id,
        v.cliente2_id,
        v.asesor_id,
@@ -1003,11 +977,11 @@ export const listSalesAsync = async (username, pin) => {
            v.estado_venta,
            v.tipo_financiamiento,
            v.monto_inicial_total,
-           v.monto_financiado,
-           v.cantidad_cuotas,
-           v.monto_cuota,
-           v.observacion,
-           coalesce(vl_primary.lote_id, v.lote_id) as lote_id,
+         v.monto_financiado,
+         v.cantidad_cuotas,
+         v.monto_cuota,
+         v.observacion,
+           vl_primary.lote_id as lote_id,
            l.codigo as lote_codigo,
            l.manzana as lote_manzana,
            l.lote as lote_numero,
@@ -1032,7 +1006,7 @@ export const listSalesAsync = async (username, pin) => {
             order by vl.orden asc, vl.created_at asc, vl.id asc
             limit 1
          ) as vl_primary on true
-         left join ${schema}.lotes l on l.id = coalesce(vl_primary.lote_id, v.lote_id)
+         left join ${schema}.lotes l on l.id = vl_primary.lote_id
          left join ${schema}.clientes c on c.id = v.cliente_id
          left join ${schema}.usuarios u on u.id = v.asesor_id
         ${scopedByAsesor ? "where v.asesor_id = $1 and v.estado_venta <> 'CAIDA'" : ""}
@@ -1097,25 +1071,15 @@ export const listSaleAccessByLotAsync = async (username, pin) => {
       const result = await client.query(
         `select v.id,
                 l.codigo as lote_codigo,
-                u.username as asesor_username
+                u.username as asesor_username,
+                vl.orden as lote_orden,
+                vl.created_at as lote_link_created_at
            from ${schema}.ventas v
-           left join lateral (
-             select vl.lote_id
-               from ${schema}.venta_lotes vl
-              where vl.venta_id = v.id
-              union
-              select v.lote_id
-              where v.lote_id is not null
-                and not exists (
-                  select 1
-                    from ${schema}.venta_lotes vl2
-                   where vl2.venta_id = v.id
-                )
-           ) as vl_all on true
-           join ${schema}.lotes l on l.id = vl_all.lote_id
+           join ${schema}.venta_lotes vl on vl.venta_id = v.id
+           join ${schema}.lotes l on l.id = vl.lote_id
       left join ${schema}.usuarios u on u.id = v.asesor_id
           where v.estado_venta <> 'CAIDA'
-          order by v.created_at desc, v.fecha_venta desc`
+          order by v.created_at desc, v.fecha_venta desc, vl.orden asc, vl.created_at asc`
       );
 
       return result.rows.reduce((acc, row) => {
@@ -1185,7 +1149,6 @@ export const createSaleAsync = async (username, pin, saleInput) => {
 
       const saleResult = await client.query(
         `insert into ${schema}.ventas (
-           lote_id,
            cliente_id,
            cliente2_id,
            asesor_id,
@@ -1199,10 +1162,9 @@ export const createSaleAsync = async (username, pin, saleInput) => {
            cantidad_cuotas,
            monto_cuota,
            observacion
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           returning id`,
         [
-          lotePrincipal?.id ?? null,
           cliente?.id ?? null,
           cliente2?.id ?? null,
           await resolveAsesorIdForCreate(client, schema, operator, saleInput),
@@ -1233,7 +1195,7 @@ export const createSaleAsync = async (username, pin, saleInput) => {
       }
 
       await insertHistoryTx(client, schema, createdSale.id, null, finalState, operator.id);
-      await syncSaleLotsCommercialStateTx(client, schema, createdSale.id, finalState, lotePrincipal?.id ?? null);
+      await syncSaleLotsCommercialStateTx(client, schema, createdSale.id, finalState);
 
       return createdSale.id;
     });
@@ -1266,7 +1228,6 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
       const lotes = hasLotesPatch
         ? await resolveSaleLotesForMutationTx(client, schema, patchInput, existing.id)
         : [];
-      const primaryLoteId = hasLotesPatch ? lotes[0]?.id ?? null : existing.primary_lote_id;
 
       let clienteId = existing.cliente_id;
       if (patchInput?.cliente?.dni) {
@@ -1351,7 +1312,7 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
         await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
       }
 
-      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState, primaryLoteId);
+      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState);
       return existing.id;
     });
   } catch (error) {
@@ -1424,7 +1385,7 @@ export const addSalePaymentAsync = async (username, pin, saleId, paymentInput) =
         await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
       }
 
-      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState, existing.primary_lote_id);
+      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState);
       return existing.id;
     });
   } catch (error) {
@@ -1521,7 +1482,7 @@ export const updateSalePaymentAsync = async (username, pin, saleId, paymentId, p
         await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
       }
 
-      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState, existing.primary_lote_id);
+      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState);
       return existing.id;
     });
   } catch (error) {
@@ -1604,7 +1565,7 @@ export const deleteSalePaymentAsync = async (username, pin, saleId, paymentId) =
         await insertHistoryTx(client, schema, existing.id, existing.estado_venta, nextState, operator.id);
       }
 
-      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState, existing.primary_lote_id);
+      await syncSaleLotsCommercialStateTx(client, schema, existing.id, nextState);
       return existing.id;
     });
   } catch (error) {

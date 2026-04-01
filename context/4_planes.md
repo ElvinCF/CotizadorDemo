@@ -1,6 +1,6 @@
 # Planes de Frontend y Modulos
 
-Actualizado: `2026-03-27`
+Actualizado: `2026-04-01`
 Rol: `Plan por fases`
 
 ## Uso de este documento
@@ -99,8 +99,12 @@ Orden activo de ejecucion para ventas:
 
 Siguiente backlog funcional de ventas:
 
-1. multi-lote en cotizador y venta
-2. documentos e impresion del expediente
+1. documentos e impresion del expediente (continuidad documental)
+2. nuevas mejoras de ventas entran primero por `5_correcciones_ideas.md`
+
+Estado del plan hijo de ventas:
+
+- `4-1_plan_ventas.md` cerrado como ciclo operativo Q1 2026
 
 ### Fase 5. Consolidacion visual global
 

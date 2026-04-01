@@ -1,6 +1,6 @@
 # Arquitectura Base de la Aplicacion
 
-Actualizado: `2026-03-23`
+Actualizado: `2026-04-01`
 Rol: `Fuente de verdad`
 
 ## Objetivo
@@ -35,6 +35,7 @@ Resuelve:
 - tablas, formularios y shells compartidos
 - feedback visual, loaders y estados vacios
 - armado del payload para consumo de API
+- visualizaciones de datos con `recharts` en dashboards y bloques comerciales del cotizador
 
 ### Backend
 
@@ -265,7 +266,7 @@ Aqui solo se documentan patrones compartidos que ventas reutiliza:
   - contrato multi-lote en transicion:
     - request de venta admite `loteCodigos[]` (manteniendo `loteCodigo` por compatibilidad)
     - response de venta devuelve `lote` (principal) y `lotes` (coleccion)
-    - backend opera por `venta_lotes`; `ventas.lote_id` queda como espejo legado temporal
+    - backend opera por `venta_lotes` de forma exclusiva en schema `public`
     - cotizador/proforma/venta comparten la lista de lotes seleccionados como contexto de expediente
 
 ## Modulo dashboards

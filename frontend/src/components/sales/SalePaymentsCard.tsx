@@ -109,7 +109,7 @@ export function SalePaymentsOverviewCard({ sale, disabled = false, onOpenPayment
   const hasPayments = sale.pagos.length > 0;
 
   return (
-    <article className="sales-form-card sales-payments-overview-card">
+    <article className="sales-form-card sales-payments-overview-card sales-mobile-keep-header">
       <header className="sales-payments-overview-card__header">
         <div className="sales-payments-overview-card__title">
           <h3>Pagos</h3>
@@ -150,6 +150,15 @@ export function SalePaymentsOverviewCard({ sale, disabled = false, onOpenPayment
       ) : (
         <div className="sales-payments-overview-card__empty">Aun no hay pagos registrados.</div>
       )}
+      <div className="sales-payments-overview-card__actions sales-payments-overview-card__actions--mobile">
+        <button type="button" className="btn ghost sales-payments-overview-card__btn" onClick={onOpenPayments}>
+          <IconList />
+          <span>Ver pagos</span>
+        </button>
+        <button type="button" className="btn ghost sales-payments-overview-card__btn" onClick={onAddPayment} disabled={disabled}>
+          <span>+ Registrar pago</span>
+        </button>
+      </div>
     </article>
   );
 }

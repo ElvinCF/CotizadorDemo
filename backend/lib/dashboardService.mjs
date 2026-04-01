@@ -469,8 +469,10 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       end as porcentaje_avance_ventas
     from {{SCHEMA}}.lotes l
     where ($1::uuid is null or exists (
-      select 1 from {{SCHEMA}}.ventas v
-      where v.lote_id = l.id and v.asesor_id = $1::uuid
+      select 1
+      from {{SCHEMA}}.ventas v
+      join {{SCHEMA}}.venta_lotes vl on vl.venta_id = v.id
+      where vl.lote_id = l.id and v.asesor_id = $1::uuid and v.estado_venta::text <> 'CAIDA'
     ))
       and ($2::text is null or upper(l.manzana) = upper($2::text))
       and (
@@ -488,7 +490,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         v.precio_venta,
         l.codigo as lote_codigo
       from {{SCHEMA}}.ventas v
-      join {{SCHEMA}}.lotes l on l.id = v.lote_id
+      join lateral (
+        select vl.lote_id
+        from {{SCHEMA}}.venta_lotes vl
+        where vl.venta_id = v.id
+        order by vl.orden asc, vl.created_at asc, vl.id asc
+        limit 1
+      ) vl_primary on true
+      join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
       where (v.fecha_venta at time zone 'America/Lima')::date between $1::date and $2::date
@@ -533,7 +542,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       coalesce(sum(p.monto), 0)::numeric as ingreso_total_mes
     from {{SCHEMA}}.pagos p
     join {{SCHEMA}}.ventas v on v.id = p.venta_id
-    join {{SCHEMA}}.lotes l on l.id = v.lote_id
+    join lateral (
+      select vl.lote_id
+      from {{SCHEMA}}.venta_lotes vl
+      where vl.venta_id = v.id
+      order by vl.orden asc, vl.created_at asc, vl.id asc
+      limit 1
+    ) vl_primary on true
+    join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
     join {{SCHEMA}}.clientes c on c.id = v.cliente_id
     left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
     where (p.fecha_pago at time zone 'America/Lima')::date between $1::date and $2::date
@@ -553,7 +569,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
     with ventas_actual as (
       select count(*)::int as cantidad, coalesce(sum(v.precio_venta),0)::numeric as monto
       from {{SCHEMA}}.ventas v
-      join {{SCHEMA}}.lotes l on l.id = v.lote_id
+      join lateral (
+        select vl.lote_id
+        from {{SCHEMA}}.venta_lotes vl
+        where vl.venta_id = v.id
+        order by vl.orden asc, vl.created_at asc, vl.id asc
+        limit 1
+      ) vl_primary on true
+      join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
       where (v.fecha_venta at time zone 'America/Lima')::date between $1::date and $2::date
@@ -566,7 +589,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
     ventas_prev as (
       select count(*)::int as cantidad, coalesce(sum(v.precio_venta),0)::numeric as monto
       from {{SCHEMA}}.ventas v
-      join {{SCHEMA}}.lotes l on l.id = v.lote_id
+      join lateral (
+        select vl.lote_id
+        from {{SCHEMA}}.venta_lotes vl
+        where vl.venta_id = v.id
+        order by vl.orden asc, vl.created_at asc, vl.id asc
+        limit 1
+      ) vl_primary on true
+      join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
       where (v.fecha_venta at time zone 'America/Lima')::date between $8::date and $9::date
@@ -580,7 +610,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       select coalesce(sum(p.monto), 0)::numeric as monto
       from {{SCHEMA}}.pagos p
       join {{SCHEMA}}.ventas v on v.id = p.venta_id
-      join {{SCHEMA}}.lotes l on l.id = v.lote_id
+      join lateral (
+        select vl.lote_id
+        from {{SCHEMA}}.venta_lotes vl
+        where vl.venta_id = v.id
+        order by vl.orden asc, vl.created_at asc, vl.id asc
+        limit 1
+      ) vl_primary on true
+      join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
       where (p.fecha_pago at time zone 'America/Lima')::date between $1::date and $2::date
@@ -594,7 +631,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       select coalesce(sum(p.monto), 0)::numeric as monto
       from {{SCHEMA}}.pagos p
       join {{SCHEMA}}.ventas v on v.id = p.venta_id
-      join {{SCHEMA}}.lotes l on l.id = v.lote_id
+      join lateral (
+        select vl.lote_id
+        from {{SCHEMA}}.venta_lotes vl
+        where vl.venta_id = v.id
+        order by vl.orden asc, vl.created_at asc, vl.id asc
+        limit 1
+      ) vl_primary on true
+      join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
       where (p.fecha_pago at time zone 'America/Lima')::date between $8::date and $9::date
@@ -628,7 +672,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
       coalesce(avg(v.precio_venta), 0)::numeric as precio_promedio_venta
     from {{SCHEMA}}.ventas v
     join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
-    join {{SCHEMA}}.lotes l on l.id = v.lote_id
+    join lateral (
+      select vl.lote_id
+      from {{SCHEMA}}.venta_lotes vl
+      where vl.venta_id = v.id
+      order by vl.orden asc, vl.created_at asc, vl.id asc
+      limit 1
+    ) vl_primary on true
+    join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
     join {{SCHEMA}}.clientes c on c.id = v.cliente_id
     left join pagos_iniciales pi on pi.venta_id = v.id
       where (v.fecha_venta at time zone 'America/Lima')::date between $1::date and $2::date
@@ -658,7 +709,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         l.manzana,
         v.precio_venta::numeric as precio_venta
       from {{SCHEMA}}.ventas v
-      join {{SCHEMA}}.lotes l on l.id = v.lote_id
+      join lateral (
+        select vl.lote_id
+        from {{SCHEMA}}.venta_lotes vl
+        where vl.venta_id = v.id
+        order by vl.orden asc, vl.created_at asc, vl.id asc
+        limit 1
+      ) vl_primary on true
+      join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
       where (v.fecha_venta at time zone 'America/Lima')::date between $1::date and $2::date
@@ -710,7 +768,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         else round(greatest(coalesce(l.precio_referencial, 0) - v.precio_venta, 0) * 100 / l.precio_referencial, 2)
       end::numeric as descuento_pct
     from {{SCHEMA}}.ventas v
-    join {{SCHEMA}}.lotes l on l.id = v.lote_id
+    join lateral (
+      select vl.lote_id
+      from {{SCHEMA}}.venta_lotes vl
+      where vl.venta_id = v.id
+      order by vl.orden asc, vl.created_at asc, vl.id asc
+      limit 1
+    ) vl_primary on true
+    join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
     join {{SCHEMA}}.clientes c on c.id = v.cliente_id
     left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
     where (v.fecha_venta at time zone 'America/Lima')::date between $1::date and $2::date
@@ -742,7 +807,14 @@ const buildAdminDashboardExecutiveDataAsync = async (query) => {
         greatest(coalesce(v.monto_financiado,0) - coalesce(cp.monto_cuotas_pagadas,0), 0)::numeric as monto_pendiente
       from {{SCHEMA}}.ventas v
       join {{SCHEMA}}.clientes c on c.id = v.cliente_id
-      join {{SCHEMA}}.lotes l on l.id = v.lote_id
+      join lateral (
+        select vl.lote_id
+        from {{SCHEMA}}.venta_lotes vl
+        where vl.venta_id = v.id
+        order by vl.orden asc, vl.created_at asc, vl.id asc
+        limit 1
+      ) vl_primary on true
+      join {{SCHEMA}}.lotes l on l.id = vl_primary.lote_id
       left join {{SCHEMA}}.usuarios u on u.id = v.asesor_id
       left join cuotas_pagadas cp on cp.venta_id = v.id
       where v.estado_venta::text = any($1::text[])

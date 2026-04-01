@@ -26,7 +26,7 @@ const formatMoney = (value: number) =>
 
 const formatDate = (value: string) => {
   const raw = String(value || "").trim();
-  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/) ;
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (dateOnly) return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
 
   const parsed = new Date(raw);
@@ -41,6 +41,35 @@ const capitalizeName = (value: string) =>
 
 const sortDirectionFor = (sort: SortState<SalesSortKey>, key: SalesSortKey) => (sort.key === key ? sort.direction : null);
 
+const IconArrowOpen = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const buildLotesByManzanaLabel = (sale: SaleRecord) => {
+  const lotes = (sale.lotes && sale.lotes.length > 0 ? sale.lotes : sale.lote ? [sale.lote] : [])
+    .filter(Boolean)
+    .map((lot) => ({ mz: String(lot.mz || "").trim().toUpperCase(), lote: Number(lot.lote) }))
+    .filter((lot) => lot.mz && Number.isFinite(lot.lote));
+
+  if (lotes.length === 0) {
+    return "-";
+  }
+
+  const grouped = lotes.reduce<Map<string, number[]>>((acc, lot) => {
+    const current = acc.get(lot.mz) ?? [];
+    current.push(lot.lote);
+    acc.set(lot.mz, current);
+    return acc;
+  }, new Map());
+
+  return Array.from(grouped.entries())
+    .sort((a, b) => a[0].localeCompare(b[0], "es", { sensitivity: "base" }))
+    .map(([mz, nums]) => `${mz}: ${Array.from(new Set(nums)).sort((a, b) => a - b).map((n) => String(n).padStart(2, "0")).join(",")}`)
+    .join(" · ");
+};
+
 export default function SalesTable({ items, loading, role, loginUsername, sort, onSort }: SalesTableProps) {
   const loadState = resolveTableLoadState(loading, items.length);
   const showDataRows = loadState === "ready" || loadState === "loading-refresh";
@@ -51,20 +80,20 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
         <thead>
           <tr>
             <th>
-              <DataTableSortHeader label="Lote" direction={sortDirectionFor(sort, "lote")} onToggle={() => onSort("lote")} />
-            </th>
-            <th>
-              <DataTableSortHeader
-                label="Cliente"
-                direction={sortDirectionFor(sort, "cliente")}
-                onToggle={() => onSort("cliente")}
-              />
+              <DataTableSortHeader label="Fecha de venta" direction={sortDirectionFor(sort, "fecha")} onToggle={() => onSort("fecha")} />
             </th>
             <th>
               <DataTableSortHeader
                 label="Asesor"
                 direction={sortDirectionFor(sort, "asesor")}
                 onToggle={() => onSort("asesor")}
+              />
+            </th>
+            <th>
+              <DataTableSortHeader
+                label="Cliente"
+                direction={sortDirectionFor(sort, "cliente")}
+                onToggle={() => onSort("cliente")}
               />
             </th>
             <th>
@@ -76,13 +105,17 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
             </th>
             <th>
               <DataTableSortHeader
-                label="Precio"
-                direction={sortDirectionFor(sort, "precio")}
-                onToggle={() => onSort("precio")}
+                label="Lotes"
+                direction={sortDirectionFor(sort, "lote")}
+                onToggle={() => onSort("lote")}
               />
             </th>
             <th>
-              <DataTableSortHeader label="Fecha" direction={sortDirectionFor(sort, "fecha")} onToggle={() => onSort("fecha")} />
+              <DataTableSortHeader
+                label="Total venta"
+                direction={sortDirectionFor(sort, "precio")}
+                onToggle={() => onSort("precio")}
+              />
             </th>
             <th>Acciones</th>
           </tr>
@@ -101,18 +134,16 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
           {showDataRows &&
             items.map((sale) => (
               <tr key={sale.id}>
-                <td className="sales-table__lot">
-                  {sale.lote ? sale.lote.codigo || `${sale.lote.mz}-${String(sale.lote.lote).padStart(2, "0")}` : "-"}
-                </td>
-                <td className="sales-table__client">
-                  {sale.cliente?.nombreCompleto ? capitalizeName(sale.cliente.nombreCompleto) : "-"}
-                </td>
+                <td>{formatDate(sale.fechaVenta)}</td>
                 <td>{sale.asesor?.nombre || "-"}</td>
+                <td className="sales-table__client">{sale.cliente?.nombreCompleto ? capitalizeName(sale.cliente.nombreCompleto) : "-"}</td>
                 <td>
                   <span className={`sales-pill ${saleStateClassName(sale.estadoVenta)}`}>{formatSaleStateLabel(sale.estadoVenta)}</span>
                 </td>
+                <td className="sales-table__lotes-mzna" title={buildLotesByManzanaLabel(sale)}>
+                  {buildLotesByManzanaLabel(sale)}
+                </td>
                 <td>{formatMoney(sale.precioVenta)}</td>
-                <td>{formatDate(sale.fechaVenta)}</td>
                 <td>
                   {(() => {
                     const isAdmin = role === "admin";
@@ -125,7 +156,9 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
                     if (isFallen && isAdmin) {
                       return (
                         <Link className="btn ghost data-table__row-action" to={`/ventas/${sale.id}`}>
-                          <span className="data-table__row-action-label">Ver detalle</span>
+                          <IconArrowOpen />
+                          <span className="data-table__row-action-label data-table__row-action-label--long">Abrir venta</span>
+                          <span className="data-table__row-action-label data-table__row-action-label--short">Abrir</span>
                         </Link>
                       );
                     }
@@ -136,7 +169,9 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
                           className="btn ghost data-table__row-action"
                           to={`/ventas/nueva?lote=${encodeURIComponent(sale.lote.codigo)}`}
                         >
-                          <span className="data-table__row-action-label">Crear venta</span>
+                          <IconArrowOpen />
+                          <span className="data-table__row-action-label data-table__row-action-label--long">Abrir venta</span>
+                          <span className="data-table__row-action-label data-table__row-action-label--short">Abrir</span>
                         </Link>
                       );
                     }
@@ -144,7 +179,9 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
                     if (canViewDetail) {
                       return (
                         <Link className="btn ghost data-table__row-action" to={`/ventas/${sale.id}`}>
-                          <span className="data-table__row-action-label">Ver detalle</span>
+                          <IconArrowOpen />
+                          <span className="data-table__row-action-label data-table__row-action-label--long">Abrir venta</span>
+                          <span className="data-table__row-action-label data-table__row-action-label--short">Abrir</span>
                         </Link>
                       );
                     }
@@ -156,7 +193,9 @@ export default function SalesTable({ items, loading, role, loginUsername, sort, 
                         disabled
                         title="No puedes abrir ventas de otro asesor"
                       >
-                        <span className="data-table__row-action-label">Ver detalle</span>
+                        <IconArrowOpen />
+                        <span className="data-table__row-action-label data-table__row-action-label--long">Abrir venta</span>
+                        <span className="data-table__row-action-label data-table__row-action-label--short">Abrir</span>
                       </button>
                     );
                   })()}

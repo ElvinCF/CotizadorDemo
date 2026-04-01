@@ -1,7 +1,9 @@
 # Plan de Ventas
 
-Actualizado: `2026-03-31`
+Actualizado: `2026-04-01`
 Rol: `Plan por fases`
+
+Estado general del plan: `Cerrado (ciclo ventas Q1 2026)`
 
 ## Uso de este documento
 
@@ -133,7 +135,7 @@ Criterio de cierre:
 
 ## Fase 3. Ajuste de reglas de inicial y estados
 
-Estado: `En curso`
+Estado: `Aplicado`
 
 Meta:
 
@@ -213,7 +215,7 @@ Avance aplicado:
 
 ## Fase 5. Multi-lote en cotizador y venta
 
-Estado: `En curso`
+Estado: `Aplicado`
 
 Meta:
 
@@ -305,7 +307,7 @@ Entregables:
 Regla funcional:
 
 - la logica nueva no depende de `ventas.lote_id`
-- `ventas.lote_id` queda solo como legado fisico temporal
+- `ventas.lote_id` fue retirado en el corte final de fase 5 sobre `public`
 
 Criterio de cierre:
 
@@ -334,7 +336,7 @@ Criterio de cierre:
 
 ### Incremento 5.6. Rollout, QA y corte a `public`
 
-Estado: `Pendiente`
+Estado: `Aplicado`
 
 Objetivo:
 
@@ -368,11 +370,12 @@ Avance aplicado (2026-03-30):
 - tabla `public.venta_lotes` creada y poblada desde `ventas.lote_id`
 - trigger de integridad activo para impedir lote en dos ventas activas (`venta_lotes_lote_activo_unique`)
 - backend de ventas opera sobre `venta_lotes` con fallback legado:
+- backend de ventas opera sobre `venta_lotes`:
   - create/update persisten relacion en `venta_lotes`
   - get/list exponen lote principal desde `venta_lotes` y lista `lotes` del expediente
   - accesos por lote (`/api/ventas/accesos-lote`) resuelven por `venta_lotes`
   - sincronizacion de estado comercial de lote se aplica a todos los lotes asociados
-- `ventas.lote_id` queda como espejo legado temporal para compatibilidad
+- en el corte final se retiro `ventas.lote_id` de `public` y se removieron dependencias legadas (fk, indices y vista dashboard base)
 - frontend (parcial 5.5):
   - mapa con card flotante para activar modo multi-seleccion y abrir `Cotizar`
   - lotes seleccionados visibles en tabla del drawer con opcion de eliminar fila
@@ -393,9 +396,20 @@ Avance aplicado (2026-03-31):
   - cliente de proforma (si existe)
 - en backend (`ventasService`) se corrige update de expediente para persistir cambios de `venta_lotes` y sincronizar estado comercial de todos los lotes asociados
 
+Avance aplicado (2026-04-01):
+
+- incremento 1 completado: backend de ventas sin fallback/espejo a `ventas.lote_id`
+- incremento 2 completado: consultas SQL directas de dashboard migradas a `venta_lotes` (lote principal por `orden`)
+- incremento 3 completado (schema `public`):
+  - vista `vw_dashboard_ventas_base` recreada usando `venta_lotes`
+  - eliminadas dependencias legadas de `ventas.lote_id` (fk e indices)
+- incremento 4 completado (schema `public`):
+  - columna `public.ventas.lote_id` eliminada
+  - verificacion de dependencias sobre la columna: sin resultados
+
 ## Fase 6. Documentos e impresion del expediente de venta
 
-Estado: `Pendiente`
+Estado: `En curso`
 
 Meta:
 
@@ -464,8 +478,7 @@ Cuando estas fases se apliquen, se debe actualizar en paralelo:
 
 ## Backlog siguiente aprobado
 
-1. Fase 5: multi-lote en cotizador y venta
-2. Fase 6: documentos e impresion del expediente
+1. Fase 6: documentos e impresion del expediente
 
 ## Riesgos abiertos
 
@@ -473,6 +486,14 @@ Cuando estas fases se apliquen, se debe actualizar en paralelo:
 - si backend y BD no se alinean, el frontend podra dejar guardar pero la persistencia seguira fallando
 - quitar el minimo de inicial sin revisar automatismos puede romper sincronizacion de estados
 - esconder demasiado en `Ajustes` puede perjudicar el discurso comercial si se mueve algo que impacta calculo inmediato
+
+## Cierre del plan (2026-04-01)
+
+- este plan se cierra como ciclo operativo de ventas (fases 1 a 5 aplicadas)
+- los cambios nuevos de ventas pasan a:
+  - `5_correcciones_ideas.md` si son idea o por madurar
+  - un nuevo `plan_ventas` solo si se abre una fase formal nueva
+- Fase 6 (documentos) sigue activa como frente documental, sin reabrir este ciclo operativo
 
 ## Regla documental para futuros cambios de BD en ventas
 

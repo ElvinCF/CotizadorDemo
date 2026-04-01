@@ -139,6 +139,19 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const DRAWER_PULSE_MS = 900;
   const currentUsername = loginUsername?.trim().toLowerCase() ?? null;
   const lotes = rawLotes;
+  const salesByLoteFromCatalog = useMemo<Record<string, LoteSaleAccess>>(
+    () =>
+      rawLotes.reduce<Record<string, LoteSaleAccess>>((acc, lote) => {
+        if (lote.ventaActiva && lote.ventaActivaId) {
+          acc[lote.id] = {
+            saleId: lote.ventaActivaId,
+            ownerUsername: null,
+          };
+        }
+        return acc;
+      }, {}),
+    [rawLotes]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -297,7 +310,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
     const loadActiveSales = async () => {
       if (!isAuthenticated) {
-        setSalesByLoteCode({});
+        setSalesByLoteCode(salesByLoteFromCatalog);
         return;
       }
 
@@ -313,12 +326,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             };
           }
           return acc;
-        }, {});
+        }, { ...salesByLoteFromCatalog });
         setSalesByLoteCode(mapping);
       } catch (error) {
         if (cancelled) return;
         console.error("No se pudo cargar ventas activas para mapa:", error);
-        setSalesByLoteCode({});
+        setSalesByLoteCode(salesByLoteFromCatalog);
       }
     };
 
@@ -326,7 +339,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, salesByLoteFromCatalog]);
 
   useEffect(() => {
     const raw = localStorage.getItem(PROFORMA_VENDOR_KEY);

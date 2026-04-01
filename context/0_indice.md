@@ -1,6 +1,6 @@
 # Indice de Documentacion del Proyecto
 
-Actualizado: `2026-03-23`
+Actualizado: `2026-04-01`
 
 ## Estructura
 
@@ -15,7 +15,7 @@ Actualizado: `2026-03-23`
 ### Planes
 
 - `4_planes.md`: backlog padre de frontend y modulos dependientes
-- `4-1_plan_ventas.md`: backlog operativo de ventas
+- `4-1_plan_ventas.md`: plan operativo de ventas (ciclo Q1 2026 cerrado)
 - `4-2_plan_dashboards.md`: backlog de dashboards
 
 ### Exploracion previa

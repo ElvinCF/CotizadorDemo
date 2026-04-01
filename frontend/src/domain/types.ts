@@ -6,6 +6,8 @@ export type Lote = {
   areaM2: number | null;
   price: number | null;
   condicion: string;
+  ventaActiva?: boolean;
+  ventaActivaId?: string | null;
 };
 
 export type QuoteState = {

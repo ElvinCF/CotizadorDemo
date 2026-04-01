@@ -199,7 +199,7 @@ Indice unico parcial muy necesario:
 Objetivo:
 
 - representar la relacion N:N entre expediente de venta y lotes
-- habilitar multi-lote sin perder compatibilidad con `ventas.lote_id`
+- consolidar multi-lote con `venta_lotes` como unica fuente de vinculo venta-lote
 
 Columnas:
 
@@ -230,8 +230,8 @@ Indices:
 
 Nota de compatibilidad:
 
-- `ventas.lote_id` se mantiene como espejo legado temporal (primer lote del expediente)
-- la logica nueva de backend usa `venta_lotes` como fuente primaria
+- `ventas.lote_id` fue retirado del schema `public` en el corte final de fase 5
+- la logica de backend y reportes usa `venta_lotes` de forma exclusiva
 
 Objetivo:
 
