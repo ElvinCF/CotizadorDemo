@@ -49,24 +49,31 @@ const IconDownload = () => (
   </svg>
 );
 
+const IconSpinner = () => (
+  <svg className="sales-spinner" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" opacity="0.28" />
+    <path d="M12 4a8 8 0 0 1 8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
 type MapHeaderProps = {
   view: "mapa" | "tabla";
   setView: (next: "mapa" | "tabla") => void;
   filteredCount: number;
-  totalCount: number;
   onExportExecutivePdf: () => void;
   onExportTable: () => void;
   hideExecutiveExport?: boolean;
+  exportExecutiveLoading?: boolean;
 };
 
 function MapHeader({
   view,
   setView,
   filteredCount,
-  totalCount,
   onExportExecutivePdf,
   onExportTable,
   hideExecutiveExport = false,
+  exportExecutiveLoading = false,
 }: MapHeaderProps) {
   return (
     <div className="map-header">
@@ -83,7 +90,7 @@ function MapHeader({
             </button>
           </div>
           <div className="map-header__info kpi-chip">
-            <strong>{filteredCount} de {totalCount}</strong> lotes
+            <strong>{filteredCount}</strong> lotes
           </div>
         </div>
         <div className="map-header__right">
@@ -93,8 +100,9 @@ function MapHeader({
               onClick={onExportExecutivePdf}
               aria-label="Descargar mapa ejecutivo"
               title="Descargar mapa ejecutivo"
+              disabled={exportExecutiveLoading}
             >
-              <IconDownload />
+              {exportExecutiveLoading ? <IconSpinner /> : <IconDownload />}
               <span className="label-desktop">Descargar mapa</span>
               <span className="label-tablet">Descargar</span>
             </button>

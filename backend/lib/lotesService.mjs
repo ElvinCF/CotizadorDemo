@@ -33,7 +33,16 @@ export const listLotes = async () => {
   const schema = resolveDbSchema();
   return withPgClient(async (client) => {
     const result = await client.query(
-      `select
+      `with latest_active_sale as (
+         select distinct on (vl.lote_id)
+           vl.lote_id,
+           v.id as venta_activa_id
+         from ${schema}.venta_lotes vl
+         join ${schema}.ventas v on v.id = vl.venta_id
+         where v.estado_venta <> 'CAIDA'
+         order by vl.lote_id, v.fecha_venta desc nulls last, v.created_at desc, v.id desc
+       )
+       select
          l.id,
          l.manzana,
          l.lote,
@@ -41,20 +50,10 @@ export const listLotes = async () => {
          l.precio_referencial,
          l.estado_comercial,
          l.codigo,
-         sale_active.venta_activa,
-         sale_active.venta_activa_id
+         (las.venta_activa_id is not null) as venta_activa,
+         las.venta_activa_id
        from ${schema}.lotes l
-       left join lateral (
-         select
-           true as venta_activa,
-           v.id as venta_activa_id
-         from ${schema}.venta_lotes vl
-         join ${schema}.ventas v on v.id = vl.venta_id
-         where vl.lote_id = l.id
-           and v.estado_venta <> 'CAIDA'
-         order by v.fecha_venta desc nulls last, v.created_at desc, v.id desc
-         limit 1
-       ) sale_active on true
+       left join latest_active_sale las on las.lote_id = l.id
        order by l.manzana asc, l.lote asc`
     );
 

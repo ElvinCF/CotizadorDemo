@@ -7,6 +7,7 @@ import {
 } from "react-zoom-pan-pinch";
 import ArenasSvg from "../../components/arenas";
 import AppShell from "../../app/AppShell";
+import { MAP_BACKGROUND_IMAGE } from "../../app/assets";
 import { MAP_HEIGHT, MAP_WIDTH, defaultOverlay, mapVars } from "../../domain/constants";
 import { overlayStyle } from "../../domain/finance";
 import type { Lote, OverlayTransform } from "../../domain/types";
@@ -212,7 +213,7 @@ const OverlayEditorPage = () => {
                   <TransformComponent wrapperClass="transform-wrapper">
                     <div className="map-layer">
                       <img
-                        src="/assets/plano-fondo-demo-b.webp"
+                        src={MAP_BACKGROUND_IMAGE}
                         alt="Plano de fondo"
                         className="map-background"
                         draggable={false}

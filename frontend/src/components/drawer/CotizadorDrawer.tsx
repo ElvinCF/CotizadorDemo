@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ValidatedNumberField from "../forms/ValidatedNumberField";
 import { formatArea, formatMoney, statusToClass } from "../../domain/formatters";
 import type { Lote, QuoteState } from "../../domain/types";
@@ -91,34 +91,44 @@ function CotizadorDrawer({
   saleButtonLabel = "Crear venta",
   saleButtonTitle,
 }: CotizadorDrawerProps) {
-  const lotesSeleccionados = selectedLotes.length > 0 ? selectedLotes : selectedLote ? [selectedLote] : [];
-  const loteBase = selectedLote ?? lotesSeleccionados[0] ?? null;
+  const lotesSeleccionados = useMemo(
+    () => (selectedLotes.length > 0 ? selectedLotes : selectedLote ? [selectedLote] : []),
+    [selectedLote, selectedLotes]
+  );
+  const loteBase = useMemo(() => selectedLote ?? lotesSeleccionados[0] ?? null, [lotesSeleccionados, selectedLote]);
   const precioLote = quote.precio ?? 0;
   const loteStatusClass = statusToClass(loteBase?.condicion);
-  const totalPrecioRef = lotesSeleccionados.reduce((sum, lote) => sum + Math.max(Number(lote.price ?? 0), 0), 0);
+  const totalPrecioRef = useMemo(
+    () => lotesSeleccionados.reduce((sum, lote) => sum + Math.max(Number(lote.price ?? 0), 0), 0),
+    [lotesSeleccionados]
+  );
   const showTotalsRow = lotesSeleccionados.length > 1;
-  const initialSliderMax = Math.max(6000, Math.ceil(precioLote / 500) * 500);
-  const plusvaliaBase = Math.max(totalPrecioRef || precioLote || 0, 0);
+  const initialSliderMax = useMemo(() => Math.max(6000, Math.ceil(precioLote / 500) * 500), [precioLote]);
+  const plusvaliaBase = useMemo(() => Math.max(totalPrecioRef || precioLote || 0, 0), [precioLote, totalPrecioRef]);
 
-  const plusvaliaSeries = PLUSVALIA_MILESTONES.reduce<PlusvaliaPoint[]>((acc, milestone, idx) => {
-    if (idx === 0) {
-      acc.push({ label: milestone.label, value: plusvaliaBase, growth: 0 });
-      return acc;
-    }
-    const prevValue = acc[idx - 1]?.value ?? plusvaliaBase;
-    acc.push({
-      label: milestone.label,
-      value: Math.round(prevValue * (1 + milestone.growth)),
-      growth: milestone.growth,
-    });
-    return acc;
-  }, []);
+  const plusvaliaSeries = useMemo(
+    () =>
+      PLUSVALIA_MILESTONES.reduce<PlusvaliaPoint[]>((acc, milestone, idx) => {
+        if (idx === 0) {
+          acc.push({ label: milestone.label, value: plusvaliaBase, growth: 0 });
+          return acc;
+        }
+        const prevValue = acc[idx - 1]?.value ?? plusvaliaBase;
+        acc.push({
+          label: milestone.label,
+          value: Math.round(prevValue * (1 + milestone.growth)),
+          growth: milestone.growth,
+        });
+        return acc;
+      }, []),
+    [plusvaliaBase]
+  );
 
-  const plusvaliaFinal = plusvaliaSeries.at(-1)?.value ?? plusvaliaBase;
-  const plusvaliaGain = Math.max(plusvaliaFinal - plusvaliaBase, 0);
-  const plusvaliaGainPct = plusvaliaBase > 0 ? (plusvaliaGain / plusvaliaBase) * 100 : 0;
-  const yMin = Math.max(plusvaliaBase, 0);
-  const yMax = Math.max(plusvaliaFinal, yMin + 1);
+  const plusvaliaFinal = useMemo(() => plusvaliaSeries.at(-1)?.value ?? plusvaliaBase, [plusvaliaBase, plusvaliaSeries]);
+  const plusvaliaGain = useMemo(() => Math.max(plusvaliaFinal - plusvaliaBase, 0), [plusvaliaBase, plusvaliaFinal]);
+  const plusvaliaGainPct = useMemo(() => (plusvaliaBase > 0 ? (plusvaliaGain / plusvaliaBase) * 100 : 0), [plusvaliaBase, plusvaliaGain]);
+  const yMin = useMemo(() => Math.max(plusvaliaBase, 0), [plusvaliaBase]);
+  const yMax = useMemo(() => Math.max(plusvaliaFinal, yMin + 1), [plusvaliaFinal, yMin]);
   const [plusvaliaGlow, setPlusvaliaGlow] = useState(false);
 
   useEffect(() => {
@@ -126,7 +136,7 @@ function CotizadorDrawer({
     setPlusvaliaGlow(true);
     const timer = window.setTimeout(() => setPlusvaliaGlow(false), 760);
     return () => window.clearTimeout(timer);
-  }, [plusvaliaBase, plusvaliaFinal, plusvaliaGainPct]);
+  }, [plusvaliaBase]);
 
   const applyMonthsPreset = (meses: number) => {
     onChangeQuote({ ...quote, cuotas: meses });

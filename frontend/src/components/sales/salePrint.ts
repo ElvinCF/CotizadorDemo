@@ -1,4 +1,5 @@
 import type { SaleRecord, SalesClient } from "../../domain/ventas";
+import { waitForPrintWindowAssets } from "../../utils/printWindow";
 
 export type SalePrintKind = "separacion" | "contrato";
 
@@ -101,13 +102,15 @@ const buildTemplate = ({ kind, sale, cliente, cliente2 }: SalePrintData) => {
   `;
 };
 
-export const printSaleDocument = (data: SalePrintData) => {
+export const printSaleDocument = async (data: SalePrintData) => {
   if (typeof window === "undefined") return;
   const popup = window.open("", "_blank", "noopener,noreferrer,width=980,height=720");
   if (!popup) return;
 
   const title = data.kind === "separacion" ? "Ficha de Separacion" : "Ficha de Venta / Contrato";
   const content = buildTemplate(data);
+  const logoArenasMalabrigo = new URL("/assets/Logo_Arenas_Malabrigo.svg", window.location.origin).href;
+  const logoHolaTrujillo = new URL("/assets/HOLA-TRUJILLO_LOGOTIPO.webp", window.location.origin).href;
 
   popup.document.write(`
     <!doctype html>
@@ -132,14 +135,15 @@ export const printSaleDocument = (data: SalePrintData) => {
       </head>
       <body>
         <header class="header">
-          <img src="/assets/Logo_Arenas_Malabrigo.svg" alt="Arenas Malabrigo" />
-          <img src="/assets/HOLA-TRUJILLO_LOGOTIPO.webp" alt="Hola Trujillo" />
+          <img src="${logoArenasMalabrigo}" alt="Arenas Malabrigo" />
+          <img src="${logoHolaTrujillo}" alt="Hola Trujillo" />
         </header>
         ${content}
       </body>
     </html>
   `);
   popup.document.close();
+  await waitForPrintWindowAssets(popup);
   popup.focus();
   popup.print();
 };

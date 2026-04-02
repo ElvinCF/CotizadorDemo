@@ -7,7 +7,6 @@ import DataTableShell from "../../components/data-table/DataTableShell";
 import DataTableToolbar from "../../components/data-table/DataTableToolbar";
 import { buildDateBounds, isDateInRange, withDefaultDateRange } from "../../components/data-table/dateRange";
 import type { SortState } from "../../components/data-table/types";
-import type { Lote } from "../../domain/types";
 import SalesTable from "../../components/sales/SalesTable";
 import type { SaleRecord, SaleState } from "../../domain/ventas";
 import { listSales } from "../../services/ventas";
@@ -87,8 +86,6 @@ const IconMap = () => (
 export default function SalesListPage() {
   const { role, loginUsername } = useAuth();
   const [items, setItems] = useState<SaleRecord[]>([]);
-  const [soldLotes, setSoldLotes] = useState(0);
-  const [lotesConVenta, setLotesConVenta] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -99,24 +96,8 @@ export default function SalesListPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const [salesData, lotesResponse] = await Promise.all([
-          listSales(),
-          fetch("/api/lotes", { cache: "no-store" }),
-        ]);
-
+        const salesData = await listSales();
         setItems(salesData);
-
-        if (lotesResponse.ok) {
-          const payload = (await lotesResponse.json()) as { items?: Lote[] };
-          const lotes = Array.isArray(payload.items) ? payload.items : [];
-          setSoldLotes(
-            lotes.filter((lote) => String(lote?.condicion ?? "").trim().toUpperCase() === "VENDIDO").length
-          );
-          setLotesConVenta(lotes.filter((lote) => Boolean(lote?.ventaActiva)).length);
-        } else {
-          setSoldLotes(0);
-          setLotesConVenta(0);
-        }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "No se pudo cargar ventas.");
       } finally {
@@ -309,8 +290,6 @@ export default function SalesListPage() {
         meta={
           <div className="sales-page__meta-badges">
             <span className="data-table-shell__count">Ventas: {items.length}</span>
-            <span className="data-table-shell__count">Lotes vendidos: {soldLotes}</span>
-            <span className="data-table-shell__count">Lotes con venta: {lotesConVenta}</span>
           </div>
         }
         toolbar={
@@ -325,7 +304,7 @@ export default function SalesListPage() {
           />
         }
         filters={
-          <DataTableFilters open={filtersOpen} className="data-table-filters--sales">
+          filtersOpen ? <DataTableFilters open className="data-table-filters--sales">
             <label className="data-table-filters__field">
               <span>Asesor</span>
               <select
@@ -389,7 +368,7 @@ export default function SalesListPage() {
                 onChange={(event) => setFilters((current) => ({ ...current, fechaHasta: event.target.value }))}
               />
             </label>
-          </DataTableFilters>
+          </DataTableFilters> : null
         }
       >
         {error ? <p className="admin-error">{error}</p> : null}

@@ -1,6 +1,7 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import AppShell from "../../app/AppShell";
+import { MAP_BACKGROUND_IMAGE } from "../../app/assets";
 import { useAuth } from "../../app/AuthContext";
 import {
   TransformComponent,
@@ -37,6 +38,7 @@ import type { FiltersState, Lote, OverlayTransform, ProformaState, QuoteState } 
 import { projectInfo } from "../../data/projectInfo";
 import { loadLotesFromApi } from "../../services/lotes";
 import { listSaleAccessByLot } from "../../services/ventas";
+import { waitForPrintWindowAssets } from "../../utils/printWindow";
 
 const MemoArenasSvg = memo(ArenasSvg);
 
@@ -72,7 +74,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedLotIds, setSelectedLotIds] = useState<string[]>([]);
+  const [selectedLotIds, setSelectedLotIds] = useState<Set<string>>(() => new Set());
   const [multiSelectEnabled, setMultiSelectEnabled] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState<boolean>(
     () => typeof window !== "undefined" && window.innerWidth <= 640
@@ -90,6 +92,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const [pulseMz, setPulseMz] = useState(false);
   const [pulseLote, setPulseLote] = useState(false);
   const [proformaOpen, setProformaOpen] = useState(false);
+  const [exportExecutiveLoading, setExportExecutiveLoading] = useState(false);
   const [proformaDirty, setProformaDirty] = useState(false);
   const [proformaConfirmClose, setProformaConfirmClose] = useState(false);
   const [proformaAlert, setProformaAlert] = useState<string | null>(null);
@@ -122,14 +125,16 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const mapTransformRef = useRef(mapTransform);
   const transformRafRef = useRef<number | null>(null);
+  const backgroundPdfDataUrlRef = useRef<string | null>(null);
   const containerSizeRef = useRef({ width: 0, height: 0 });
   const hasFitRef = useRef(false);
   const lastHoveredRef = useRef<string | null>(null);
-  const lastSelectedRef = useRef<string | null>(null);
-  const highlightedRef = useRef<Set<string>>(new Set());
+  const hoveredIdRef = useRef<string | null>(null);
+  const loteRenderStateRef = useRef<Map<string, string>>(new Map());
   const hoverPosRef = useRef({ x: 0, y: 0 });
   const hoverRafRef = useRef<number | null>(null);
   const lastPriceEditedRef = useRef<"soles" | "pct" | "promo" | null>(null);
+  const lastTransformCommitRef = useRef(0);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, LoteSaleAccess>>({});
@@ -139,6 +144,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const DRAWER_PULSE_MS = 900;
   const currentUsername = loginUsername?.trim().toLowerCase() ?? null;
   const lotes = rawLotes;
+  const selectedLotIdList = useMemo(() => Array.from(selectedLotIds), [selectedLotIds]);
   const salesByLoteFromCatalog = useMemo<Record<string, LoteSaleAccess>>(
     () =>
       rawLotes.reduce<Record<string, LoteSaleAccess>>((acc, lote) => {
@@ -178,7 +184,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       if (!lote || lote.condicion !== "DISPONIBLE") {
         return;
       }
-      setSelectedLotIds((current) => (current.includes(normalizedId) ? current : [...current, normalizedId]));
+      setSelectedLotIds((current) => {
+        if (current.has(normalizedId)) return current;
+        const next = new Set(current);
+        next.add(normalizedId);
+        return next;
+      });
     },
     [lotes]
   );
@@ -190,11 +201,15 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       if (!lote || lote.condicion !== "DISPONIBLE") {
         return;
       }
-      setSelectedLotIds((current) =>
-        current.includes(normalizedId)
-          ? current.filter((id) => id !== normalizedId)
-          : [...current, normalizedId]
-      );
+      setSelectedLotIds((current) => {
+        const next = new Set(current);
+        if (next.has(normalizedId)) {
+          next.delete(normalizedId);
+        } else {
+          next.add(normalizedId);
+        }
+        return next;
+      });
     },
     [lotes]
   );
@@ -210,10 +225,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         setSelectedId(nextSelectedId);
         if (options?.preserveSelection) {
           if (multiSelectEnabled) {
-            setSelectedLotIds((current) => (current.length === 0 ? [nextSelectedId] : current));
+            setSelectedLotIds((current) => (current.size === 0 ? new Set([nextSelectedId]) : current));
           }
         } else if (!multiSelectEnabled) {
-          setSelectedLotIds([nextSelectedId]);
+          setSelectedLotIds(new Set([nextSelectedId]));
         } else {
           addLotToSelection(nextSelectedId);
         }
@@ -234,7 +249,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     setRightOpen(false);
     if (!isSmallScreen) {
       setSelectedId(null);
-      setSelectedLotIds([]);
+      setSelectedLotIds(new Set());
     }
 
     if (publicView && isCotizadorRoute) {
@@ -243,12 +258,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   }, [isCotizadorRoute, isSmallScreen, navigate, publicView]);
 
   const openCotizadorFromFloatingCard = useCallback(() => {
-    if (selectedLotIds.length === 0 && !selectedId) return;
-    if (!selectedId && selectedLotIds[0]) {
-      setSelectedId(selectedLotIds[0]);
+    if (selectedLotIds.size === 0 && !selectedId) return;
+    if (!selectedId && selectedLotIdList[0]) {
+      setSelectedId(selectedLotIdList[0]);
     }
     setRightOpen(true);
-  }, [selectedId, selectedLotIds]);
+  }, [selectedId, selectedLotIdList, selectedLotIds.size]);
 
   useEffect(() => {
     if (!publicView) return;
@@ -257,7 +272,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       setRightOpen(true);
       if (routeLoteCodigo) {
         setSelectedId(routeLoteCodigo);
-        setSelectedLotIds([routeLoteCodigo]);
+        setSelectedLotIds(new Set([routeLoteCodigo]));
       }
       return;
     }
@@ -265,7 +280,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     setRightOpen(false);
     if (!isSmallScreen) {
       setSelectedId(null);
-      setSelectedLotIds([]);
+      setSelectedLotIds(new Set());
     }
   }, [isCotizadorRoute, isSmallScreen, publicView, routeLoteCodigo]);
 
@@ -276,7 +291,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     setRightOpen(false);
     if (!isSmallScreen) {
       setSelectedId(null);
-      setSelectedLotIds([]);
+      setSelectedLotIds(new Set());
     }
     navigate("/", { replace: true });
   }, [isCotizadorRoute, isSmallScreen, navigate, publicView, routeLoteCodigo]);
@@ -409,8 +424,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     [lotes, selectedId]
   );
   const selectedLotes = useMemo(
-    () => selectedLotIds.map((id) => lotes.find((item) => item.id === id)).filter((item): item is Lote => Boolean(item)),
-    [lotes, selectedLotIds]
+    () => selectedLotIdList.map((id) => lotes.find((item) => item.id === id)).filter((item): item is Lote => Boolean(item)),
+    [lotes, selectedLotIdList]
   );
   const drawerLotes = selectedLotes.length > 0 ? selectedLotes : selectedLote ? [selectedLote] : [];
   const drawerTotalPrice = drawerLotes.reduce((sum, lote) => sum + Math.max(Number(lote.price ?? 0), 0), 0);
@@ -423,11 +438,11 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   );
   const selectedAvailableCount = useMemo(
     () =>
-      selectedLotIds.filter((id) => {
+      selectedLotIdList.filter((id) => {
         const lote = lotes.find((item) => item.id === id);
         return lote?.condicion === "DISPONIBLE";
       }).length,
-    [lotes, selectedLotIds]
+    [lotes, selectedLotIdList]
   );
 
   useEffect(() => {
@@ -444,10 +459,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   useEffect(() => {
     if (!selectedLote) return;
     if (!multiSelectEnabled) {
-      setSelectedLotIds([selectedLote.id]);
+      setSelectedLotIds(new Set([selectedLote.id]));
       return;
     }
-    setSelectedLotIds((current) => (current.length === 0 ? [selectedLote.id] : current));
+    setSelectedLotIds((current) => (current.size === 0 ? new Set([selectedLote.id]) : current));
   }, [multiSelectEnabled, selectedLote]);
 
   useEffect(() => {
@@ -473,7 +488,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
     setRightOpen(false);
     setSelectedId(null);
-    setSelectedLotIds([]);
+    setSelectedLotIds(new Set());
     navigate("/", { replace: true });
   }, [isCotizadorRoute, lotes, navigate, publicView, routeLoteCodigo]);
 
@@ -494,6 +509,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   }, [selectedLote, DRAWER_PULSE_MS]);
 
   useEffect(() => {
+    hoveredIdRef.current = hoveredId;
+  }, [hoveredId]);
+
+  useEffect(() => {
     const root = svgRef.current;
     if (!root || view !== "mapa") return;
     const prev = lastHoveredRef.current;
@@ -511,71 +530,38 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   useEffect(() => {
     const root = svgRef.current;
     if (!root || view !== "mapa") return;
-    const prev = lastSelectedRef.current;
-    if (prev && prev !== selectedId) {
-      const prevEl = root.querySelector(`#${CSS.escape(prev)}`);
-      prevEl?.classList.remove("is-selected");
-    }
-    if (selectedId) {
-      const nextEl = root.querySelector(`#${CSS.escape(selectedId)}`);
-      nextEl?.classList.add("is-selected");
-    }
-    lastSelectedRef.current = selectedId;
-  }, [selectedId, view]);
+    const nextCache = new Map<string, string>();
 
-  useEffect(() => {
-    const root = svgRef.current;
-    if (!root || view !== "mapa") return;
-
-    const previous = new Set(
-      Array.from(root.querySelectorAll(".is-multi-selected[id]")).map((node) => node.getAttribute("id")).filter(Boolean) as string[]
-    );
-    const current = new Set(selectedLotIds);
-
-    current.forEach((id) => {
-      if (!previous.has(id)) {
-        const target = root.querySelector(`#${CSS.escape(id)}`);
-        target?.classList.add("is-multi-selected");
-      }
-    });
-
-    previous.forEach((id) => {
-      if (!current.has(id)) {
-        const target = root.querySelector(`#${CSS.escape(id)}`);
-        target?.classList.remove("is-multi-selected");
-      }
-    });
-  }, [selectedLotIds, view]);
-
-  useEffect(() => {
-    const root = svgRef.current;
-    if (!root || view !== "mapa") return;
-    const prev = highlightedRef.current;
-    highlightedIds.forEach((id) => {
-      if (!prev.has(id)) {
-        const target = root.querySelector(`#${CSS.escape(id)}`);
-        target?.classList.add("is-highlighted");
-      }
-    });
-    prev.forEach((id) => {
-      if (!highlightedIds.has(id)) {
-        const target = root.querySelector(`#${CSS.escape(id)}`);
-        target?.classList.remove("is-highlighted");
-      }
-    });
-    highlightedRef.current = new Set(highlightedIds);
-  }, [highlightedIds, view]);
-
-  useEffect(() => {
-    const root = svgRef.current;
-    if (!root || view !== "mapa") return;
     lotes.forEach((lote) => {
-      const target = root.querySelector(`#${CSS.escape(lote.id)}`);
-      if (target) {
-        target.setAttribute("data-status", lote.condicion);
+      const status = lote.condicion;
+      const isSelected = selectedId === lote.id;
+      const isMultiSelected = selectedLotIds.has(lote.id);
+      const isHighlighted = highlightedIds.has(lote.id);
+      const renderKey = `${status}|${isSelected ? 1 : 0}|${isMultiSelected ? 1 : 0}|${isHighlighted ? 1 : 0}`;
+      nextCache.set(lote.id, renderKey);
+
+      if (loteRenderStateRef.current.get(lote.id) === renderKey) {
+        return;
       }
+
+      const target = root.querySelector<SVGElement>(`#${CSS.escape(lote.id)}`);
+      if (!target) return;
+      target.setAttribute("data-status", status);
+      target.classList.toggle("is-selected", isSelected);
+      target.classList.toggle("is-multi-selected", isMultiSelected);
+      target.classList.toggle("is-highlighted", isHighlighted);
     });
-  }, [lotes, view]);
+
+    loteRenderStateRef.current.forEach((_, id) => {
+      if (nextCache.has(id)) return;
+      const target = root.querySelector<SVGElement>(`#${CSS.escape(id)}`);
+      if (!target) return;
+      target.classList.remove("is-selected", "is-multi-selected", "is-highlighted");
+      target.removeAttribute("data-status");
+    });
+
+    loteRenderStateRef.current = nextCache;
+  }, [highlightedIds, lotes, selectedId, selectedLotIds, view]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -667,7 +653,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         openQuoteDrawer(id);
         return;
       }
-    if (hoveredId !== id) {
+    if (hoveredIdRef.current !== id) {
+      hoveredIdRef.current = id;
       setHoveredId(id);
     }
     hoverPosRef.current = { x: event.clientX, y: event.clientY };
@@ -677,7 +664,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         hoverRafRef.current = null;
       });
     }
-  }, [hoveredId, lotes, multiSelectEnabled, openQuoteDrawer, toggleLotSelection]);
+  }, [lotes, multiSelectEnabled, openQuoteDrawer, toggleLotSelection]);
 
   const handleSvgLeave = useCallback(() => {
     setHoveredId(null);
@@ -879,22 +866,58 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       image.src = src;
     });
 
-  const exportExecutivePdf = async () => {
-    const targetWidth = MAP_WIDTH * 3;
-    const targetHeight = MAP_HEIGHT * 3;
-
+  const imageToDataUrl = async (image: HTMLImageElement, mimeType: "image/jpeg" | "image/png", quality = 0.92) => {
     const canvas = document.createElement("canvas");
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
+    canvas.width = Math.max(1, image.naturalWidth || image.width || 1);
+    canvas.height = Math.max(1, image.naturalHeight || image.height || 1);
     const context = canvas.getContext("2d");
-    if (!context) return;
+    if (!context) throw new Error("No se pudo inicializar canvas para exportar imagen.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-    const scale = targetWidth / MAP_WIDTH;
-    context.scale(scale, scale);
-    context.fillStyle = "#f7f0e4";
-    context.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+    return await new Promise<string>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("No se pudo generar blob de imagen para exportacion."));
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(new Error("No se pudo leer imagen para exportacion."));
+          reader.readAsDataURL(blob);
+        },
+        mimeType,
+        quality
+      );
+    });
+  };
 
-    const backgroundImage = await loadImageElement("/assets/plano-fondo-demo-b.webp");
+  const nextFrame = () =>
+    new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+
+  const getBackgroundPdfDataUrl = async () => {
+    if (backgroundPdfDataUrlRef.current) return backgroundPdfDataUrlRef.current;
+    const response = await fetch(MAP_BACKGROUND_IMAGE, { cache: "force-cache" });
+    if (!response.ok) throw new Error(`No se pudo cargar fondo para PDF: HTTP ${response.status}`);
+    const blob = await response.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(new Error("No se pudo leer fondo para PDF."));
+      reader.readAsDataURL(blob);
+    });
+    backgroundPdfDataUrlRef.current = dataUrl;
+    return dataUrl;
+  };
+
+  const exportExecutivePdf = async () => {
+    if (exportExecutiveLoading) return;
+    setExportExecutiveLoading(true);
+    try {
+      const backgroundImage = await loadImageElement(MAP_BACKGROUND_IMAGE);
+      await nextFrame();
     const imageRatio = backgroundImage.naturalWidth / backgroundImage.naturalHeight;
     const layerRatio = MAP_WIDTH / MAP_HEIGHT;
     let drawWidth = MAP_WIDTH;
@@ -911,7 +934,18 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       drawWidth = MAP_HEIGHT * imageRatio;
       drawX = (MAP_WIDTH - drawWidth) / 2;
     }
-    context.drawImage(backgroundImage, drawX, drawY, drawWidth, drawHeight);
+    const { jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({
+      orientation: MAP_WIDTH >= MAP_HEIGHT ? "landscape" : "portrait",
+      unit: "px",
+      format: [MAP_WIDTH, MAP_HEIGHT],
+      compress: true,
+    });
+
+    // Fondo en capa independiente: evita el render gigante (que congelaba UI) y mantiene proporcion.
+    const backgroundDataUrl = await getBackgroundPdfDataUrl();
+    pdf.addImage(backgroundDataUrl, "JPEG", drawX, drawY, drawWidth, drawHeight, undefined, "FAST");
+    await nextFrame();
 
     const sourceSvg = svgRef.current;
     if (sourceSvg) {
@@ -955,27 +989,24 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       const serialized = new XMLSerializer().serializeToString(svgClone);
       const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
       const svgImage = await loadImageElement(svgDataUrl);
-
-      context.save();
-      context.translate(overlay.x, overlay.y);
-      context.scale(overlay.scale, overlay.scale);
-      context.drawImage(svgImage, 0, 0, MAP_WIDTH, MAP_HEIGHT);
-      context.restore();
+      const svgLayerDataUrl = await imageToDataUrl(svgImage, "image/png");
+      // Capa SVG por separado, en la misma posicion del contenedor mapa.
+      pdf.addImage(
+        svgLayerDataUrl,
+        "PNG",
+        overlay.x,
+        overlay.y,
+        MAP_WIDTH * overlay.scale,
+        MAP_HEIGHT * overlay.scale,
+        undefined,
+        "FAST"
+      );
+      await nextFrame();
     }
 
     const vendidoCount = lotes.filter((lote) => lote.condicion === "VENDIDO").length;
     const separadoCount = lotes.filter((lote) => lote.condicion === "SEPARADO").length;
     const disponibleCount = lotes.length - vendidoCount - separadoCount;
-
-    const imageData = canvas.toDataURL("image/png", 1);
-    const { jsPDF } = await import("jspdf");
-    const pdf = new jsPDF({
-      orientation: targetWidth >= targetHeight ? "landscape" : "portrait",
-      unit: "px",
-      format: [MAP_WIDTH, MAP_HEIGHT],
-      compress: true,
-    });
-    pdf.addImage(imageData, "PNG", 0, 0, MAP_WIDTH, MAP_HEIGHT, undefined, "NONE");
 
     // Overlay information drawn directly in the PDF to keep text crisp/selectable.
     const panelX = 28;
@@ -990,32 +1021,24 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
     try {
       const logoImage = await loadImageElement("/assets/Logo_Arenas_Malabrigo.svg");
-      const logoCanvas = document.createElement("canvas");
-      logoCanvas.width = 1000;
-      logoCanvas.height = 360;
-      const logoCtx = logoCanvas.getContext("2d");
-      if (logoCtx) {
-        logoCtx.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
-        const ratio = logoImage.naturalWidth / logoImage.naturalHeight;
-        const boxW = panelW - 28;
-        const boxH = 116;
-        const boxX = panelX + 16;
-        const boxY = panelY + 10;
-        let drawW = boxW;
-        let drawH = boxH;
-        let drawX = boxX;
-        let drawY = boxY;
-        if (ratio > boxW / boxH) {
-          drawH = boxW / ratio;
-          drawY += (boxH - drawH) / 2;
-        } else {
-          drawW = boxH * ratio;
-          drawX += (boxW - drawW) / 2;
-        }
-        logoCtx.drawImage(logoImage, 0, 0, logoCanvas.width, logoCanvas.height);
-        const logoData = logoCanvas.toDataURL("image/png", 1);
-        pdf.addImage(logoData, "PNG", drawX, drawY, drawW, drawH, undefined, "FAST");
+      const ratio = logoImage.naturalWidth / logoImage.naturalHeight;
+      const boxW = panelW - 28;
+      const boxH = 116;
+      const boxX = panelX + 16;
+      const boxY = panelY + 10;
+      let drawW = boxW;
+      let drawH = boxH;
+      let drawX = boxX;
+      let drawY = boxY;
+      if (ratio > boxW / boxH) {
+        drawH = boxW / ratio;
+        drawY += (boxH - drawH) / 2;
+      } else {
+        drawW = boxH * ratio;
+        drawX += (boxW - drawW) / 2;
       }
+      const logoData = await imageToDataUrl(logoImage, "image/png");
+      pdf.addImage(logoData, "PNG", drawX, drawY, drawW, drawH, undefined, "FAST");
     } catch {
       // Continue export if logo fails.
     }
@@ -1051,7 +1074,13 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     drawStatRow("Separados", separadoCount, 1, [154, 107, 0]);
     drawStatRow("Disponibles", disponibleCount, 2, [31, 138, 76]);
 
-    pdf.save(`mapa-ejecutivo-${new Date().toISOString().slice(0, 10)}.pdf`);
+      pdf.save(`mapa-ejecutivo-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (error) {
+      console.error("No se pudo exportar el mapa ejecutivo:", error);
+      setLoadError("No se pudo generar el PDF del mapa. Intenta nuevamente.");
+    } finally {
+      setExportExecutiveLoading(false);
+    }
   };
 
   const exportProforma = async () => {
@@ -1085,6 +1114,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         `
       )
       .join("");
+
+    const logoArenasClub = new URL("/assets/arenas_club_cele.png", window.location.origin).href;
+    const logoHolaTrujillo = new URL("/assets/HOLA-TRUJILLO_LOGOTIPO.webp", window.location.origin).href;
 
     const html = `
       <html>
@@ -1142,7 +1174,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                   <div class="meta"> Celular: <span class="seller-name">${vendorPhone}</span></div>
                 </div>
               </div>
-              <img src="/assets/arenas_club_cele.png" class="logo" alt="Arenas Club" />
+              <img src="${logoArenasClub}" class="logo" alt="Arenas Club" />
               </div>
 
             <section class="section">
@@ -1232,7 +1264,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 <div>RUC: ${projectInfo.ownerRuc}</div>
                 <div>DIRECCIÓN: ${EMPRESA_DIRECCION}</div>
               </div>
-              <img src="/assets/HOLA-TRUJILLO_LOGOTIPO.webp" class="project-logo" alt="Hola Trujillo" />
+              <img src="${logoHolaTrujillo}" class="project-logo" alt="Hola Trujillo" />
             </div>
             </div>
           </div>
@@ -1244,6 +1276,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     win.document.open();
     win.document.write(html);
     win.document.close();
+    await waitForPrintWindowAssets(win);
     win.focus();
     win.print();
   };
@@ -1374,17 +1407,18 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const handleToggleMultiSelect = (enabled: boolean) => {
     setMultiSelectEnabled(enabled);
     if (!enabled) {
-      const firstSelectedId = selectedLotIds[0] ?? selectedId;
+      const firstSelectedId = selectedLotIdList[0] ?? selectedId;
       setSelectedId(firstSelectedId ?? null);
-      setSelectedLotIds(firstSelectedId ? [firstSelectedId] : []);
+      setSelectedLotIds(firstSelectedId ? new Set([firstSelectedId]) : new Set());
     }
   };
 
   const handleRemoveSelectedLot = (loteId: string) => {
     setSelectedLotIds((current) => {
-      const next = current.filter((id) => id !== loteId);
+      const next = new Set(current);
+      next.delete(loteId);
       if (selectedId === loteId) {
-        setSelectedId(next[0] ?? null);
+        setSelectedId(Array.from(next)[0] ?? null);
       }
       return next;
     });
@@ -1400,10 +1434,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             view={view}
             setView={setView}
             filteredCount={filteredLotes.length}
-            totalCount={lotes.length}
             onExportExecutivePdf={exportExecutivePdf}
             onExportTable={exportTableCsv}
             hideExecutiveExport={hidePublicRestrictedActions}
+            exportExecutiveLoading={exportExecutiveLoading}
           />
           <div
             ref={mapContainerRef}
@@ -1428,8 +1462,11 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                   onTransformed={(_, state) => {
                     mapTransformRef.current = state;
                     if (transformRafRef.current == null) {
-                      transformRafRef.current = requestAnimationFrame(() => {
-                        setMapTransform(mapTransformRef.current);
+                      transformRafRef.current = requestAnimationFrame((ts) => {
+                        if (ts - lastTransformCommitRef.current >= 32) {
+                          setMapTransform(mapTransformRef.current);
+                          lastTransformCommitRef.current = ts;
+                        }
                         transformRafRef.current = null;
                       });
                     }
@@ -1505,7 +1542,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                       <TransformComponent wrapperClass="transform-wrapper">
                         <div className="map-layer">
                           <img
-                            src="/assets/plano-fondo-demo-b.webp"
+                            src={MAP_BACKGROUND_IMAGE}
                             alt="Plano de fondo"
                             className="map-background"
                             draggable={false}
@@ -1579,7 +1616,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                   className="btn ghost map-multi-floating-card__cta"
                   type="button"
                   onClick={openCotizadorFromFloatingCard}
-                  disabled={!selectedId && selectedLotIds.length === 0}
+                  disabled={!selectedId && selectedLotIds.size === 0}
                 >
                   Cotizar
                 </button>

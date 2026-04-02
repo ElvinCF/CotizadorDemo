@@ -32,6 +32,7 @@ import { formatSaleStateLabel, saleStateClassName } from "../../domain/ventas";
 import { listAdminUsers } from "../../services/adminUsers";
 import { loadLotesFromApi } from "../../services/lotes";
 import { addSalePayment, createSale, deleteSalePayment, findClientByDni, getSaleById, listSaleAccessByLot, updateSale, updateSalePayment } from "../../services/ventas";
+import { waitForPrintWindowAssets } from "../../utils/printWindow";
 
 const todayInput = () => {
   const now = new Date();
@@ -341,7 +342,14 @@ function SaleExpedienteTemplate({
           >
             <IconArrowLeft />
           </button>
+          <span className="sales-form-page__mobile-bar-spacer" aria-hidden="true" />
           <span className={`sales-form-page__status-badge ${saleStateClassName(status)}`}>{formatSaleStateLabel(status)}</span>
+          {onPrintSeparation ? (
+            <PrintMenu
+              onPrintSeparation={onPrintSeparation}
+              printSeparationDisabled={printSeparationDisabled}
+            />
+          ) : null}
           {showSettings ? (
             <button
               type="button"
@@ -352,9 +360,7 @@ function SaleExpedienteTemplate({
             >
               <IconSettings />
             </button>
-          ) : (
-            <span className="sales-form-page__mobile-bar-spacer" aria-hidden="true" />
-          )}
+          ) : null}
           <button
             type="button"
             className="btn sales-header-action sales-header-action--save"
@@ -1258,9 +1264,9 @@ export default function SaleFormPage() {
     node: renderSaleLotsCard(lotesDisabled),
   };
 
-  const handlePrintSeparation = () => {
+  const handlePrintSeparation = async () => {
     const activeLotCodes = (form.loteCodigos ?? []).filter(Boolean);
-    const lotsText = activeLotCodes.length > 0 ? activeLotCodes.join(", ") : form.loteCodigo || "-";
+    const lotsText = activeLotCodes.length > 0 ? activeLotCodes.join(", ") : form.loteCodigo || "";
     const separacionAmount =
       sale?.pagos.find((payment) => payment.tipoPago === "SEPARACION")?.monto ??
       asNumber(form.pagosIniciales.find((payment) => payment.tipoPago === "SEPARACION")?.monto ?? "");
@@ -1275,17 +1281,30 @@ export default function SaleFormPage() {
     const day = String(today.getDate()).padStart(2, "0");
     const month = String(today.getMonth() + 1).padStart(2, "0");
     const year = String(today.getFullYear());
-    const clientName = form.cliente.nombreCompleto || "-";
-    const clientDni = form.cliente.dni || "-";
-    const clientOcupacion = form.cliente.ocupacion || "-";
-    const clientPhone = form.cliente.celular || "-";
-    const clientAddress = form.cliente.direccion || "-";
-    const advisorName = selectedAdvisorLabel || "-";
-    const advisorPhone = "-";
+    const clientName = form.cliente.nombreCompleto?.trim() ?? "";
+    const clientDni = form.cliente.dni?.trim() ?? "";
+    const clientOcupacion = form.cliente.ocupacion?.trim() ?? "";
+    const clientPhone = form.cliente.celular?.trim() ?? "";
+    const clientAddress = form.cliente.direccion?.trim() ?? "";
+    const advisorNameRaw = selectedAdvisorLabel?.trim() ?? "";
+    const advisorNameClean = advisorNameRaw
+      .replace(/\[[^\]]*]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const advisorName = advisorNameClean.split(" ").filter(Boolean).slice(0, 2).join(" ");
+    const advisorPhone = "";
     const projectName = projectInfo.name || "Arenas Malabrigo";
     const projectLocation = projectInfo.locationText || "-";
     const empresaRuc = projectInfo.ownerRuc || "20606633131";
     const empresaNombre = projectInfo.owner || "HOLA TRUJILLO S.A.C";
+    const logoHolaTrujillo = new URL("/assets/HOLA-TRUJILLO_LOGOTIPO.webp", window.location.origin).href;
+    const logoArenasMalabrigo = new URL("/assets/Logo_Arenas_Malabrigo.svg", window.location.origin).href;
+    const footerRibbonUrl = new URL("/assets/print-footer-ribbon.svg", window.location.origin).href;
+    const hasValue = (value: string) => value.trim().length > 0;
+    const renderInlineField = (value: string, size: "wide" | "mid" | "short" = "mid") =>
+      hasValue(value)
+        ? `<span class="filled ${size}">${escapeHtml(value)}</span>`
+        : `<span class="line ${size}"></span>`;
 
     const printHtml = `
       <html>
@@ -1293,97 +1312,145 @@ export default function SaleFormPage() {
           <meta charset="UTF-8" />
           <title>Ficha de separacion</title>
           <style>
-            @page { size: A4; margin: 14mm; }
-            body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #1d1d1d; }
-            .doc { width: 100%; }
-            .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-            .head img { height: 40px; object-fit: contain; }
-            .title { text-align: center; font-size: 20px; font-weight: 700; text-decoration: underline; margin: 8px 0 14px; }
-            p { font-size: 14.5px; line-height: 1.46; margin: 8px 0; }
-            .line { display: inline-block; min-width: 120px; border-bottom: 1px solid #222; font-weight: 700; padding: 0 4px 1px; }
-            .line.wide { min-width: 260px; }
-            .line.mid { min-width: 170px; }
+            @page { size: A4; margin: 10mm; }
+            body { margin: 0; font-family: Cambria, "Palatino Linotype", "Book Antiqua", "Times New Roman", serif; color: #1c1c1c; }
+            .doc {
+              width: 100%;
+              padding: 1mm 2mm 0;
+              box-sizing: border-box;
+              min-height: calc(297mm - 20mm);
+              position: relative;
+              display: flex;
+              flex-direction: column;
+              padding-bottom: 18mm;
+            }
+            .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 16px; }
+            .head img { height: 40px; max-width: 45%; width: auto; object-fit: contain; }
+            .title { text-align: center; font-size: 20px; font-weight: 700; text-decoration: underline; margin: 6px 0 10px; letter-spacing: 0.01em; }
+            p { font-size: 14.2px; line-height: 1.42; margin: 6px 0; }
+            .legal-text { text-align: justify; text-wrap: pretty; }
+            .line { display: inline-block; min-width: 120px; border-bottom: 1px solid #222; font-weight: 700; padding: 0 4px 1px; min-height: 1em; }
+            .line.wide { min-width: 220px; }
+            .line.mid { min-width: 150px; }
             .line.short { min-width: 90px; }
-            .summary { margin: 14px 0 6px; display: grid; gap: 6px; font-size: 15px; }
+            .filled {
+              display: inline-block;
+              font-weight: 700;
+              text-decoration: underline;
+              text-decoration-thickness: 1px;
+              text-underline-offset: 2px;
+              padding: 0 4px 1px;
+              vertical-align: baseline;
+            }
+            .filled.wide { min-width: 220px; }
+            .filled.mid { min-width: 150px; }
+            .filled.short { min-width: 90px; }
+            .summary { margin: 10px 0 6px; display: grid; gap: 4px; font-size: 14.4px; }
             .summary-row { display: flex; align-items: baseline; gap: 8px; }
-            .note { margin-top: 12px; font-style: italic; font-weight: 700; text-align: center; }
-            .date-row { margin-top: 20px; text-align: right; font-size: 16px; }
-            .signatures { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
-            .signature { min-height: 130px; }
-            .signature .field { margin-top: 6px; font-size: 15px; }
-            .advisor { margin-top: 22px; width: 48%; }
-            .accounts { margin-top: 18px; text-align: right; font-family: Arial, sans-serif; font-size: 14px; }
+            .note { margin-top: 8px; font-style: italic; font-weight: 700; text-align: center; }
+            .date-row { margin-top: 12px; text-align: right; font-size: 16px; }
+            .signatures { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+            .signature { min-height: 128px; }
+            .signature .sign-line {
+              margin-top: 16px;
+              margin-bottom: 8px;
+              border-bottom: 1px solid #222;
+              height: 22px;
+            }
+            .signature .field { margin-top: 6px; font-size: 14.4px; }
+            .advisor { margin-top: 12px; width: 52%; }
+            .advisor .sign-line {
+              margin-top: 14px;
+              margin-bottom: 8px;
+              border-bottom: 1px solid #222;
+              height: 22px;
+            }
+            .accounts { margin-top: 12px; text-align: right; font-family: Arial, sans-serif; font-size: 13px; }
             .accounts strong { color: #c96f28; font-size: 24px; line-height: 1.05; display: inline-block; text-align: left; }
             .accounts .bank { margin-top: 6px; font-weight: 700; color: #1f3c7a; }
+            .footer-ribbon {
+              position: absolute;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              width: 100%;
+              height: 16mm;
+              object-fit: cover;
+            }
           </style>
         </head>
         <body>
           <div class="doc">
             <div class="head">
-              <img src="/assets/HOLA-TRUJILLO_LOGOTIPO.webp" alt="Hola Trujillo" />
-              <img src="/assets/Logo_Arenas_Malabrigo.svg" alt="Arenas Malabrigo" />
+              <img src="${logoHolaTrujillo}" alt="Hola Trujillo" />
+              <img src="${logoArenasMalabrigo}" alt="Arenas Malabrigo" />
             </div>
-            <div class="title">PRE-ACUERDO DE PAGO POR SEPARACION DE LOTE</div>
-            <p>
-              Por el presente documento, el(la) sr(a) <span class="line wide">${escapeHtml(clientName)}</span> de ocupacion
-              <span class="line mid">${escapeHtml(clientOcupacion)}</span>, identificado(a) con DNI
-              N° <span class="line mid">${escapeHtml(clientDni)}</span>, domiciliado en
-              <span class="line wide">${escapeHtml(clientAddress)}</span>, realizo el deposito de
-              S/ <span class="line short">${escapeHtml(formatMoney(separacionAmount).replace("S/", "").trim())}</span>
-              por concepto de pago de separacion del lote
-              <span class="line mid">${escapeHtml(lotsText)}</span> del proyecto denominado
+            <div class="title">PRE-ACUERDO DE PAGO POR SEPARACI&Oacute;N DE LOTE</div>
+            <p class="legal-text">
+              Por el presente documento, el(la) sr(a) ${renderInlineField(clientName, "wide")} de ocupaci&oacute;n
+              ${renderInlineField(clientOcupacion, "mid")}, identificado(a) con DNI
+              N&deg; ${renderInlineField(clientDni, "mid")}, domiciliado en
+              ${renderInlineField(clientAddress, "wide")}, realiz&oacute; el dep&oacute;sito de
+              S/ ${renderInlineField(formatMoney(separacionAmount).replace("S/", "").trim(), "short")}
+              por concepto de pago de separaci&oacute;n del lote
+              ${renderInlineField(lotsText, "mid")} del proyecto denominado
               <strong>${escapeHtml(projectName)}</strong>, ubicado en ${escapeHtml(projectLocation)}, a nombre de la empresa
               <strong>${escapeHtml(empresaNombre)}</strong> con RUC ${escapeHtml(empresaRuc)}.
             </p>
 
             <div class="summary">
-              <div class="summary-row"><strong>Precio total:</strong> S/ <span class="line mid">${escapeHtml(formatMoney(precioVenta).replace("S/", "").trim())}</span></div>
-              <div class="summary-row"><strong>Monto de separacion:</strong> S/ <span class="line mid">${escapeHtml(formatMoney(separacionAmount).replace("S/", "").trim())}</span></div>
-              <div class="summary-row"><strong>Inicial:</strong> S/ <span class="line mid">${escapeHtml(formatMoney(inicialAmount).replace("S/", "").trim())}</span></div>
-              <div class="summary-row"><strong>Fecha de pago de la inicial:</strong> <span class="line mid">${escapeHtml(form.fechaPagoPactada || form.fechaVenta || "-")}</span></div>
-              <div class="summary-row"><strong>Tiempo de pago total:</strong> <span class="line short">${escapeHtml(String(cuotas))}</span> meses</div>
-              <div class="summary-row"><strong>Monto a financiar:</strong> S/ <span class="line mid">${escapeHtml(formatMoney(montoFinanciado).replace("S/", "").trim())}</span> &nbsp; <strong>Cuota:</strong> S/ <span class="line short">${escapeHtml(formatMoney(cuotaMonto).replace("S/", "").trim())}</span></div>
+              <div class="summary-row"><strong>Precio total:</strong> S/ ${renderInlineField(formatMoney(precioVenta).replace("S/", "").trim(), "mid")}</div>
+              <div class="summary-row"><strong>Monto de separaci&oacute;n:</strong> S/ ${renderInlineField(formatMoney(separacionAmount).replace("S/", "").trim(), "mid")}</div>
+              <div class="summary-row"><strong>Inicial:</strong> S/ ${renderInlineField(formatMoney(inicialAmount).replace("S/", "").trim(), "mid")}</div>
+              <div class="summary-row"><strong>Fecha de pago de la inicial:</strong> ${renderInlineField((form.fechaPagoPactada || form.fechaVenta || "").trim(), "mid")}</div>
+              <div class="summary-row"><strong>Tiempo de pago total:</strong> ${renderInlineField(String(cuotas), "short")} meses</div>
+              <div class="summary-row"><strong>Monto a financiar:</strong> S/ ${renderInlineField(formatMoney(montoFinanciado).replace("S/", "").trim(), "mid")} &nbsp; <strong>Cuota:</strong> S/ ${renderInlineField(formatMoney(cuotaMonto).replace("S/", "").trim(), "short")}</div>
             </div>
 
-            <p>
+            <p class="legal-text">
               En tal sentido queda acordado que, en el plazo indicado, el promitente comprador se compromete
-              a cumplir con el cronograma pactado. Se firma el presente documento en senal de conformidad,
+              a cumplir con el cronograma pactado. Se firma el presente documento en se&ntilde;al de conformidad,
               adjuntando copia de DNI y voucher de pagos para fines correspondientes.
             </p>
             <p class="note">
               Asimismo, queda estipulado que al no cumplir con el pago o desistir de la compra,
-              el comprador pierde automaticamente su separacion sin opcion a reclamo.
+              el comprador pierde autom&aacute;ticamente su separaci&oacute;n sin opci&oacute;n a reclamo.
             </p>
 
-            <div class="date-row">Trujillo, <span class="line short">${day}</span> de <span class="line short">${month}</span> del 20<span class="line short">${year.slice(-2)}</span></div>
+            <div class="date-row">Trujillo, ${renderInlineField(day, "short")} de ${renderInlineField(month, "short")} del ${renderInlineField(year, "short")}</div>
 
             <div class="signatures">
               <div class="signature">
                 <div class="field"><strong>Firma</strong></div>
-                <div class="field"><strong>Nombre:</strong> ${escapeHtml(clientName)}</div>
-                <div class="field"><strong>DNI:</strong> ${escapeHtml(clientDni)}</div>
-                <div class="field"><strong>Ocupacion:</strong> ${escapeHtml(clientOcupacion)}</div>
-                <div class="field"><strong>Celular:</strong> ${escapeHtml(clientPhone)}</div>
+                <div class="sign-line"></div>
+                <div class="field"><strong>Nombre:</strong> ${renderInlineField(clientName, "wide")}</div>
+                <div class="field"><strong>DNI:</strong> ${renderInlineField(clientDni, "mid")}</div>
+                <div class="field"><strong>Ocupaci&oacute;n:</strong> ${renderInlineField(clientOcupacion, "mid")}</div>
+                <div class="field"><strong>Celular:</strong> ${renderInlineField(clientPhone, "mid")}</div>
               </div>
               <div class="signature">
                 <div class="field"><strong>Firma</strong></div>
-                <div class="field"><strong>Nombre:</strong> _____________________</div>
-                <div class="field"><strong>DNI:</strong> _____________________</div>
-                <div class="field"><strong>Ocupacion:</strong> _____________________</div>
-                <div class="field"><strong>Celular:</strong> _____________________</div>
+                <div class="sign-line"></div>
+                <div class="field"><strong>Nombre:</strong> ${renderInlineField("", "wide")}</div>
+                <div class="field"><strong>DNI:</strong> ${renderInlineField("", "mid")}</div>
+                <div class="field"><strong>Ocupaci&oacute;n:</strong> ${renderInlineField("", "mid")}</div>
+                <div class="field"><strong>Celular:</strong> ${renderInlineField("", "mid")}</div>
               </div>
             </div>
 
             <div class="advisor">
               <div class="field"><strong>Firma</strong></div>
-              <div class="field"><strong>Asesor:</strong> ${escapeHtml(advisorName)}</div>
-              <div class="field"><strong>Celular:</strong> ${escapeHtml(advisorPhone)}</div>
+              <div class="sign-line"></div>
+              <div class="field"><strong>Asesor:</strong> ${renderInlineField(advisorName, "mid")}</div>
+              <div class="field"><strong>Celular:</strong> ${renderInlineField(advisorPhone, "mid")}</div>
             </div>
 
             <div class="accounts">
               <strong>CUENTAS<br/>OFICIALES</strong>
               <div class="bank">BCP: 5707328977043</div>
             </div>
+
+            <img class="footer-ribbon" src="${footerRibbonUrl}" alt="" aria-hidden="true" />
           </div>
         </body>
       </html>
@@ -1394,6 +1461,7 @@ export default function SaleFormPage() {
     printWindow.document.open();
     printWindow.document.write(printHtml);
     printWindow.document.close();
+    await waitForPrintWindowAssets(printWindow);
     printWindow.focus();
     printWindow.print();
   };

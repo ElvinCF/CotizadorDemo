@@ -1,37 +1,57 @@
+import { Suspense, lazy, type ReactElement } from "react";
 import { Navigate, createBrowserRouter } from "react-router-dom";
-import OverlayEditorPage from "../pages/overlay-editor/OverlayEditorPage";
-import LotesTablePage from "../pages/seller-dashboard/LotesTablePage";
-import LoginPage from "../pages/login/LoginPage";
-import SalesMapPage from "../pages/admin/SalesMapPage";
-import AdminPage from "../pages/admin/AdminPage";
-import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
-import SalesListPage from "../pages/sales/SalesListPage";
-import SaleFormPage from "../pages/sales/SaleFormPage";
-import AdvisorDashboardPage from "../pages/seller-dashboard/AdvisorDashboardPage";
+import RouteSkeleton from "./RouteSkeleton";
 import ProtectedRoute from "./ProtectedRoute";
+
+const OverlayEditorPage = lazy(() => import("../pages/overlay-editor/OverlayEditorPage"));
+const LotesTablePage = lazy(() => import("../pages/seller-dashboard/LotesTablePage"));
+const LoginPage = lazy(() => import("../pages/login/LoginPage"));
+const SalesMapPage = lazy(() => import("../pages/admin/SalesMapPage"));
+const AdminPage = lazy(() => import("../pages/admin/AdminPage"));
+const AdminDashboardPage = lazy(() => import("../pages/admin/AdminDashboardPage"));
+const SalesListPage = lazy(() => import("../pages/sales/SalesListPage"));
+const SaleFormPage = lazy(() => import("../pages/sales/SaleFormPage"));
+const AdvisorDashboardPage = lazy(() => import("../pages/seller-dashboard/AdvisorDashboardPage"));
+
+const withFallback = (
+  element: ReactElement,
+  fallback: ReactElement
+) => <Suspense fallback={fallback}>{element}</Suspense>;
 
 export const appRouter = createBrowserRouter([
   {
     path: "/",
-    element: <SalesMapPage publicView />,
+    element: withFallback(
+      <SalesMapPage publicView />,
+      <RouteSkeleton title="Mapa cotizador" variant="map" />
+    ),
   },
   {
     path: "/login",
-    element: <LoginPage />,
+    element: withFallback(<LoginPage />, <RouteSkeleton title="Iniciar sesion" variant="form" />),
   },
   {
     path: "/cotizador",
-    element: <SalesMapPage publicView />,
+    element: withFallback(
+      <SalesMapPage publicView />,
+      <RouteSkeleton title="Mapa cotizador" variant="map" />
+    ),
   },
   {
     path: "/cotizador/:loteCodigo",
-    element: <SalesMapPage publicView />,
+    element: withFallback(
+      <SalesMapPage publicView />,
+      <RouteSkeleton title="Mapa cotizador" variant="map" />
+    ),
   },
   {
     path: "/lotes",
     element: (
       <ProtectedRoute allowedRoles={["admin", "asesor"]}>
-        <LotesTablePage />
+        {withFallback(
+          <LotesTablePage />,
+          <RouteSkeleton title="Lotes editables" variant="table" contentClassName="main--data-table" />
+        )}
       </ProtectedRoute>
     ),
   },
@@ -39,7 +59,10 @@ export const appRouter = createBrowserRouter([
     path: "/ventas",
     element: (
       <ProtectedRoute allowedRoles={["admin", "asesor"]}>
-        <SalesListPage />
+        {withFallback(
+          <SalesListPage />,
+          <RouteSkeleton title="Gestion de Ventas" variant="table" contentClassName="main--data-table" />
+        )}
       </ProtectedRoute>
     ),
   },
@@ -47,7 +70,10 @@ export const appRouter = createBrowserRouter([
     path: "/ventas/nueva",
     element: (
       <ProtectedRoute allowedRoles={["admin", "asesor"]}>
-        <SaleFormPage />
+        {withFallback(
+          <SaleFormPage />,
+          <RouteSkeleton title="Nueva Venta" variant="form" contentClassName="main--data-table" />
+        )}
       </ProtectedRoute>
     ),
   },
@@ -55,7 +81,10 @@ export const appRouter = createBrowserRouter([
     path: "/ventas/:id",
     element: (
       <ProtectedRoute allowedRoles={["admin", "asesor"]}>
-        <SaleFormPage />
+        {withFallback(
+          <SaleFormPage />,
+          <RouteSkeleton title="Expediente de Venta" variant="form" contentClassName="main--data-table" />
+        )}
       </ProtectedRoute>
     ),
   },
@@ -63,7 +92,10 @@ export const appRouter = createBrowserRouter([
     path: "/asesor",
     element: (
       <ProtectedRoute allowedRoles={["asesor"]}>
-        <AdvisorDashboardPage />
+        {withFallback(
+          <AdvisorDashboardPage />,
+          <RouteSkeleton title="Dashboard Asesor" variant="dashboard" contentClassName="main--data-table" />
+        )}
       </ProtectedRoute>
     ),
   },
@@ -71,7 +103,10 @@ export const appRouter = createBrowserRouter([
     path: "/admin",
     element: (
       <ProtectedRoute allowedRoles={["admin"]}>
-        <AdminDashboardPage />
+        {withFallback(
+          <AdminDashboardPage />,
+          <RouteSkeleton title="Dashboard Admin" variant="dashboard" contentClassName="main--data-table" />
+        )}
       </ProtectedRoute>
     ),
   },
@@ -79,7 +114,10 @@ export const appRouter = createBrowserRouter([
     path: "/usuarios",
     element: (
       <ProtectedRoute allowedRoles={["admin"]}>
-        <AdminPage />
+        {withFallback(
+          <AdminPage />,
+          <RouteSkeleton title="Usuarios" variant="table" contentClassName="main--data-table" />
+        )}
       </ProtectedRoute>
     ),
   },
@@ -87,7 +125,10 @@ export const appRouter = createBrowserRouter([
     path: "/editor",
     element: (
       <ProtectedRoute allowedRoles={["admin"]}>
-        <OverlayEditorPage />
+        {withFallback(
+          <OverlayEditorPage />,
+          <RouteSkeleton title="Editor de Overlay" variant="map" />
+        )}
       </ProtectedRoute>
     ),
   },

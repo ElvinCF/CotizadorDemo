@@ -271,10 +271,12 @@ function LotesTablePage() {
       const byLote = filters.loteId === "TODOS" || row.id === filters.loteId;
       const areaValue = toFiniteNumber(row.areaM2);
       if (areaValue == null) return false;
-      const byArea = areaValue >= filters.areaMin && areaValue <= filters.areaMax;
+      const hasAreaRange = !(filters.areaMin === 0 && filters.areaMax === 0);
+      const byArea = !hasAreaRange || (areaValue >= filters.areaMin && areaValue <= filters.areaMax);
       const priceValue = toFiniteNumber(row.price);
       if (priceValue == null) return false;
-      const byPrice = priceValue >= filters.priceMin && priceValue <= filters.priceMax;
+      const hasPriceRange = !(filters.priceMin === 0 && filters.priceMax === 0);
+      const byPrice = !hasPriceRange || (priceValue >= filters.priceMin && priceValue <= filters.priceMax);
       const hasSale = Boolean(salesByLoteCode[row.id]);
       const byVenta =
         filters.venta === "TODOS" ||

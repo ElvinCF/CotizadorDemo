@@ -6562,6 +6562,211 @@ input.is-invalid {
   }
 }
 
+.route-skeleton {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  min-height: min(74vh, 760px);
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+  background: color-mix(in srgb, var(--color-panel-contrast) 90%, transparent);
+}
+
+.route-skeleton__head,
+.route-skeleton__toolbar,
+.route-skeleton__table,
+.route-skeleton__cards,
+.route-skeleton__charts,
+.route-skeleton__form-layout,
+.route-skeleton__map-layout {
+  display: grid;
+  gap: 10px;
+}
+
+.route-skeleton__head {
+  grid-template-columns: minmax(180px, 320px) auto;
+  align-items: center;
+}
+
+.route-skeleton__toolbar {
+  grid-template-columns: minmax(220px, 1fr) repeat(2, 92px);
+  align-items: center;
+}
+
+.route-skeleton__table {
+  align-content: start;
+}
+
+.route-skeleton__cards {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.route-skeleton__charts {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+}
+
+.route-skeleton__map-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  min-height: min(62vh, 560px);
+}
+
+.route-skeleton__map-canvas,
+.route-skeleton__map-drawer,
+.route-skeleton__card,
+.route-skeleton__chart,
+.route-skeleton__form-col {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  background: color-mix(in srgb, var(--color-surface-alt) 72%, transparent);
+  position: relative;
+  overflow: hidden;
+}
+
+.route-skeleton__map-canvas {
+  min-height: min(60vh, 520px);
+}
+
+.route-skeleton__map-drawer {
+  min-height: min(60vh, 520px);
+}
+
+.route-skeleton__card {
+  min-height: 76px;
+}
+
+.route-skeleton__chart {
+  min-height: 240px;
+}
+
+.route-skeleton__chart--large {
+  min-height: 300px;
+}
+
+.route-skeleton__form-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.route-skeleton__form-col {
+  min-height: 320px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.route-skeleton__line {
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-surface-alt) 72%, transparent);
+}
+
+.route-skeleton__line::after,
+.route-skeleton__map-canvas::after,
+.route-skeleton__map-drawer::after,
+.route-skeleton__card::after,
+.route-skeleton__chart::after,
+.route-skeleton__form-col::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--color-primary) 6%, transparent) 15%,
+    color-mix(in srgb, var(--color-primary) 28%, transparent) 40%,
+    color-mix(in srgb, var(--color-primary) 8%, transparent) 65%
+  );
+  transform: translateX(-120%);
+  animation: table-loader-shimmer 1.2s linear infinite;
+}
+
+.route-skeleton__line--title {
+  width: min(48%, 280px);
+  height: 18px;
+}
+
+.route-skeleton__line--meta {
+  width: 92px;
+  justify-self: end;
+}
+
+.route-skeleton__line--search {
+  height: 40px;
+}
+
+.route-skeleton__line--btn {
+  height: 38px;
+}
+
+.route-skeleton__line--row {
+  width: 100%;
+  height: 38px;
+  border-radius: 12px;
+}
+
+.route-skeleton__line--field {
+  height: 34px;
+}
+
+.route-skeleton__line--block {
+  height: 120px;
+  border-radius: 14px;
+}
+
+@media (max-width: 1024px) {
+  .route-skeleton__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .route-skeleton__charts,
+  .route-skeleton__form-layout,
+  .route-skeleton__map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .route-skeleton__map-drawer {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 760px) {
+  .route-skeleton {
+    min-height: calc(100dvh - var(--header-height, 40px) - var(--app-footer-height, 32px));
+    border-radius: 0;
+    padding: 10px;
+  }
+
+  .route-skeleton__head {
+    grid-template-columns: 1fr;
+  }
+
+  .route-skeleton__line--meta {
+    justify-self: start;
+  }
+
+  .route-skeleton__toolbar {
+    grid-template-columns: 1fr 42px 42px;
+  }
+
+  .route-skeleton__line--btn {
+    height: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-skeleton__line::after,
+  .route-skeleton__map-canvas::after,
+  .route-skeleton__map-drawer::after,
+  .route-skeleton__card::after,
+  .route-skeleton__chart::after,
+  .route-skeleton__form-col::after {
+    animation: none;
+  }
+}
+
 .data-table__row-action {
   min-height: 38px;
   border-radius: 12px;
@@ -8233,7 +8438,7 @@ input.is-invalid {
 
   .sales-form-page__mobile-bar {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
     align-items: center;
     gap: 6px;
     width: 100%;
@@ -8241,8 +8446,9 @@ input.is-invalid {
 
   .sales-form-page__mobile-bar-spacer {
     display: block;
-    width: 34px;
-    height: 34px;
+    width: 100%;
+    min-width: 0;
+    height: 1px;
   }
 
   .sales-form-page__mobile-bar .sales-header-action {
@@ -8257,11 +8463,11 @@ input.is-invalid {
 
   .sales-form-page__mobile-bar .sales-form-page__status-badge {
     justify-content: center;
-    width: 100%;
+    justify-self: end;
+    width: auto;
     min-width: 0;
-    min-height: 24px;
-    padding: 3px 8px;
-    font-size: 0.68rem;
+    max-width: 100%;
+    padding: 4px 10px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
