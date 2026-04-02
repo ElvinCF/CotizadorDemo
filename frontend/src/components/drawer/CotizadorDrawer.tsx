@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import ValidatedNumberField from "../forms/ValidatedNumberField";
 import { formatArea, formatMoney, statusToClass } from "../../domain/formatters";
 import type { Lote, QuoteState } from "../../domain/types";
@@ -129,14 +129,7 @@ function CotizadorDrawer({
   const plusvaliaGainPct = useMemo(() => (plusvaliaBase > 0 ? (plusvaliaGain / plusvaliaBase) * 100 : 0), [plusvaliaBase, plusvaliaGain]);
   const yMin = useMemo(() => Math.max(plusvaliaBase, 0), [plusvaliaBase]);
   const yMax = useMemo(() => Math.max(plusvaliaFinal, yMin + 1), [plusvaliaFinal, yMin]);
-  const [plusvaliaGlow, setPlusvaliaGlow] = useState(false);
-
-  useEffect(() => {
-    if (plusvaliaBase <= 0) return;
-    setPlusvaliaGlow(true);
-    const timer = window.setTimeout(() => setPlusvaliaGlow(false), 760);
-    return () => window.clearTimeout(timer);
-  }, [plusvaliaBase]);
+  const plusvaliaGlowKey = useMemo(() => `${plusvaliaBase}-${Math.round(plusvaliaGainPct * 10)}`, [plusvaliaBase, plusvaliaGainPct]);
 
   const applyMonthsPreset = (meses: number) => {
     onChangeQuote({ ...quote, cuotas: meses });
@@ -304,11 +297,21 @@ function CotizadorDrawer({
               <div className="quote-plusvalia-card__head">
                 <h4>
                   Plusvalía proyectada en{" "}
-                  <em className={plusvaliaGlow ? "quote-plusvalia-card__glow-text" : ""}>{`+${plusvaliaGainPct.toFixed(1)}%`}</em>
+                  <em
+                    key={`pct-${plusvaliaGlowKey}`}
+                    className={plusvaliaBase > 0 ? "quote-plusvalia-card__glow-text" : ""}
+                  >
+                    {`+${plusvaliaGainPct.toFixed(1)}%`}
+                  </em>
                 </h4>
                 <div className="quote-plusvalia-card__meta">
                   <span>Por un valor de</span>
-                  <strong className={plusvaliaGlow ? "quote-plusvalia-card__glow-text" : ""}>{formatMoney(plusvaliaGain)}</strong>
+                  <strong
+                    key={`amt-${plusvaliaGlowKey}`}
+                    className={plusvaliaBase > 0 ? "quote-plusvalia-card__glow-text" : ""}
+                  >
+                    {formatMoney(plusvaliaGain)}
+                  </strong>
                 </div>
               </div>
               <div className="quote-plusvalia-card__chart">

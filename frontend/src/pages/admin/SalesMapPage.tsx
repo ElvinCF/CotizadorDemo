@@ -529,7 +529,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   useEffect(() => {
     const root = svgRef.current;
-    if (!root || view !== "mapa") return;
+    if (!root || view !== "mapa") {
+      // Reset cache when SVG is not mounted (or map view is hidden),
+      // so the next mount reapplies data-status/classes to fresh nodes.
+      loteRenderStateRef.current = new Map();
+      return;
+    }
     const nextCache = new Map<string, string>();
 
     lotes.forEach((lote) => {
