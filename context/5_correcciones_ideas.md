@@ -128,6 +128,23 @@ Siguiente paso:
 - disenar matriz de permisos y escenarios operativos
 - mover a plan cuando se cierre la politica de privacidad interna
 
+### Accesos por proyecto y login condicionado (Admin/Asesor)
+
+Estado: `Movido a plan`
+Modulo: `Seguridad | Usuarios | Proyectos`
+Impacto: `Alto`
+
+Descripcion:
+
+- agregar gestion Admin de accesos por proyecto (`proyecto_usuarios`)
+- `ADMIN` mantiene acceso total a todos los proyectos de la empresa
+- `ASESOR` solo puede ingresar si tiene acceso activo al proyecto actual
+- incluir 2 apartados de configuracion: datos de empresa y datos de proyecto
+
+Siguiente paso:
+
+- continuar ejecucion por fases en `context/4_planes.md` Fase 6
+
 ### Priorizacion del plan padre frontend + librerias UI
 
 Estado: `Por evaluar`

@@ -117,6 +117,23 @@ Pendientes:
 - revisar accesibilidad base
 - revisar estados vacios y mensajes de error
 
+### Fase 6. Contexto multiproyecto y control de accesos
+
+Estado: `Pendiente`
+
+Pendientes:
+
+- crear modelo base en BD (`empresa`, `proyectos`, `proyecto_usuarios`, `equipos`, `equipo_usuarios`)
+- incorporar rol global `SUPERADMIN` junto con `ADMIN` y `ASESOR`
+- resolver login por dominio/proyecto
+- restringir acceso por proyecto y por equipo en backend
+- mover datos hardcode de proyecto/empresa a endpoint de contexto
+- aplicar tema por proyecto desde `jsonb` (`theme_seed`, `theme_overrides`)
+
+Referencia tecnica:
+
+- `backend/supabase/migrations/010_empresa_proyecto_diseno.md`
+
 ## Donde documentar un cambio nuevo
 
 ### Si es un cambio de arquitectura frontend ya aplicado
