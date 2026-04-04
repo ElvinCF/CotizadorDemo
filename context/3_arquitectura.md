@@ -118,6 +118,16 @@ Reglas vigentes:
 - la altura efectiva de `header` y `footer` se mide en runtime y se expone por variables CSS para evitar solapamientos del contenido
 - tema oscuro/claro global
 - menu de usuario persistente
+
+## Exportacion de mapa
+
+Regla vigente:
+
+- `Descargar mapa` genera PDF directo en navegador, no una vista de impresion
+- usa `plano-fondo-demo-b.webp` como base raster
+- recompone encima el overlay de lotes como SVG vectorial
+- respeta el `translate(x, y)` y `scale` actuales del overlay
+- el resumen se dibuja como elementos nativos del PDF
 - fondo sin scroll global
 - footer global delgado integrado al layout, no flotante
 - el footer global muestra credito a `Adaptic by grupo AIO` y enlaza a `https://www.instagram.com/adaptic.pe`

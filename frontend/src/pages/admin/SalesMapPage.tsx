@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+﻿import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { MAP_BACKGROUND_IMAGE } from "../../app/assets";
@@ -125,7 +125,6 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const mapTransformRef = useRef(mapTransform);
   const transformRafRef = useRef<number | null>(null);
-  const backgroundPdfDataUrlRef = useRef<string | null>(null);
   const containerSizeRef = useRef({ width: 0, height: 0 });
   const hasFitRef = useRef(false);
   const lastHoveredRef = useRef<string | null>(null);
@@ -871,30 +870,14 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       image.src = src;
     });
 
-  const imageToDataUrl = async (image: HTMLImageElement, mimeType: "image/jpeg" | "image/png", quality = 0.92) => {
+  const imageElementToDataUrl = (image: HTMLImageElement, type = "image/png", quality = 1) => {
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, image.naturalWidth || image.width || 1);
-    canvas.height = Math.max(1, image.naturalHeight || image.height || 1);
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("No se pudo inicializar canvas para exportar imagen.");
+    if (!context) throw new Error("No se pudo preparar el fondo del mapa.");
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    return await new Promise<string>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error("No se pudo generar blob de imagen para exportacion."));
-            return;
-          }
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result ?? ""));
-          reader.onerror = () => reject(new Error("No se pudo leer imagen para exportacion."));
-          reader.readAsDataURL(blob);
-        },
-        mimeType,
-        quality
-      );
-    });
+    return canvas.toDataURL(type, quality);
   };
 
   const nextFrame = () =>
@@ -902,28 +885,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       requestAnimationFrame(() => resolve());
     });
 
-  const getBackgroundPdfDataUrl = async () => {
-    if (backgroundPdfDataUrlRef.current) return backgroundPdfDataUrlRef.current;
-    const response = await fetch(MAP_BACKGROUND_IMAGE, { cache: "force-cache" });
-    if (!response.ok) throw new Error(`No se pudo cargar fondo para PDF: HTTP ${response.status}`);
-    const blob = await response.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ""));
-      reader.onerror = () => reject(new Error("No se pudo leer fondo para PDF."));
-      reader.readAsDataURL(blob);
-    });
-    backgroundPdfDataUrlRef.current = dataUrl;
-    return dataUrl;
-  };
-
-  const exportExecutivePdf = async () => {
-    if (exportExecutiveLoading) return;
-    setExportExecutiveLoading(true);
-    try {
-      const backgroundImage = await loadImageElement(MAP_BACKGROUND_IMAGE);
-      await nextFrame();
-    const imageRatio = backgroundImage.naturalWidth / backgroundImage.naturalHeight;
+  const getMapBackgroundLayout = (image: HTMLImageElement) => {
+    const imageRatio = image.naturalWidth / image.naturalHeight;
     const layerRatio = MAP_WIDTH / MAP_HEIGHT;
     let drawWidth = MAP_WIDTH;
     let drawHeight = MAP_HEIGHT;
@@ -939,150 +902,562 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       drawWidth = MAP_HEIGHT * imageRatio;
       drawX = (MAP_WIDTH - drawWidth) / 2;
     }
-    const { jsPDF } = await import("jspdf");
-    const pdf = new jsPDF({
-      orientation: MAP_WIDTH >= MAP_HEIGHT ? "landscape" : "portrait",
-      unit: "px",
-      format: [MAP_WIDTH, MAP_HEIGHT],
-      compress: true,
-    });
 
-    // Fondo en capa independiente: evita el render gigante (que congelaba UI) y mantiene proporcion.
-    const backgroundDataUrl = await getBackgroundPdfDataUrl();
-    pdf.addImage(backgroundDataUrl, "JPEG", drawX, drawY, drawWidth, drawHeight, undefined, "FAST");
-    await nextFrame();
+    return { drawX, drawY, drawWidth, drawHeight };
+  };
 
-    const sourceSvg = svgRef.current;
-    if (sourceSvg) {
-      const svgClone = sourceSvg.cloneNode(true) as SVGSVGElement;
-      svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-      svgClone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-      svgClone.setAttribute("width", String(MAP_WIDTH));
-      svgClone.setAttribute("height", String(MAP_HEIGHT));
-      svgClone.style.width = `${MAP_WIDTH}px`;
-      svgClone.style.height = `${MAP_HEIGHT}px`;
-      // Avoid double transform: we apply overlay transform in canvas, not inside serialized SVG.
-      svgClone.style.transform = "none";
-      svgClone.style.transformOrigin = "0 0";
+  const buildPdfOverlaySvg = (
+    sourceSvg: SVGSVGElement,
+    transform: OverlayTransform,
+    sourceBackgroundOrigin: { x: number; y: number }
+  ) => {
+    const svgNamespace = "http://www.w3.org/2000/svg";
+    const svgClone = document.createElementNS(svgNamespace, "svg");
+    const transformGroup = document.createElementNS(svgNamespace, "g");
+    const nestedSvg = document.createElementNS(svgNamespace, "svg");
+    const rootStyles = window.getComputedStyle(document.documentElement);
+    const fillDisponible = rootStyles.getPropertyValue("--lot-fill-libre").trim() || "rgba(0,255,102,0.3)";
+    const fillSeparado = rootStyles.getPropertyValue("--lot-fill-separado").trim() || "rgba(243,195,5,0.378)";
+    const fillVendido = rootStyles.getPropertyValue("--lot-fill-vendido").trim() || "rgba(255,0,0,0.305)";
+    const fillMulti = "rgba(47, 140, 255, 0.16)";
 
-      // Force light theme lot colors for consistent export regardless of current theme.
-      const LIGHT_FILL_DISPONIBLE = "rgba(60, 223, 101, 0.322)";
-      const LIGHT_FILL_SEPARADO = "rgba(255, 196, 99, 0.5)";
-      const LIGHT_FILL_VENDIDO = "rgba(255, 133, 149, 0.5)";
-      const LIGHT_STROKE = "rgba(0,0,0,0)";
-
-      sourceSvg.querySelectorAll<SVGElement>("[id]").forEach((node) => {
-        const id = node.getAttribute("id");
-        if (!id) return;
-        const cloneNode = svgClone.querySelector<SVGElement>(`#${CSS.escape(id)}`);
-        if (!cloneNode) return;
-
-        const status = (node.getAttribute("data-status") || "").toUpperCase();
-        if (status === "SEPARADO") {
-          cloneNode.setAttribute("fill", LIGHT_FILL_SEPARADO);
-        } else if (status === "VENDIDO") {
-          cloneNode.setAttribute("fill", LIGHT_FILL_VENDIDO);
-        } else {
-          cloneNode.setAttribute("fill", LIGHT_FILL_DISPONIBLE);
-        }
-        cloneNode.setAttribute("stroke", LIGHT_STROKE);
-        cloneNode.setAttribute("stroke-width", "0");
-        cloneNode.setAttribute("stroke-linejoin", "round");
-        cloneNode.setAttribute("stroke-linecap", "round");
-      });
-
-      const serialized = new XMLSerializer().serializeToString(svgClone);
-      const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
-      const svgImage = await loadImageElement(svgDataUrl);
-      const svgLayerDataUrl = await imageToDataUrl(svgImage, "image/png");
-      // Capa SVG por separado, en la misma posicion del contenedor mapa.
-      pdf.addImage(
-        svgLayerDataUrl,
-        "PNG",
-        overlay.x,
-        overlay.y,
-        MAP_WIDTH * overlay.scale,
-        MAP_HEIGHT * overlay.scale,
-        undefined,
-        "FAST"
+    const parseColor = (value: string) => {
+      const normalized = value.trim();
+      const rgba = normalized.match(
+        /^rgba?\(\s*([\d.]+)\s*[, ]\s*([\d.]+)\s*[, ]\s*([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/i
       );
-      await nextFrame();
-    }
-
-    const vendidoCount = lotes.filter((lote) => lote.condicion === "VENDIDO").length;
-    const separadoCount = lotes.filter((lote) => lote.condicion === "SEPARADO").length;
-    const disponibleCount = lotes.length - vendidoCount - separadoCount;
-
-    // Overlay information drawn directly in the PDF to keep text crisp/selectable.
-    const panelX = 28;
-    const panelY = 26;
-    const panelW = Math.round(Math.min(330, Math.max(280, MAP_WIDTH * 0.255)));
-    const panelH = 304;
-
-    pdf.setFillColor(248, 245, 232);
-    pdf.setDrawColor(178, 133, 90);
-    pdf.setLineWidth(1);
-    pdf.roundedRect(panelX, panelY, panelW, panelH, 14, 14, "FD");
-
-    try {
-      const logoImage = await loadImageElement("/assets/Logo_Arenas_Malabrigo.svg");
-      const ratio = logoImage.naturalWidth / logoImage.naturalHeight;
-      const boxW = panelW - 28;
-      const boxH = 116;
-      const boxX = panelX + 16;
-      const boxY = panelY + 10;
-      let drawW = boxW;
-      let drawH = boxH;
-      let drawX = boxX;
-      let drawY = boxY;
-      if (ratio > boxW / boxH) {
-        drawH = boxW / ratio;
-        drawY += (boxH - drawH) / 2;
-      } else {
-        drawW = boxH * ratio;
-        drawX += (boxW - drawW) / 2;
+      if (rgba) {
+        return {
+          color: `rgb(${Math.round(Number(rgba[1]))}, ${Math.round(Number(rgba[2]))}, ${Math.round(Number(rgba[3]))})`,
+          opacity: rgba[4] ? String(Number(rgba[4])) : "1",
+        };
       }
-      const logoData = await imageToDataUrl(logoImage, "image/png");
-      pdf.addImage(logoData, "PNG", drawX, drawY, drawW, drawH, undefined, "FAST");
-    } catch {
-      // Continue export if logo fails.
-    }
-
-    pdf.setTextColor(58, 46, 37);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(57 / 3); // ~19px equivalent
-    pdf.text("Resumen general", panelX + 20, panelY + 150);
-
-    const drawStatRow = (label: string, value: number, row: number, rgb: [number, number, number]) => {
-      const rowY = panelY + 166 + row * 42;
-      const tint =
-        row === 0
-          ? [255, 238, 238]
-          : row === 1
-            ? [255, 247, 227]
-            : [234, 250, 238];
-      pdf.setFillColor(tint[0], tint[1], tint[2]);
-      pdf.setDrawColor(223, 211, 196);
-      pdf.roundedRect(panelX + 16, rowY, panelW - 32, 32, 16, 16, "FD");
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(54 / 3); // ~18px equivalent
-      pdf.setTextColor(92, 72, 56);
-      pdf.text(label, panelX + 30, rowY + 21);
-      pdf.setTextColor(rgb[0], rgb[1], rgb[2]);
-      const valueText = String(value);
-      pdf.setFontSize(60 / 3); // ~20px equivalent
-      const textWidth = pdf.getTextWidth(valueText);
-      pdf.text(valueText, panelX + panelW - 30 - textWidth, rowY + 21);
+      return { color: normalized, opacity: "1" };
     };
 
-    drawStatRow("Vendidos", vendidoCount, 0, [198, 40, 40]);
-    drawStatRow("Separados", separadoCount, 1, [154, 107, 0]);
-    drawStatRow("Disponibles", disponibleCount, 2, [31, 138, 76]);
+    svgClone.setAttribute("xmlns", svgNamespace);
+    svgClone.setAttribute("width", String(MAP_WIDTH));
+    svgClone.setAttribute("height", String(MAP_HEIGHT));
+    svgClone.setAttribute("viewBox", `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
+    svgClone.setAttribute("preserveAspectRatio", "xMinYMin meet");
 
-      pdf.save(`mapa-ejecutivo-${new Date().toISOString().slice(0, 10)}.pdf`);
+    nestedSvg.setAttribute("x", "0");
+    nestedSvg.setAttribute("y", "0");
+    nestedSvg.setAttribute("width", String(MAP_WIDTH));
+    nestedSvg.setAttribute("height", String(MAP_HEIGHT));
+    nestedSvg.setAttribute("viewBox", sourceSvg.getAttribute("viewBox") ?? `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
+    nestedSvg.setAttribute(
+      "preserveAspectRatio",
+      sourceSvg.getAttribute("preserveAspectRatio") || "xMidYMid meet"
+    );
+
+    const relativeX = transform.x - sourceBackgroundOrigin.x;
+    const relativeY = transform.y - sourceBackgroundOrigin.y;
+    transformGroup.setAttribute("transform", `translate(${relativeX} ${relativeY}) scale(${transform.scale})`);
+
+    sourceSvg.querySelectorAll<SVGPathElement>("path[id][data-status]").forEach((pathNode) => {
+      const clonedPath = document.createElementNS(svgNamespace, "path");
+      const d = pathNode.getAttribute("d");
+      if (d) clonedPath.setAttribute("d", d);
+
+      const status = (pathNode.getAttribute("data-status") || "DISPONIBLE").toUpperCase();
+      const classes = new Set(Array.from(pathNode.classList));
+      let fill = fillDisponible;
+      let opacity = "1";
+
+      if (status === "SEPARADO") fill = fillSeparado;
+      if (status === "VENDIDO") fill = fillVendido;
+
+      if (classes.has("is-multi-selected")) {
+        fill = fillMulti;
+      }
+
+      const parsedFill = parseColor(fill);
+      clonedPath.setAttribute("fill", parsedFill.color);
+      clonedPath.setAttribute("fill-opacity", parsedFill.opacity);
+      clonedPath.setAttribute("stroke", "none");
+      clonedPath.setAttribute("stroke-width", "0");
+      clonedPath.setAttribute("stroke-linejoin", "round");
+      clonedPath.setAttribute("stroke-linecap", "round");
+      clonedPath.setAttribute("vector-effect", "non-scaling-stroke");
+      clonedPath.setAttribute("opacity", opacity);
+      nestedSvg.appendChild(clonedPath);
+    });
+
+    transformGroup.appendChild(nestedSvg);
+    svgClone.appendChild(transformGroup);
+
+    return svgClone;
+  };
+
+  const loadTextAsset = async (src: string) => {
+    const response = await fetch(src, { cache: "force-cache" });
+    if (!response.ok) throw new Error(`No se pudo cargar recurso de texto: HTTP ${response.status}`);
+    return await response.text();
+  };
+
+  const exportExecutivePdf = async () => {
+    if (exportExecutiveLoading) return;
+    setExportExecutiveLoading(true);
+    try {
+      const { svg2pdf } = await import("svg2pdf.js");
+      const { jsPDF } = await import("jspdf");
+      const backgroundImage = await loadImageElement(MAP_BACKGROUND_IMAGE);
+      const backgroundImageData = imageElementToDataUrl(backgroundImage, "image/png", 1);
+      const logoSvgMarkup = (await loadTextAsset("/assets/Logo_Arenas_Malabrigo.svg")).replace(
+        /<\?xml[\s\S]*?\?>\s*/i,
+        ""
+      );
+      const logoClubImage = await loadImageElement("/assets/arenas_club_cele.png");
+      const logoClubImageData = imageElementToDataUrl(logoClubImage, "image/png", 1);
+      await nextFrame();
+      const sourceBackgroundLayout = getMapBackgroundLayout(backgroundImage);
+      const overlaySvg = svgRef.current ? buildPdfOverlaySvg(svgRef.current, overlay, {
+        x: sourceBackgroundLayout.drawX,
+        y: sourceBackgroundLayout.drawY,
+      }) : null;
+      const { drawX, drawY, drawWidth, drawHeight } = sourceBackgroundLayout;
+      const vendidoCount = lotes.filter((lote) => lote.condicion === "VENDIDO").length;
+      const separadoCount = lotes.filter((lote) => lote.condicion === "SEPARADO").length;
+      const disponibleCount = lotes.length - vendidoCount - separadoCount;
+      const pageWidth = MAP_WIDTH;
+      const pageHeight = MAP_HEIGHT;
+      const panelX = 28;
+      const panelY = 22;
+      const panelW = Math.round(Math.min(330, Math.max(280, MAP_WIDTH * 0.255)));
+      const panelH = 338;
+      const logoBoxH = 92;
+      const logoBoxW = panelW - 28;
+      const pdf = new jsPDF({
+        orientation: pageWidth >= pageHeight ? "landscape" : "portrait",
+        unit: "px",
+        format: [pageWidth, pageHeight],
+        compress: true,
+        hotfixes: ["px_scaling"],
+      });
+      pdf.addImage(backgroundImageData, "PNG", drawX, drawY, drawWidth, drawHeight, undefined, "FAST");
+
+      if (overlaySvg) {
+        await svg2pdf(overlaySvg, pdf, {
+          x: drawX,
+          y: drawY,
+          width: drawWidth,
+          height: drawHeight,
+        });
+      }
+
+      const summaryX = panelX;
+      const summaryY = panelY;
+      const summaryW = panelW;
+      const summaryH = panelH;
+      const summaryPad = 10;
+      const logoX = summaryX + 14;
+      const logoY = summaryY + 10;
+      const logoW = logoBoxW;
+      const logoH = logoBoxH;
+
+      pdf.setDrawColor(178, 133, 90);
+      pdf.setFillColor(248, 245, 232);
+      pdf.roundedRect(summaryX, summaryY, summaryW, summaryH, 14, 14, "FD");
+
+      try {
+        const logoDoc = new DOMParser().parseFromString(logoSvgMarkup, "image/svg+xml");
+        const logoSvg = logoDoc.documentElement;
+        await svg2pdf(logoSvg, pdf, {
+          x: logoX,
+          y: logoY,
+          width: logoW,
+          height: logoH,
+        });
+      } catch {
+        // keep summary export resilient even if logo svg parsing fails
+      }
+
+      const rows = [
+        {
+          label: "Vendidos",
+          value: vendidoCount,
+          fill: [255, 238, 238] as const,
+          valueColor: [198, 40, 40] as const,
+        },
+        {
+          label: "Separados",
+          value: separadoCount,
+          fill: [255, 247, 227] as const,
+          valueColor: [154, 107, 0] as const,
+        },
+        {
+          label: "Disponibles",
+          value: disponibleCount,
+          fill: [234, 250, 232] as const,
+          valueColor: [31, 138, 76] as const,
+        },
+      ];
+
+      const rowHeight = 21;
+      const rowGap = 5;
+      const rowWidth = summaryW - summaryPad * 2;
+      let rowY = summaryY + logoBoxH + 14;
+      rows.forEach((row) => {
+        pdf.setFillColor(row.fill[0], row.fill[1], row.fill[2]);
+        pdf.setDrawColor(223, 211, 196);
+        pdf.roundedRect(summaryX + summaryPad, rowY, rowWidth, rowHeight, 10, 10, "FD");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(92, 72, 56);
+        pdf.text(row.label, summaryX + summaryPad + 8, rowY + 16.1);
+        pdf.setTextColor(row.valueColor[0], row.valueColor[1], row.valueColor[2]);
+        pdf.text(String(row.value), summaryX + summaryPad + rowWidth - 9, rowY + 16.1, {
+          align: "right",
+        });
+        rowY += rowHeight + rowGap;
+      });
+
+
+      const featureTitleY = rowY + 5;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(151, 104, 10);
+      pdf.text("Arenas Club | Caracteristicas", summaryX + summaryPad, featureTitleY);
+
+      const features = [
+        { icon: "*", label: "Acceso", text: "Portico con camaras" },
+        { icon: "*", label: "Servicios", text: "Agua, luz y desague" },
+        { icon: "club", label: "Acceso a", text: "Cadena de clubes" },
+      ] as const;
+      const featureStartY = featureTitleY + 6;
+      const featureGap = 4;
+      const featureWidth = rowWidth;
+      features.forEach((feature, index) => {
+        const featureY =
+          index === 0
+            ? featureStartY
+            : index === 1
+              ? featureStartY + 13 + featureGap
+              : featureStartY + 13 + featureGap + 13 + featureGap;
+        const featureHeight = feature.icon === "club" ? 25 : 13;
+        pdf.setFillColor(252, 248, 240);
+        pdf.setDrawColor(231, 217, 198);
+        pdf.roundedRect(summaryX + summaryPad, featureY, featureWidth, featureHeight, 6, 6, "FD");
+        if (feature.icon === "club") {
+          const clubLogoH = 20;
+          const clubLogoW = 44;
+          const clubCenterY = featureY + featureHeight / 2;
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8.2);
+          pdf.setTextColor(125, 80, 44);
+          pdf.text("Acceso a", summaryX + summaryPad + 8, clubCenterY + 1.4);
+          pdf.addImage(
+            logoClubImageData,
+            "PNG",
+            summaryX + summaryPad + 43,
+            clubCenterY - clubLogoH / 2,
+            clubLogoW,
+            clubLogoH
+          );
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8.3);
+          pdf.setTextColor(0, 153, 114);
+          pdf.text(feature.text, summaryX + summaryPad + featureWidth - 8, clubCenterY + 1.4, {
+            align: "right",
+          });
+        } else {
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(10);
+          pdf.setTextColor(215, 129, 44);
+          pdf.text(feature.icon, summaryX + summaryPad + 5, featureY + 8.4);
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8.2);
+          pdf.setTextColor(125, 80, 44);
+          pdf.text(feature.label, summaryX + summaryPad + 15, featureY + 5.7);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(7.6);
+          pdf.setTextColor(96, 83, 70);
+          pdf.text(feature.text, summaryX + summaryPad + 15, featureY + 10.2);
+        }
+      });
+      pdf.save(`mapa_ejecutivo_${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (error) {
       console.error("No se pudo exportar el mapa ejecutivo:", error);
       setLoadError("No se pudo generar el PDF del mapa. Intenta nuevamente.");
+    } finally {
+      setExportExecutiveLoading(false);
+    }
+  };
+
+  const printExecutiveMap = async () => {
+    if (exportExecutiveLoading) return;
+    setExportExecutiveLoading(true);
+    try {
+      const backgroundImage = await loadImageElement(MAP_BACKGROUND_IMAGE);
+      const logoSvgMarkup = (await loadTextAsset("/assets/Logo_Arenas_Malabrigo.svg")).replace(
+        /<\?xml[\s\S]*?\?>\s*/i,
+        ""
+      );
+      const logoClubUrl = new URL("/assets/arenas_club_cele.png", window.location.origin).href;
+      await nextFrame();
+      const sourceBackgroundLayout = getMapBackgroundLayout(backgroundImage);
+      const overlaySvg = svgRef.current ? buildPdfOverlaySvg(svgRef.current, overlay, {
+        x: sourceBackgroundLayout.drawX,
+        y: sourceBackgroundLayout.drawY,
+      }) : null;
+      const overlayMarkup = overlaySvg ? new XMLSerializer().serializeToString(overlaySvg) : "";
+      const { drawX, drawY, drawWidth, drawHeight } = sourceBackgroundLayout;
+      const vendidoCount = lotes.filter((lote) => lote.condicion === "VENDIDO").length;
+      const separadoCount = lotes.filter((lote) => lote.condicion === "SEPARADO").length;
+      const disponibleCount = lotes.length - vendidoCount - separadoCount;
+      const pageWidth = MAP_WIDTH;
+      const pageHeight = MAP_HEIGHT;
+      const panelX = 28;
+      const panelY = 22;
+      const panelW = Math.round(Math.min(330, Math.max(280, MAP_WIDTH * 0.255)));
+      const panelH = 338;
+      const logoBoxH = 92;
+      const logoBoxW = panelW - 28;
+      const mapBackgroundUrl = new URL(MAP_BACKGROUND_IMAGE, window.location.origin).href;
+      const printHtml = `
+        <html>
+          <head>
+            <meta charset="UTF-8" />
+            <title>Mapa ejecutivo</title>
+            <style>
+              @page { size: ${pageWidth}px ${pageHeight}px; margin: 0; }
+              html, body { margin: 0; padding: 0; background: #ffffff; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .page {
+                position: relative;
+                width: ${pageWidth}px;
+                height: ${pageHeight}px;
+                overflow: hidden;
+                background: #ffffff;
+              }
+              .map-bg {
+                position: absolute;
+                left: ${drawX}px;
+                top: ${drawY}px;
+                width: ${drawWidth}px;
+                height: ${drawHeight}px;
+                object-fit: contain;
+              }
+              .overlay {
+                position: absolute;
+                inset: 0;
+              }
+              .overlay svg {
+                position: absolute;
+                left: ${drawX}px;
+                top: ${drawY}px;
+                width: ${drawWidth}px;
+                height: ${drawHeight}px;
+                display: block;
+              }
+              .summary {
+                position: absolute;
+                left: ${panelX}px;
+                top: ${panelY}px;
+                width: ${panelW}px;
+                height: ${panelH}px;
+                border: 1px solid #b2855a;
+                border-radius: 14px;
+                background: #f8f5e8;
+                box-sizing: border-box;
+                padding: 10px 12px 14px;
+                display: flex;
+                flex-direction: column;
+              }
+              .summary-logo {
+                width: ${logoBoxW}px;
+                height: ${logoBoxH}px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 0;
+              }
+              .summary-logo svg {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+              }
+              .summary-list {
+                display: grid;
+                gap: 5px;
+              }
+              .summary-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+                padding: 5px 10px;
+                border: 1px solid #dfd3c4;
+                border-radius: 11px;
+                font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+                background: #fff7e3;
+              }
+              .summary-row.vendidos { background: #ffeeee; }
+              .summary-row.separados { background: #fff7e3; }
+              .summary-row.disponibles { background: #eafae8; }
+              .summary-label {
+                font-size: 14px;
+                font-weight: 700;
+                color: #5c4838;
+              }
+              .summary-value {
+                font-size: 15px;
+                font-weight: 800;
+              }
+              .summary-value.vendidos { color: #c62828; }
+              .summary-value.separados { color: #9a6b00; }
+              .summary-value.disponibles { color: #1f8a4c; }
+              .summary-features-title {
+                margin: 8px 0 5px;
+                font: 700 8px/1.1 system-ui, -apple-system, "Segoe UI", sans-serif;
+                letter-spacing: 0.03em;
+                color: #97680a;
+              }
+              .summary-features {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                flex: 1;
+              }
+              .summary-feature {
+                display: grid;
+                grid-template-columns: auto 1fr;
+                align-items: center;
+                gap: 6px;
+                min-height: 13px;
+                padding: 3px 7px;
+                border: 1px solid #e7d9c6;
+                border-radius: 8px;
+                background: #fcf8f0;
+                font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+              }
+              .summary-feature-icon {
+                width: 12px;
+                text-align: center;
+                font-size: 10px;
+                font-weight: 700;
+                color: #d7812c;
+              }
+              .summary-feature-icon.logo {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+              }
+              .summary-feature-copy {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                gap: 8px;
+                min-width: 0;
+              }
+              .summary-feature-label {
+                font-size: 8px;
+                font-weight: 800;
+                color: #7d502c;
+              }
+              .summary-feature-label.clubes {
+                color: #009972;
+              }
+              .summary-feature--club {
+                height: 32px;
+                min-height: 32px;
+              }
+              .summary-feature-copy.club {
+                align-items: center;
+              }
+              .summary-feature-logo-box {
+                width: 44px;
+                height: 32px;
+                flex: 0 0 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                box-sizing: border-box;
+              }
+              .summary-feature-label-prefix {
+                font-size: 8px;
+                font-weight: 800;
+                color: #7d502c;
+                white-space: nowrap;
+              }
+              .summary-feature-text {
+                font-size: 7.6px;
+                color: #605346;
+                white-space: nowrap;
+              }
+              .summary-feature--club .summary-feature-copy:last-child {
+                justify-content: flex-end;
+                align-items: center;
+                flex: 1;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="page">
+              <img class="map-bg" src="${mapBackgroundUrl}" alt="" />
+              ${overlayMarkup ? `<div class="overlay">${overlayMarkup}</div>` : ""}
+              <aside class="summary">
+                <div class="summary-logo">${logoSvgMarkup}</div>
+                <div class="summary-list">
+                  <div class="summary-row vendidos">
+                    <span class="summary-label">Vendidos</span>
+                    <span class="summary-value vendidos">${vendidoCount}</span>
+                  </div>
+                  <div class="summary-row separados">
+                    <span class="summary-label">Separados</span>
+                    <span class="summary-value separados">${separadoCount}</span>
+                  </div>
+                  <div class="summary-row disponibles">
+                    <span class="summary-label">Disponibles</span>
+                    <span class="summary-value disponibles">${disponibleCount}</span>
+                  </div>
+                </div>
+                <div class="summary-features-title">Arenas Club | Caracteristicas</div>
+                <div class="summary-features">
+                  <div class="summary-feature">
+                    <span class="summary-feature-icon">*</span>
+                    <div class="summary-feature-copy">
+                      <span class="summary-feature-label">Acceso</span>
+                      <span class="summary-feature-text">Portico con camaras</span>
+                    </div>
+                  </div>
+                  <div class="summary-feature">
+                    <span class="summary-feature-icon">*</span>
+                    <div class="summary-feature-copy">
+                      <span class="summary-feature-label">Servicios</span>
+                      <span class="summary-feature-text">Agua, luz y desague</span>
+                    </div>
+                  </div>
+                  <div class="summary-feature summary-feature--club">
+                    <div class="summary-feature-copy club">
+                      <span class="summary-feature-label-prefix">Acceso a</span>
+                      <span class="summary-feature-logo-box">
+                        <img src="${logoClubUrl}" class="summary-feature-icon logo" alt="Arenas Club" />
+                      </span>
+                    </div>
+                    <div class="summary-feature-copy">
+                      <span class="summary-feature-text"><span class="summary-feature-label clubes">Cadena de clubes</span></span>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </body>
+        </html>
+      `;
+      const popup = window.open("", "_blank", "width=1200,height=900");
+      if (!popup) throw new Error("El navegador bloqueo la ventana de impresion.");
+      popup.document.open();
+      popup.document.write(printHtml);
+      popup.document.close();
+      await waitForPrintWindowAssets(popup, { timeoutMs: 6000 });
+      popup.focus();
+      popup.print();
+    } catch (error) {
+      console.error("No se pudo imprimir el mapa ejecutivo:", error);
+      setLoadError("No se pudo preparar la impresion del mapa. Intenta nuevamente.");
     } finally {
       setExportExecutiveLoading(false);
     }
@@ -1267,7 +1642,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 <div><strong>Datos de la empresa</strong></div>
                 <div>RAZON SOCIAL: ${projectInfo.owner}</div>
                 <div>RUC: ${projectInfo.ownerRuc}</div>
-                <div>DIRECCIÓN: ${EMPRESA_DIRECCION}</div>
+                <div>DIRECCIÃ“N: ${EMPRESA_DIRECCION}</div>
               </div>
               <img src="${logoHolaTrujillo}" class="project-logo" alt="Hola Trujillo" />
             </div>
@@ -1440,6 +1815,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             setView={setView}
             filteredCount={filteredLotes.length}
             onExportExecutivePdf={exportExecutivePdf}
+            onPrintExecutiveMap={printExecutiveMap}
             onExportTable={exportTableCsv}
             hideExecutiveExport={hidePublicRestrictedActions}
             exportExecutiveLoading={exportExecutiveLoading}

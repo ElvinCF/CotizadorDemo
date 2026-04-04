@@ -540,6 +540,45 @@
   display: none;
 }
 
+.map-export-menu {
+  position: relative;
+}
+
+.map-export-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-elevated);
+  z-index: 20;
+}
+
+.map-export-menu__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.map-export-menu__item:hover {
+  background: var(--color-panel-contrast);
+  border-color: var(--color-border);
+}
+
 .table-filters__toolbar {
   display: flex;
   align-items: center;
