@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 const IconMap = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path
@@ -61,6 +63,7 @@ type MapHeaderProps = {
   setView: (next: "mapa" | "tabla") => void;
   filteredCount: number;
   onExportExecutivePdf: () => void;
+  onPrintExecutiveMap: () => void;
   onExportTable: () => void;
   hideExecutiveExport?: boolean;
   exportExecutiveLoading?: boolean;
@@ -71,10 +74,25 @@ function MapHeader({
   setView,
   filteredCount,
   onExportExecutivePdf,
+  onPrintExecutiveMap,
   onExportTable,
   hideExecutiveExport = false,
   exportExecutiveLoading = false,
 }: MapHeaderProps) {
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!exportMenuRef.current?.contains(event.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [exportMenuOpen]);
+
   return (
     <div className="map-header">
       <div className="map-header__row map-header__row--top">
@@ -95,17 +113,43 @@ function MapHeader({
         </div>
         <div className="map-header__right">
           {view === "mapa" && !hideExecutiveExport && (
-            <button
-              className="btn ghost export-download-btn"
-              onClick={onExportExecutivePdf}
-              aria-label="Descargar mapa ejecutivo"
-              title="Descargar mapa ejecutivo"
-              disabled={exportExecutiveLoading}
-            >
-              {exportExecutiveLoading ? <IconSpinner /> : <IconDownload />}
-              <span className="label-desktop">Descargar mapa</span>
-              <span className="label-tablet">Descargar</span>
-            </button>
+            <div className="map-export-menu" ref={exportMenuRef}>
+              <button
+                className="btn ghost export-download-btn"
+                onClick={() => setExportMenuOpen((current) => !current)}
+                aria-label="Opciones de exportacion de mapa"
+                title="Opciones de exportacion de mapa"
+                disabled={exportExecutiveLoading}
+              >
+                {exportExecutiveLoading ? <IconSpinner /> : <IconDownload />}
+                <span className="label-desktop">Mapa</span>
+                <span className="label-tablet">Mapa</span>
+              </button>
+              {exportMenuOpen && !exportExecutiveLoading ? (
+                <div className="map-export-menu__panel">
+                  <button
+                    className="map-export-menu__item"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      onExportExecutivePdf();
+                    }}
+                  >
+                    <IconDownload />
+                    <span>Descargar PDF</span>
+                  </button>
+                  <button
+                    className="map-export-menu__item"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      onPrintExecutiveMap();
+                    }}
+                  >
+                    <IconMap />
+                    <span>Imprimir</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
           )}
           {view === "tabla" && (
             <button

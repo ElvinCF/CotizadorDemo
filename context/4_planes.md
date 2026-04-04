@@ -100,7 +100,8 @@ Orden activo de ejecucion para ventas:
 Siguiente backlog funcional de ventas:
 
 1. documentos e impresion del expediente (continuidad documental)
-2. nuevas mejoras de ventas entran primero por `5_correcciones_ideas.md`
+2. definicion final de `proyectos` y contexto multiproyecto antes de migracion `010` en `dev`
+3. nuevas mejoras de ventas entran primero por `5_correcciones_ideas.md`
 
 Estado del plan hijo de ventas:
 
@@ -129,6 +130,12 @@ Pendientes:
 - restringir acceso por proyecto y por equipo en backend
 - mover datos hardcode de proyecto/empresa a endpoint de contexto
 - aplicar tema por proyecto desde `jsonb` (`theme_seed`, `theme_overrides`)
+
+Regla operativa actual:
+
+- el trabajo nuevo de BD para este frente se define y valida en `schema dev`
+- `public` queda congelado en esta etapa y no se toca hasta nuevo corte formal
+- antes de escribir SQL, se debe cerrar la definicion funcional de la tabla `proyectos`
 
 Referencia tecnica:
 

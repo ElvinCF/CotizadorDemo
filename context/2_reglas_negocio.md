@@ -1,5 +1,12 @@
 # Reglas de Negocio y Backend
 
+Nota vigente 2026-04-03:
+
+- el siguiente frente de BD ya no es ventas multi-lote; ese corte se considera aplicado
+- el nuevo trabajo estructural de BD se prepara en `schema dev`
+- `public` no se modifica en esta etapa
+- antes de redactar SQL del incremento `010`, se debe terminar de definir la tabla `proyectos`
+
 Este documento define las reglas de negocio, el uso entre entidades/tablas y las responsabilidades esperadas del backend y frontend para la evolucion del proyecto sobre el esquema `devsimple`.
 
 Complementa a:

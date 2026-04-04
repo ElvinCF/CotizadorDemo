@@ -417,11 +417,15 @@ Meta:
 
 Pendientes:
 
-- ficha de separacion
 - contrato
 - venta
 - historial de pagos
 - otros anexos o formatos derivados si el expediente lo requiere
+
+Avance aplicado:
+
+- ficha de separacion operativa ya implementada
+- la ficha de separacion ya soporta expediente multi-lote y datos reales del expediente
 
 Entregables tecnicos:
 
@@ -479,6 +483,7 @@ Cuando estas fases se apliquen, se debe actualizar en paralelo:
 ## Backlog siguiente aprobado
 
 1. Fase 6: documentos e impresion del expediente
+2. definicion final del modelo `proyectos` antes de abrir la migracion `010` en schema `dev`
 
 ## Riesgos abiertos
 

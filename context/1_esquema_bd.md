@@ -1,5 +1,12 @@
 # Diseno Final BD `devsimple`
 
+Nota vigente 2026-04-03:
+
+- este documento aun contiene la base historica del modelo comercial original
+- para el nuevo frente de BD `empresa/proyectos/accesos`, el esquema activo de trabajo pasa a ser `dev`
+- `public` queda congelado en esta etapa hasta nuevo corte formal
+- antes de ejecutar la migracion `010`, se debe cerrar la definicion funcional final de `proyectos`
+
 Este documento resume el diseno final acordado para la base de datos del proyecto, trabajando sobre el esquema `devsimple`.
 
 No es una migracion SQL. Es la definicion funcional y tecnica aprobable antes de tocar la BD.
