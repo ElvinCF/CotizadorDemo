@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { COMPANY_LOGO_IMAGE } from "./assets";
 import { useAuth } from "./AuthContext";
+import { isReservedProjectSlug } from "./projectRoutes";
 import { useTheme } from "./theme";
 import { defaultOverlay } from "../domain/constants";
 import {
@@ -61,9 +62,14 @@ type ProjectProviderProps = {
   routeSlug?: string | null;
 };
 
+const buildSafeFallbackSlug = (value?: string | null) => {
+  const normalized = normalizeProjectSlug(value);
+  return normalized && !isReservedProjectSlug(normalized) ? normalized : "";
+};
+
 const buildFallbackDisplay = (routeSlug?: string | null): ProjectDisplay => ({
   projectId: null,
-  projectSlug: String(routeSlug || "proyecto").trim().toLowerCase() || "proyecto",
+  projectSlug: buildSafeFallbackSlug(routeSlug),
   projectName: "Proyecto",
   stage: "",
   owner: "",

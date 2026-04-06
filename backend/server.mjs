@@ -952,17 +952,30 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Supabase API running on http://127.0.0.1:${PORT}`);
-});
+const isDirectExecution = (() => {
+  try {
+    const currentPath = process.argv[1] ? process.argv[1].replace(/\\/g, "/") : "";
+    return Boolean(currentPath) && import.meta.url === new URL(`file://${currentPath}`).href;
+  } catch {
+    return false;
+  }
+})();
 
-if (typeof server.ref === "function") {
-  server.ref();
+if (isDirectExecution) {
+  const server = app.listen(PORT, () => {
+    console.log(`Supabase API running on http://127.0.0.1:${PORT}`);
+  });
+
+  if (typeof server.ref === "function") {
+    server.ref();
+  }
+
+  // Mantiene el proceso activo en entornos donde el handle HTTP no retiene el event-loop.
+  const apiKeepAlive = setInterval(() => {}, 60 * 60 * 1000);
+  if (typeof apiKeepAlive.ref === "function") {
+    apiKeepAlive.ref();
+  }
 }
 
-// Mantiene el proceso activo en entornos donde el handle HTTP no retiene el event-loop.
-const apiKeepAlive = setInterval(() => {}, 60 * 60 * 1000);
-if (typeof apiKeepAlive.ref === "function") {
-  apiKeepAlive.ref();
-}
+export default app;
 

@@ -66,7 +66,15 @@ export const replaceLeadingProjectSlug = (pathname: string, nextSlug: string) =>
   }
 
   if (isReservedProjectSlug(parts[0])) {
-    return `/${normalizedNextSlug}`;
+    if (parts.length === 1) {
+      return `/${normalizedNextSlug}/${parts[0]}`;
+    }
+
+    if (parts[1] === parts[0]) {
+      return `/${normalizedNextSlug}/${parts.slice(1).join("/")}`;
+    }
+
+    return `/${normalizedNextSlug}/${parts.join("/")}`;
   }
 
   parts[0] = normalizedNextSlug;

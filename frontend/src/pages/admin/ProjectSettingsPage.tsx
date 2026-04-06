@@ -4,7 +4,7 @@ import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
 import { useProjectContext } from "../../app/ProjectContext";
 import { useTheme } from "../../app/theme";
-import { buildPrivateProjectPath, buildPublicProjectPath } from "../../app/projectRoutes";
+import { buildPrivateProjectPath, buildPublicProjectPath, isReservedProjectSlug } from "../../app/projectRoutes";
 import ProjectThemePaletteEditor from "../../components/admin/ProjectThemePaletteEditor";
 import ProjectLotStateEditor from "../../components/admin/ProjectLotStateEditor";
 import AdminTextInput from "../../components/admin/AdminTextInput";
@@ -396,6 +396,9 @@ export default function ProjectSettingsPage() {
   };
 
   useEffect(() => {
+    if (!display.projectSlug || isReservedProjectSlug(display.projectSlug)) {
+      return;
+    }
     void load(display.projectSlug);
   }, [display.projectSlug]);
 

@@ -2,7 +2,7 @@ import type { ComponentType, ReactNode } from "react";
 import { Navigate, Outlet, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { ProjectProvider, useProjectContext } from "./ProjectContext";
-import { buildPrivateProjectPath, buildPublicProjectPath, extractProjectSlugFromPath, replaceLeadingProjectSlug } from "./projectRoutes";
+import { buildPrivateProjectPath, buildPublicProjectPath, extractProjectSlugFromPath, isReservedProjectSlug, replaceLeadingProjectSlug } from "./projectRoutes";
 import RouteSkeleton from "./RouteSkeleton";
 
 type RoleDashboardResolverProps = {
@@ -34,7 +34,7 @@ export function RootRouteRedirect() {
   const { isAuthenticated } = useAuth();
   const { loading, display } = useProjectContext();
 
-  if (loading) {
+  if (loading || !display.projectSlug || isReservedProjectSlug(display.projectSlug)) {
     return <RouteSkeleton title="Cargando proyecto" variant="map" />;
   }
 
@@ -46,7 +46,7 @@ export function PublicProjectGuard({ children }: { children: ReactNode }) {
   const params = useParams<{ slug?: string }>();
   const { loading, display } = useProjectContext();
 
-  if (loading) {
+  if (loading || !display.projectSlug || isReservedProjectSlug(display.projectSlug)) {
     return <RouteSkeleton title="Cargando proyecto" variant="map" />;
   }
 
@@ -67,7 +67,7 @@ export function PrivateProjectGuard({ children, allowedRoles, allowedRawRoles }:
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (loading) {
+  if (loading || !display.projectSlug || isReservedProjectSlug(display.projectSlug)) {
     return <RouteSkeleton title="Cargando proyecto" variant="table" contentClassName="main--data-table" />;
   }
 
@@ -94,7 +94,7 @@ export function LegacyPrivateRedirect({ target, suffix = "" }: { target: string;
     return <Navigate to="/login" replace />;
   }
 
-  if (loading) {
+  if (loading || !display.projectSlug || isReservedProjectSlug(display.projectSlug)) {
     return <RouteSkeleton title="Redirigiendo" variant="table" contentClassName="main--data-table" />;
   }
 
@@ -110,7 +110,7 @@ export function LegacyPrivatePathRedirect() {
     return <Navigate to="/login" replace />;
   }
 
-  if (loading) {
+  if (loading || !display.projectSlug || isReservedProjectSlug(display.projectSlug)) {
     return <RouteSkeleton title="Redirigiendo" variant="table" contentClassName="main--data-table" />;
   }
 
@@ -122,7 +122,7 @@ export function LegacyCotizadorRedirect() {
   const params = useParams<{ loteCodigo?: string }>();
   const { loading, display } = useProjectContext();
 
-  if (loading) {
+  if (loading || !display.projectSlug || isReservedProjectSlug(display.projectSlug)) {
     return <RouteSkeleton title="Redirigiendo" variant="map" />;
   }
 
