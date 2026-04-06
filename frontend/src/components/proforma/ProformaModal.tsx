@@ -1,7 +1,7 @@
 ﻿import DataTable from "../data-table/DataTable";
 import ValidatedNumberField from "../forms/ValidatedNumberField";
 import { formatArea, formatMoney } from "../../domain/formatters";
-import { projectInfo } from "../../data/projectInfo";
+import { useProjectContext } from "../../app/ProjectContext";
 import type { Lote, ProformaState } from "../../domain/types";
 
 const IconPrinter = () => (
@@ -37,14 +37,20 @@ const IconTrash = () => (
 type ProformaModalProps = {
   proforma: ProformaState;
   lotesCatalog: Lote[];
+  proformaInitialMinima: number;
+  proformaSeparacionMinima: number;
+  proformaCuotasMinimas: number;
+  proformaCuotasMaximas: number;
+  proformaMesesReferenciales: number[];
   proformaInvalidInicial: boolean;
+  proformaInvalidSeparacion: boolean;
   proformaInvalidMeses: boolean;
   precioFinanciarRegular: number;
   precioFinanciarPromo: number;
   proformaCuotaRegular: number;
   proformaCuotaPromo: number;
   proformaAhorro: number;
-  cuotasRapidas: (monto: number) => Record<12 | 24 | 36, number>;
+  cuotasRapidas: (monto: number, meses: number) => number;
   onBackdropClose: () => void;
   onPrint: () => void;
   onRequestClose: () => void;
@@ -63,7 +69,13 @@ const createRowId = () =>
 function ProformaModal({
   proforma,
   lotesCatalog,
+  proformaInitialMinima,
+  proformaSeparacionMinima,
+  proformaCuotasMinimas,
+  proformaCuotasMaximas,
+  proformaMesesReferenciales,
   proformaInvalidInicial,
+  proformaInvalidSeparacion,
   proformaInvalidMeses,
   precioFinanciarRegular,
   precioFinanciarPromo,
@@ -80,6 +92,7 @@ function ProformaModal({
   onPromoPrice,
   onCreateSaleFromProforma,
 }: ProformaModalProps) {
+  const { display } = useProjectContext();
   const mzOptions = Array.from(
     new Set(lotesCatalog.filter((item) => item.condicion === "DISPONIBLE").map((item) => item.mz).filter(Boolean))
   ).sort((a, b) =>
@@ -145,13 +158,28 @@ function ProformaModal({
   };
 
   const totalPrecioRef = proforma.lotes.reduce((sum, row) => sum + Math.max(row.precioReferencial || 0, 0), 0);
+  const projectName = proforma.proyecto.proyecto || display.projectName || "Proyecto";
+  const projectStage = display.stage || "-";
+  const companyName = display.owner || "-";
+  const companyRuc = display.ownerRuc || "-";
+  const projectLocation = proforma.proyecto.ubicacion || display.locationText || "-";
+  const monthPresets = Array.from(
+    new Set(
+      proformaMesesReferenciales
+        .map((value) => Math.round(Number(value)))
+        .filter(
+          (value) =>
+            Number.isFinite(value) && value >= proformaCuotasMinimas && value <= proformaCuotasMaximas
+        )
+    )
+  ).sort((a, b) => a - b);
 
   return (
     <div className="modal-backdrop" onClick={onBackdropClose}>
       <div className="proforma-modal" onClick={(event) => event.stopPropagation()}>
         <div className="proforma-header">
           <div className="proforma-header__intro">
-            <h3>Proforma Arenas Malabrigo</h3>
+            <h3>{`Proforma ${projectName}`}</h3>
             <p className="muted">
               {new Date(proforma.creadoEn).toLocaleString("es-PE")} · Vendedor: {proforma.vendedor.nombre || "-"}
             </p>
@@ -290,23 +318,23 @@ function ProformaModal({
               <div className="proforma-project-card__meta proforma-project-card__meta--project">
                 <div>
                   <span className="proforma-project-card__label">Proyecto</span>
-                  <span>{proforma.proyecto.proyecto || "-"}</span>
+                  <span>{projectName}</span>
                 </div>
                 <div>
                   <span className="proforma-project-card__label">Etapa</span>
-                  <span>{projectInfo.stage || "-"}</span>
+                  <span>{projectStage}</span>
                 </div>
                 <div>
                   <span className="proforma-project-card__label">Razon social</span>
-                  <span>{projectInfo.owner || "-"}</span>
+                  <span>{companyName}</span>
                 </div>
                 <div>
                   <span className="proforma-project-card__label">RUC</span>
-                  <span>{projectInfo.ownerRuc || "-"}</span>
+                  <span>{companyRuc}</span>
                 </div>
                 <div>
                   <span className="proforma-project-card__label">Ubicacion</span>
-                  <span>{proforma.proyecto.ubicacion || "-"}</span>
+                  <span>{projectLocation}</span>
                 </div>
               </div>
             </div>
@@ -413,9 +441,9 @@ function ProformaModal({
                   <ValidatedNumberField
                     label="Inicial (S/)"
                     value={proforma.inicial}
-                    min={0}
+                    min={proformaInitialMinima}
                     invalid={proformaInvalidInicial}
-                    errorText="La inicial minima es S/ 6,000."
+                    errorText={`La inicial minima es ${formatMoney(proformaInitialMinima)}.`}
                     onChange={(next) =>
                       onUpdate((current) => ({
                         ...current,
@@ -423,26 +451,26 @@ function ProformaModal({
                       }))
                     }
                   />
-                  <label className="proforma-manual__field">
-                    Separacion (S/)
-                    <input
-                      type="number"
-                      min={0}
-                      value={proforma.separacion}
-                      onChange={(event) =>
-                        onUpdate((current) => ({
-                          ...current,
-                          separacion: Number(event.target.value || 0),
-                        }))
-                      }
-                    />
-                  </label>
                   <ValidatedNumberField
-                    label="Meses (1 a 36)"
+                    label="Separacion (S/)"
+                    value={proforma.separacion}
+                    min={proformaSeparacionMinima}
+                    invalid={proformaInvalidSeparacion}
+                    errorText={`La separacion minima es ${formatMoney(proformaSeparacionMinima)}.`}
+                    onChange={(next) =>
+                      onUpdate((current) => ({
+                        ...current,
+                        separacion: next,
+                      }))
+                    }
+                  />
+                  <ValidatedNumberField
+                    label={`Meses (${proformaCuotasMinimas} a ${proformaCuotasMaximas})`}
                     value={proforma.meses}
-                    min={1}
+                    min={proformaCuotasMinimas}
+                    max={proformaCuotasMaximas}
                     invalid={proformaInvalidMeses}
-                    errorText="El numero de meses debe estar entre 1 y 36."
+                    errorText={`El numero de meses debe estar entre ${proformaCuotasMinimas} y ${proformaCuotasMaximas}.`}
                     onChange={(next) =>
                       onUpdate((current) => ({
                         ...current,
@@ -451,7 +479,9 @@ function ProformaModal({
                     }
                   />
                 </div>
-                <small>Inicial minimo S/ 6,000</small>
+                <small>
+                  Inicial minima {formatMoney(proformaInitialMinima)} · Separacion minima {formatMoney(proformaSeparacionMinima)}
+                </small>
               </div>
 
               <div className="proforma-manual__block">
@@ -529,18 +559,12 @@ function ProformaModal({
                 </div>
                 <div className="proforma-quick">
                   <span>Cotizado rapido de pago mensual</span>
-                  <div>
-                    <span>12 meses</span>
-                    <strong>{formatMoney(cuotasRapidas(precioFinanciarRegular)[12])}</strong>
-                  </div>
-                  <div>
-                    <span>24 meses</span>
-                    <strong>{formatMoney(cuotasRapidas(precioFinanciarRegular)[24])}</strong>
-                  </div>
-                  <div>
-                    <span>36 meses</span>
-                    <strong>{formatMoney(cuotasRapidas(precioFinanciarRegular)[36])}</strong>
-                  </div>
+                  {monthPresets.map((meses) => (
+                    <div key={`regular-${meses}`}>
+                      <span>{meses} meses</span>
+                      <strong>{formatMoney(cuotasRapidas(precioFinanciarRegular, meses))}</strong>
+                    </div>
+                  ))}
                 </div>
                 <div className="proforma-monthly">
                   Pago mensual en {proforma.meses} meses: <strong>{formatMoney(proformaCuotaRegular)}</strong>
@@ -566,18 +590,12 @@ function ProformaModal({
                 </div>
                 <div className="proforma-quick">
                   <span>Cotizado rapido de pago mensual</span>
-                  <div>
-                    <span>12 meses</span>
-                    <strong>{formatMoney(cuotasRapidas(precioFinanciarPromo)[12])}</strong>
-                  </div>
-                  <div>
-                    <span>24 meses</span>
-                    <strong>{formatMoney(cuotasRapidas(precioFinanciarPromo)[24])}</strong>
-                  </div>
-                  <div>
-                    <span>36 meses</span>
-                    <strong>{formatMoney(cuotasRapidas(precioFinanciarPromo)[36])}</strong>
-                  </div>
+                  {monthPresets.map((meses) => (
+                    <div key={`promo-${meses}`}>
+                      <span>{meses} meses</span>
+                      <strong>{formatMoney(cuotasRapidas(precioFinanciarPromo, meses))}</strong>
+                    </div>
+                  ))}
                 </div>
                 <div className="proforma-monthly">
                   Pago mensual en {proforma.meses} meses: <strong>{formatMoney(proformaCuotaPromo)}</strong>
@@ -600,3 +618,7 @@ function ProformaModal({
 }
 
 export default ProformaModal;
+
+
+
+

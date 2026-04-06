@@ -13,6 +13,7 @@ type AdminUsersTableProps = {
   users: AdminUser[];
   loading: boolean;
   onEdit: (user: AdminUser) => void;
+  onDelete: (user: AdminUser) => void;
   sort: SortState<AdminUsersSortKey>;
   onSort: (key: AdminUsersSortKey) => void;
 };
@@ -20,7 +21,7 @@ type AdminUsersTableProps = {
 const sortDirectionFor = (sort: SortState<AdminUsersSortKey>, key: AdminUsersSortKey) =>
   sort.key === key ? sort.direction : null;
 
-export default function AdminUsersTable({ users, loading, onEdit, sort, onSort }: AdminUsersTableProps) {
+export default function AdminUsersTable({ users, loading, onEdit, onDelete, sort, onSort }: AdminUsersTableProps) {
   const loadState = resolveTableLoadState(loading, users.length);
   const showDataRows = loadState === "ready" || loadState === "loading-refresh";
 
@@ -83,9 +84,20 @@ export default function AdminUsersTable({ users, loading, onEdit, sort, onSort }
                   <StatusPill status={user.estado} />
                 </td>
                 <td>
-                  <button type="button" className="btn ghost data-table__row-action" onClick={() => onEdit(user)}>
-                    Editar
-                  </button>
+                  <div className="admin-users-table__actions">
+                    <button type="button" className="btn ghost data-table__row-action" onClick={() => onEdit(user)}>
+                      Editar
+                    </button>
+                    {user.canDelete !== false ? (
+                      <button
+                        type="button"
+                        className="btn ghost data-table__row-action admin-users-table__delete"
+                        onClick={() => onDelete(user)}
+                      >
+                        Eliminar
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -65,7 +65,18 @@ export const writeCachedCotizadorQuote = (loteCodigo: string, quote: QuoteState)
   writeCacheMap(next);
 };
 
-export const buildCotizadorPath = (loteCodigo?: string | null) => {
+const normalizeSlug = (value?: string | null) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+export const buildCotizadorPath = (projectSlug?: string | null, loteCodigo?: string | null) => {
+  const normalizedSlug = normalizeSlug(projectSlug);
   const normalized = normalizeLoteCodigo(loteCodigo ?? "");
-  return normalized ? `/cotizador/${encodeURIComponent(normalized)}` : "/cotizador";
+  const base = normalizedSlug ? `/${normalizedSlug}/cotizador` : "/cotizador";
+  return normalized ? `${base}/${encodeURIComponent(normalized)}` : base;
 };

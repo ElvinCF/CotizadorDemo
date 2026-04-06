@@ -1,11 +1,17 @@
 export type Lote = {
   id: string;
   dbId?: string;
+  projectId?: string | null;
   mz: string;
   lote: number;
   areaM2: number | null;
   price: number | null;
+  precioMinimo?: number | null;
   condicion: string;
+  esEsquina?: boolean | null;
+  esMedianero?: boolean | null;
+  frenteParque?: boolean | null;
+  frenteViaPrincipal?: boolean | null;
   ventaActiva?: boolean;
   ventaActivaId?: string | null;
 };

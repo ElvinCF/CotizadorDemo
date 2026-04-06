@@ -1,74 +1,157 @@
-﻿# Mapa interactivo - Arenas Malabrigo
+# Cotizador Multiproyecto
 
-Aplicación React + Vite para visualizar y cotizar lotes con overlay SVG sobre plano PNG.
+Aplicación React + Vite con backend Express y Postgres para:
 
-## Qué incluye
-- Mapa interactivo (zoom, pan, hover, selección de lote).
-- Vista tabla con filtros y exportación CSV.
-- Drawer de cotización manual y cuotas rápidas.
-- Modal de proforma imprimible.
-- Panel vendedor conectado a API (`/api/lotes`).
+- mapa cotizador público por proyecto
+- operación privada por proyecto (`dashboard`, `lotes`, `ventas`, `usuarios`, `proyecto`, `empresa`)
+- configuración visual y comercial por proyecto
+- overlays por etapa
+- proforma, cotizador manual y venta
 
-## Estructura monorepo
-- `frontend/`: aplicación web (Vite + React).
-  - `frontend/src/`: UI, dominio y servicios de cliente.
-  - `frontend/public/`: assets estáticos del proyecto.
-- `backend/`: servidor local y herramientas de datos.
-  - `backend/server.mjs`
-  - `backend/lib/`
-  - `backend/scripts/`
-  - `backend/supabase/`
-- `api/`: funciones serverless (Vercel) para `/api/*`.
+## Estado actual
 
-## Modularización aplicada
-- `frontend/src/domain/`: tipos, constantes y utilidades compartidas.
-- `frontend/src/services/lotes.ts`: carga de lotes vía API.
-- `frontend/src/components/forms/ValidatedNumberField.tsx`.
-- `frontend/src/components/map/*`.
-- `frontend/src/components/drawer/CotizadorDrawer.tsx`.
-- `frontend/src/components/proforma/ProformaModal.tsx`.
+- esquema de trabajo: `dev`
+- `public` queda congelado
+- una base puede tener:
+  - `1` empresa activa
+  - `N` proyectos
+- ruteo público por `slug`
+- ruteo privado también por `slug`, pero el backend resuelve proyecto visible por sesión
 
-## Requisitos
-- Node.js 18+
+## Stack
 
-## Instalación
+- `frontend`: React 19 + Vite + TypeScript
+- `backend`: Express + módulos ESM
+- `db`: Postgres/Supabase
+- `charts`: Recharts
+- `pdf`: jsPDF + svg2pdf
+- `tests`: Vitest
+
+## Rutas principales
+
+### Público
+
+- `/`
+- `/:slug`
+- `/:slug/cotizador`
+- `/:slug/cotizador/:loteCodigo`
+- `/login`
+
+### Privado
+
+- `/:slug/dashboard`
+- `/:slug/lotes`
+- `/:slug/ventas`
+- `/:slug/ventas/nueva`
+- `/:slug/ventas/:id`
+- `/:slug/usuarios`
+- `/:slug/proyecto`
+- `/:slug/empresa`
+- `/:slug/editor`
+
+## Estructura
+
+- `frontend/`
+  - `src/app/`: shell, router, auth, project context
+  - `src/components/`: UI, tablas, drawers, modales
+  - `src/domain/`: reglas puras, formatters, cache, paletas
+  - `src/assets/project-overlays/`: overlays TSX por proyecto y etapa
+  - `public/assets/`: logos, webp, csv, archivos públicos
+- `backend/`
+  - `server.mjs`: API local
+  - `lib/`: servicios de dominio backend
+  - `supabase/migrations/`: migraciones SQL
+  - `scripts/`: utilidades operativas
+- `context/`
+  - documentación viva del sistema
+
+## Desarrollo
+
+Instalación:
+
 ```bash
 npm install
 ```
 
-## Desarrollo (frontend)
+Frontend:
+
 ```bash
 npm run dev
 ```
 
-## Desarrollo full stack local
+Full stack local:
+
 ```bash
 npm run dev:full
 ```
 
-## Build
+API local:
+
 ```bash
+npm run api
+```
+
+## Tests
+
+Suite actual:
+
+- dominio puro con `Vitest`
+
+Comandos:
+
+```bash
+npm run test
+npm run test:run
+```
+
+## Calidad mínima antes de desplegar
+
+```bash
+npm run lint
+npm run test:run
 npm run build
 ```
 
-## Datos
-- Fuente unica: API `/api/lotes` conectada a Postgres/Supavisor.
-- Si API/BD falla, el frontend muestra error (no usa fallback CSV).
+## Base de datos
 
-## Migraciones y seeds por esquema
-- Copia `.env.example` a `.env` y completa claves:
-  - `SUPABASE_DB_SCHEMA` (`dev`, `devsimple` o `public`)
-  - `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_NAME`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`
-- Scripts:
-  - `npm run db:migrate:dev`
-  - `npm run db:seed:dev`
-  - `npm run db:migrate:public`
-  - `npm run db:seed:public`
+Migraciones:
 
-## Exportaciones
-- **Imprimir**: reporte A4 de vista actual.
-- **CSV**: exportación de tabla filtrada.
+```bash
+npm run db:migrate:dev
+```
 
-## Activos clave
-- SVG de lotes: `frontend/src/components/arenas.tsx`
-- Plano base: `frontend/public/assets/plano-fondo-demo.webp`
+Seeds:
+
+```bash
+npm run db:seed:dev
+```
+
+Variables mínimas:
+
+- `SUPABASE_DB_SCHEMA=dev`
+- `SUPABASE_DB_HOST`
+- `SUPABASE_DB_PORT`
+- `SUPABASE_DB_NAME`
+- `SUPABASE_DB_USER`
+- `SUPABASE_DB_PASSWORD`
+
+## Assets por etapa
+
+Ejemplo aplicado:
+
+- fondo:
+  - `frontend/public/assets/proyectos/arenas-malabrigo/etapas/segunda-etapa/plano-fondo-demo-b.webp`
+- overlay TSX:
+  - `frontend/src/assets/project-overlays/arenas-malabrigo/segunda-etapa/overlay.tsx`
+
+La tercera etapa ya sigue la misma estructura.
+
+## Documentación viva
+
+Empieza por:
+
+- `context/0_indice.md`
+- `context/1_esquema_bd.md`
+- `context/2_reglas_negocio.md`
+- `context/3_arquitectura.md`
+- `context/4_planes.md`

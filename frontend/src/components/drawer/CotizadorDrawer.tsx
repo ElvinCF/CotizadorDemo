@@ -53,6 +53,10 @@ type CotizadorDrawerProps = {
   pulseMz: boolean;
   pulseLote: boolean;
   quote: QuoteState;
+  initialMinima: number;
+  cuotasMinimas: number;
+  cuotasMaximas: number;
+  mesesReferenciales: number[];
   quoteInvalidInicial: boolean;
   quoteInvalidMeses: boolean;
   cuota: number;
@@ -62,6 +66,10 @@ type CotizadorDrawerProps = {
   onOpenSale?: () => void;
   onChangeQuote: (next: QuoteState) => void;
   onRemoveSelectedLot: (loteId: string) => void;
+  canBulkUpdateStatus?: boolean;
+  bulkStatusValue?: string;
+  bulkStatusBusy?: boolean;
+  onChangeBulkStatus?: (next: string) => void;
   hideProformaButton?: boolean;
   showSaleButton?: boolean;
   saleButtonDisabled?: boolean;
@@ -76,6 +84,10 @@ function CotizadorDrawer({
   pulseMz,
   pulseLote,
   quote,
+  initialMinima,
+  cuotasMinimas,
+  cuotasMaximas,
+  mesesReferenciales,
   quoteInvalidInicial,
   quoteInvalidMeses,
   cuota,
@@ -85,6 +97,10 @@ function CotizadorDrawer({
   onOpenSale,
   onChangeQuote,
   onRemoveSelectedLot,
+  canBulkUpdateStatus = false,
+  bulkStatusValue = "",
+  bulkStatusBusy = false,
+  onChangeBulkStatus,
   hideProformaButton = false,
   showSaleButton = false,
   saleButtonDisabled = false,
@@ -103,8 +119,15 @@ function CotizadorDrawer({
     [lotesSeleccionados]
   );
   const showTotalsRow = lotesSeleccionados.length > 1;
-  const initialSliderMax = useMemo(() => Math.max(6000, Math.ceil(precioLote / 500) * 500), [precioLote]);
+  const initialSliderMax = useMemo(() => Math.max(initialMinima, Math.ceil(precioLote / 500) * 500), [initialMinima, precioLote]);
   const plusvaliaBase = useMemo(() => Math.max(totalPrecioRef || precioLote || 0, 0), [precioLote, totalPrecioRef]);
+  const monthPresets = useMemo(() => {
+    const normalized = mesesReferenciales
+      .map((value) => Math.round(Number(value)))
+      .filter((value) => Number.isFinite(value) && value >= cuotasMinimas && value <= cuotasMaximas);
+    const uniqueSorted = Array.from(new Set(normalized)).sort((a, b) => a - b);
+    return uniqueSorted.length > 0 ? uniqueSorted : [12, 24, 36].filter((value) => value >= cuotasMinimas && value <= cuotasMaximas);
+  }, [cuotasMaximas, cuotasMinimas, mesesReferenciales]);
 
   const plusvaliaSeries = useMemo(
     () =>
@@ -142,6 +165,21 @@ function CotizadorDrawer({
           <div className="drawer__header-copy">
             <h3>Cotizador</h3>
           </div>
+          {canBulkUpdateStatus ? (
+            <div className="drawer__header-status">
+              <select
+                value={bulkStatusValue}
+                onChange={(event) => onChangeBulkStatus?.(event.target.value)}
+                disabled={bulkStatusBusy || lotesSeleccionados.length === 0}
+                aria-label="Cambiar estado de lotes seleccionados"
+              >
+                <option value="">Cambiar estado</option>
+                <option value="DISPONIBLE">Disponible</option>
+                <option value="SEPARADO">Separado</option>
+                <option value="VENDIDO">Vendido</option>
+              </select>
+            </div>
+          ) : null}
         </div>
         <div className="drawer__header-actions">
           <button className="btn ghost drawer-close-btn" onClick={onClose} aria-label="Cerrar cotizador">
@@ -228,7 +266,7 @@ function CotizadorDrawer({
               </div>
               <div className="quick-quotes quick-quotes--inside">
                 <div className="quick-list quick-list--interactive">
-                  {[12, 24, 36].map((meses) => (
+                  {monthPresets.map((meses) => (
                     <button
                       type="button"
                       className={`quick-row-detail quick-row-detail--${loteStatusClass} ${quote.cuotas === meses ? "is-active" : ""}`}
@@ -246,17 +284,18 @@ function CotizadorDrawer({
                   <ValidatedNumberField
                     label="Meses"
                     value={quote.cuotas}
-                    min={1}
+                    min={cuotasMinimas}
+                    max={cuotasMaximas}
                     invalid={quoteInvalidMeses}
-                    errorText="El numero de meses debe estar entre 1 y 36."
+                    errorText={`El numero de meses debe estar entre ${cuotasMinimas} y ${cuotasMaximas}.`}
                     controlRowClassName="quote-control-row"
                     afterInput={
                       <input
                         type="range"
-                        min={1}
-                        max={36}
+                        min={cuotasMinimas}
+                        max={cuotasMaximas}
                         step={1}
-                        value={Math.min(Math.max(quote.cuotas, 1), 36)}
+                        value={Math.min(Math.max(quote.cuotas, cuotasMinimas), cuotasMaximas)}
                         onChange={(event) =>
                           onChangeQuote({ ...quote, cuotas: Number(event.target.value) })
                         }
@@ -270,17 +309,18 @@ function CotizadorDrawer({
                   <ValidatedNumberField
                     label="Inicial"
                     value={quote.inicialMonto}
-                    min={0}
+                    min={initialMinima}
+                    max={initialSliderMax}
                     invalid={quoteInvalidInicial}
-                    errorText="La inicial minima es S/ 6,000."
+                    errorText={`La inicial minima es ${formatMoney(initialMinima)}.`}
                     controlRowClassName="quote-control-row"
                     afterInput={
                       <input
                         type="range"
-                        min={6000}
+                        min={initialMinima}
                         max={initialSliderMax}
                         step={500}
-                        value={Math.min(Math.max(quote.inicialMonto, 6000), initialSliderMax)}
+                        value={Math.min(Math.max(quote.inicialMonto, initialMinima), initialSliderMax)}
                         onChange={(event) =>
                           onChangeQuote({ ...quote, inicialMonto: Number(event.target.value) })
                         }

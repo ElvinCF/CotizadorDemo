@@ -1,16 +1,23 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { COMPANY_LOGO_IMAGE } from "./assets";
+import { useAuth } from "./AuthContext";
+import { useProjectContext } from "./ProjectContext";
+import { buildPrivateProjectPath, buildPublicProjectPath, extractProjectSlugFromPath, replaceLeadingProjectSlug } from "./projectRoutes";
+import { writePreferredProjectSlug } from "../services/projectContext";
 import ThemeToggle from "./ThemeToggle";
 import UserAvatarMenu from "./UserAvatarMenu";
 
 type AppShellProps = {
   children: ReactNode;
-  title?: string;
+  title?: ReactNode;
   titleMeta?: ReactNode;
   actions?: ReactNode;
   mobileActions?: ReactNode;
   contentClassName?: string;
   keepThemeVisibleOnMobile?: boolean;
+  hideProjectSwitcher?: boolean;
 };
 
 const HEADER_FALLBACK = 40;
@@ -24,7 +31,12 @@ const AppShell = ({
   mobileActions,
   contentClassName = "",
   keepThemeVisibleOnMobile = false,
+  hideProjectSwitcher = false,
 }: AppShellProps) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated, rawRole } = useAuth();
+  const { display, bundle } = useProjectContext();
   const shellRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const footerRef = useRef<HTMLElement | null>(null);
@@ -80,23 +92,83 @@ const AppShell = ({
     [layoutVars.footerHeight, layoutVars.headerHeight]
   );
 
+  const visibleProjects = bundle?.proyectos ?? [];
+  const showProjectSwitcher = !hideProjectSwitcher && isAuthenticated && rawRole === "SUPERADMIN" && visibleProjects.length > 1;
+
+  const handleProjectChange = (nextSlug: string) => {
+    writePreferredProjectSlug(nextSlug);
+    const currentSlug = extractProjectSlugFromPath(location.pathname);
+    if (currentSlug) {
+      navigate(`${replaceLeadingProjectSlug(location.pathname, nextSlug)}${location.search || ""}`);
+      return;
+    }
+
+    if (isAuthenticated) {
+      navigate(buildPrivateProjectPath(nextSlug, "dashboard"));
+      return;
+    }
+
+    navigate(buildPublicProjectPath(nextSlug));
+  };
+
+  const projectSwitcher = showProjectSwitcher ? (
+    <>
+      {visibleProjects.map((project) => {
+        const optionLabel = project.etapa ? `${project.nombre} - ${project.etapa}` : project.nombre;
+        return (
+          <option key={project.proyectoId} value={project.slug}>
+            {optionLabel}
+          </option>
+        );
+      })}
+    </>
+  ) : null;
+
   return (
     <div ref={shellRef} className="app-shell" style={shellStyle}>
       <header ref={headerRef} className="topbar">
         <div className="brand">
           <div className="brand__headline">
             <span className="brand__icon" aria-hidden="true">
-              <img src="/assets/arenas_club_cele.png" alt="" />
+                      <img src={display.logoHeaderUrl || COMPANY_LOGO_IMAGE} alt="" />
             </span>
             <div className="brand__text">
               <div className="brand__title-row">
-                <span className="brand__title">{title}</span>
+                {typeof title === "string" ? (
+                  <span className={`brand__title${showProjectSwitcher ? " brand__title--with-project-switcher" : ""}`}>
+                    {title}
+                  </span>
+                ) : (
+                  title
+                )}
+                {showProjectSwitcher ? (
+                  <label className="topbar__project-switcher topbar__project-switcher--mobile">
+                    <select
+                      aria-label="Seleccionar proyecto activo"
+                      value={display.projectSlug}
+                      onChange={(event) => handleProjectChange(event.target.value)}
+                    >
+                      {projectSwitcher}
+                    </select>
+                  </label>
+                ) : null}
                 {titleMeta ? <div className="brand__title-meta">{titleMeta}</div> : null}
               </div>
             </div>
           </div>
         </div>
         <div className="topbar__actions">
+          {showProjectSwitcher ? (
+            <label className="topbar__project-switcher topbar__project-switcher--desktop">
+              <select
+                aria-label="Seleccionar proyecto activo"
+                value={display.projectSlug}
+                onChange={(event) => handleProjectChange(event.target.value)}
+              >
+                {projectSwitcher}
+              </select>
+            </label>
+          ) : null}
           {actions ? <div className="topbar__context-actions">{actions}</div> : null}
           {mobileActions ? <div className="topbar__mobile-actions">{mobileActions}</div> : null}
           <div className={`topbar__theme${keepThemeVisibleOnMobile ? " topbar__theme--mobile-visible" : ""}`}>

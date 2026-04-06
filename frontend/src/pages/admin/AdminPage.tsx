@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "../../app/AppShell";
+import { useProjectContext } from "../../app/ProjectContext";
+import { buildPrivateProjectPath, buildPublicProjectPath } from "../../app/projectRoutes";
+import AdminTeamModal from "../../components/admin/AdminTeamModal";
+import AdminTeamsPanel from "../../components/admin/AdminTeamsPanel";
 import AdminUserModal from "../../components/admin/AdminUserModal";
 import AdminUsersTable, { type AdminUsersSortKey } from "../../components/admin/AdminUsersTable";
 import DataTableFilters from "../../components/data-table/DataTableFilters";
@@ -9,11 +13,11 @@ import DataTableToolbar from "../../components/data-table/DataTableToolbar";
 import { buildDateBounds, isDateInRange, withDefaultDateRange } from "../../components/data-table/dateRange";
 import type { SortState } from "../../components/data-table/types";
 import { useAuth } from "../../app/AuthContext";
-import type { AdminUser, AdminUserCatalogs, AdminUserPayload } from "../../domain/adminUsers";
-import { createAdminUser, listAdminUsers, updateAdminUser } from "../../services/adminUsers";
+import type { AdminTeam, AdminTeamPayload, AdminUser, AdminUserCatalogs, AdminUserPayload } from "../../domain/adminUsers";
+import { createAdminTeam, createAdminUser, deleteAdminTeam, deleteAdminUser, listAdminTeams, listAdminUsers, updateAdminTeam, updateAdminUser } from "../../services/adminUsers";
 
 type UsersFiltersState = {
-  rol: "TODOS" | "ADMIN" | "ASESOR";
+  rol: "TODOS" | "SUPERADMIN" | "ADMIN" | "ASESOR";
   estado: "TODOS" | "ACTIVO" | "INACTIVO";
   fechaDesde: string;
   fechaHasta: string;
@@ -62,12 +66,16 @@ const compareText = (left: string, right: string) => left.localeCompare(right, "
 const compareNumber = (left: number, right: number) => left - right;
 
 function AdminPage() {
-  const { loginUsername, loginPin } = useAuth();
+  const { loginUsername, loginPin, rawRole } = useAuth();
+  const { display } = useProjectContext();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [catalogs, setCatalogs] = useState<AdminUserCatalogs>({
     roles: ["ADMIN", "ASESOR"],
     statuses: ["ACTIVO", "INACTIVO"],
   });
+  const [teams, setTeams] = useState<AdminTeam[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
@@ -79,7 +87,11 @@ function AdminPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<UsersFiltersState>(defaultFilters);
   const [sort, setSort] = useState<SortState<AdminUsersSortKey>>({ key: "username", direction: "asc" });
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<AdminTeam | null>(null);
+  const [teamModalError, setTeamModalError] = useState<string | null>(null);
 
+  const isSuperadmin = rawRole === "SUPERADMIN";
   const canCreateAdmin = true;
 
   const credentials = useMemo(
@@ -93,7 +105,7 @@ function AdminPage() {
   const loadUsers = useCallback(async () => {
     try {
       setError(null);
-      const data = await listAdminUsers(credentials);
+      const data = await listAdminUsers(credentials, { slug: display.projectSlug });
       setUsers(data.users);
       setCatalogs(data.catalogs);
     } catch (loadError) {
@@ -101,11 +113,34 @@ function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [credentials]);
+  }, [credentials, display.projectSlug]);
+
+  const loadTeams = useCallback(async () => {
+    if (!isSuperadmin) {
+      setTeams([]);
+      setTeamsLoading(false);
+      setTeamsError(null);
+      return;
+    }
+
+    try {
+      setTeamsError(null);
+      const data = await listAdminTeams(credentials, { slug: display.projectSlug });
+      setTeams(data.teams);
+    } catch (loadError) {
+      setTeamsError(loadError instanceof Error ? loadError.message : "Error al cargar equipos.");
+    } finally {
+      setTeamsLoading(false);
+    }
+  }, [credentials, display.projectSlug, isSuperadmin]);
 
   useEffect(() => {
     void loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => {
+    void loadTeams();
+  }, [loadTeams]);
 
   const openCreateModal = () => {
     setEditingUser(null);
@@ -126,6 +161,32 @@ function AdminPage() {
     setModalError(null);
   };
 
+  const openCreateTeamModal = () => {
+    setEditingTeam(null);
+    setTeamModalError(null);
+    setTeamModalOpen(true);
+  };
+
+  const openEditTeamModal = (team: AdminTeam) => {
+    setEditingTeam(team);
+    setTeamModalError(null);
+    setTeamModalOpen(true);
+  };
+
+  const closeTeamModal = () => {
+    if (saving) return;
+    setTeamModalOpen(false);
+    setEditingTeam(null);
+    setTeamModalError(null);
+  };
+
+  const applyTeamsPayload = useCallback((data: { teams: AdminTeam[]; users?: AdminUser[] }) => {
+    setTeams(Array.isArray(data.teams) ? data.teams : []);
+    if (Array.isArray(data.users)) {
+      setUsers(data.users);
+    }
+  }, []);
+
   const handleSaveUser = async (payload: AdminUserPayload) => {
     setSaving(true);
     setModalError(null);
@@ -133,10 +194,10 @@ function AdminPage() {
 
     try {
       if (editingUser) {
-        await updateAdminUser(credentials, editingUser.id, payload);
+        await updateAdminUser(credentials, editingUser.id, payload, { slug: display.projectSlug });
         setNotice(`Usuario '${payload.username}' actualizado.`);
       } else {
-        await createAdminUser(credentials, payload);
+        await createAdminUser(credentials, payload, { slug: display.projectSlug });
         setNotice(`Usuario '${payload.username}' creado exitosamente.`);
       }
 
@@ -144,6 +205,63 @@ function AdminPage() {
       await loadUsers();
     } catch (saveError) {
       setModalError(saveError instanceof Error ? saveError.message : "Error al guardar usuario.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: AdminUser) => {
+    const confirmed = window.confirm(`Eliminar al usuario '${user.username}'?`);
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError(null);
+    setNotice("");
+
+    try {
+      await deleteAdminUser(credentials, user.id, { slug: display.projectSlug });
+      setNotice(`Usuario '${user.username}' eliminado correctamente.`);
+      await Promise.all([loadUsers(), isSuperadmin ? loadTeams() : Promise.resolve()]);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Error al eliminar usuario.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveTeam = async (payload: AdminTeamPayload) => {
+    setSaving(true);
+    setTeamModalError(null);
+    setNotice("");
+
+    try {
+      const data = editingTeam
+        ? await updateAdminTeam(credentials, editingTeam.id, payload, { slug: display.projectSlug })
+        : await createAdminTeam(credentials, payload, { slug: display.projectSlug });
+      applyTeamsPayload(data);
+      setNotice(`Equipo '${payload.nombre}' ${editingTeam ? "actualizado" : "creado"} correctamente.`);
+      closeTeamModal();
+    } catch (saveError) {
+      setTeamModalError(saveError instanceof Error ? saveError.message : "Error al guardar equipo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTeam = async (team: AdminTeam) => {
+    const confirmed = window.confirm(`Eliminar el equipo '${team.nombre}'?`);
+    if (!confirmed) return;
+
+    setSaving(true);
+    setTeamsError(null);
+    setNotice("");
+
+    try {
+      const data = await deleteAdminTeam(credentials, team.id, { slug: display.projectSlug });
+      applyTeamsPayload(data);
+      setNotice(`Equipo '${team.nombre}' eliminado correctamente.`);
+    } catch (deleteError) {
+      setTeamsError(deleteError instanceof Error ? deleteError.message : "Error al eliminar equipo.");
     } finally {
       setSaving(false);
     }
@@ -221,15 +339,15 @@ function AdminPage() {
 
   const topbarActions = (
     <nav className="topbar-nav">
-      <Link className="btn ghost topbar-action" to="/">
+      <Link className="btn ghost topbar-action" to={buildPublicProjectPath(display.projectSlug)}>
         <IconMap />
         Mapa
       </Link>
-      <Link className="btn ghost topbar-action" to="/lotes">
+      <Link className="btn ghost topbar-action" to={buildPrivateProjectPath(display.projectSlug, "lotes")}>
         <IconTable />
         Lotes
       </Link>
-      <Link className="btn ghost topbar-action" to="/admin">
+      <Link className="btn ghost topbar-action" to={buildPrivateProjectPath(display.projectSlug, "dashboard")}>
         <IconDashboard />
         Dashboard
       </Link>
@@ -333,7 +451,32 @@ function AdminPage() {
           </p>
         ) : null}
 
-        <AdminUsersTable users={visibleUsers} loading={loading} onEdit={openEditModal} sort={sort} onSort={handleSort} />
+        <AdminUsersTable
+          users={visibleUsers}
+          loading={loading}
+          onEdit={openEditModal}
+          onDelete={handleDeleteUser}
+          sort={sort}
+          onSort={handleSort}
+        />
+
+        {isSuperadmin ? (
+          <section className="admin-users-page__teams">
+            {teamsError ? (
+              <p className="admin-error">
+                {teamsError}
+                <button type="button" className="admin-error__close" onClick={() => setTeamsError(null)}>
+                  x
+                </button>
+              </p>
+            ) : null}
+            {teamsLoading ? (
+              <div className="admin-teams-panel__empty">Cargando equipos...</div>
+            ) : (
+              <AdminTeamsPanel teams={teams} onCreate={openCreateTeamModal} onEdit={openEditTeamModal} onDelete={handleDeleteTeam} />
+            )}
+          </section>
+        ) : null}
       </DataTableShell>
 
       {modalOpen ? (
@@ -348,6 +491,19 @@ function AdminPage() {
           error={modalError}
           onClose={closeModal}
           onSubmit={handleSaveUser}
+        />
+      ) : null}
+
+      {teamModalOpen ? (
+        <AdminTeamModal
+          open={teamModalOpen}
+          mode={editingTeam ? "edit" : "create"}
+          team={editingTeam}
+          users={users.filter((user) => user.rol !== "SUPERADMIN")}
+          saving={saving}
+          error={teamModalError}
+          onClose={closeTeamModal}
+          onSubmit={handleSaveTeam}
         />
       ) : null}
     </AppShell>

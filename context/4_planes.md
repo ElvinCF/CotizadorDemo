@@ -1,174 +1,160 @@
-# Planes de Frontend y Modulos
+# Plan General
 
-Actualizado: `2026-04-01`
-Rol: `Plan por fases`
+Actualizado: `2026-04-06`
+Estado: `Vigente`
+Ambito: `Plan padre del producto`
 
-## Uso de este documento
+## Objetivo
 
-Este archivo contiene solo:
+Mantener un backlog formal y corto de las fases abiertas del sistema multiproyecto.
 
-- pendientes
-- fases
-- orden de ejecucion
-- estado de aplicacion
-
-La fuente de verdad aplicada vive en:
-
-- `3_arquitectura.md`
-- `3-1_arq_ventas.md`
-- `3-2_arq_dashboards.md`
-
-## Regla de mantenimiento
-
-Cuando algo ya fue aplicado en codigo:
-
-- se elimina o marca como aplicado aqui
-- se documenta en `3_arquitectura.md`
-
-## Backlog por fases
-
-### Fase 1. Cierre del sistema de tablas
-
-Estado: `En curso`
-
-Pendientes:
-
-- unificar completamente la tabla publica de `/`
-- terminar de compactar tablas operativas del dashboard
-- revisar scroll interno y alturas finales de tablas en mobile y tablet
-
-### Fase 2. Sistema base de formularios
-
-Estado: `Pendiente`
-
-Pendientes:
-
-- crear `TextField`
-- crear `NumberField`
-- crear `DateField`
-- crear `SelectField`
-- crear `TextareaField`
-- crear `SearchField`
-- crear `SegmentedField`
-- crear wrappers `FormField`, `FormRow`, `FormSection`, `FormActions`
-- estandarizar mensajes, hints y errores
-
-### Fase 3. Migracion de formularios de dominio
-
-Estado: `Pendiente`
-
-Orden propuesto:
-
-1. `LoginForm`
-2. `UserForm`
-3. `BulkPriceAdjustmentForm`
-4. `SalePaymentForm`
-5. `SaleClientForm`
-6. `SaleForm`
-
-Pendientes:
-
-- unificar estilos de validacion
-- unificar estados loading y disabled
-- eliminar diferencias visuales entre formularios historicos
-
-### Fase 4. Integracion con modulos dependientes
-
-Estado: `En curso`
-
-Pendientes:
-
-- acompanar al modulo ventas solo en componentes compartidos
-- migrar inputs, wrappers y shells que ventas reutilice
-- evitar que la logica propia de ventas vuelva a quedar documentada aqui
-
-Nota:
-
-Los backlogs funcionales hijos viven en:
-
-- `4-1_plan_ventas.md`
-- `4-2_plan_dashboards.md`
-
-Orden activo de ejecucion para ventas:
-
-1. backend ventas
-2. validaciones frontend de venta
-3. revision BD y restricciones reales
-4. permisos admin y asesor
-5. trazabilidad y `Ajustes`
-
-Siguiente backlog funcional de ventas:
-
-1. documentos e impresion del expediente (continuidad documental)
-2. definicion final de `proyectos` y contexto multiproyecto antes de migracion `010` en `dev`
-3. nuevas mejoras de ventas entran primero por `5_correcciones_ideas.md`
-
-Estado del plan hijo de ventas:
-
-- `4-1_plan_ventas.md` cerrado como ciclo operativo Q1 2026
-
-### Fase 5. Consolidacion visual global
-
-Estado: `Pendiente`
-
-Pendientes:
-
-- revisar microinteracciones
-- revisar compactacion mobile
-- revisar accesibilidad base
-- revisar estados vacios y mensajes de error
-
-### Fase 6. Contexto multiproyecto y control de accesos
-
-Estado: `Pendiente`
-
-Pendientes:
-
-- crear modelo base en BD (`empresa`, `proyectos`, `proyecto_usuarios`, `equipos`, `equipo_usuarios`)
-- incorporar rol global `SUPERADMIN` junto con `ADMIN` y `ASESOR`
-- resolver login por dominio/proyecto
-- restringir acceso por proyecto y por equipo en backend
-- mover datos hardcode de proyecto/empresa a endpoint de contexto
-- aplicar tema por proyecto desde `jsonb` (`theme_seed`, `theme_overrides`)
-
-Regla operativa actual:
-
-- el trabajo nuevo de BD para este frente se define y valida en `schema dev`
-- `public` queda congelado en esta etapa y no se toca hasta nuevo corte formal
-- antes de escribir SQL, se debe cerrar la definicion funcional de la tabla `proyectos`
-
-Referencia tecnica:
-
-- `backend/supabase/migrations/010_empresa_proyecto_diseno.md`
-
-## Donde documentar un cambio nuevo
-
-### Si es un cambio de arquitectura frontend ya aplicado
-
-Actualizar:
-
-- `3_arquitectura.md`
-
-### Si es una mejora pendiente transversal
-
-Actualizar:
-
-- `4_planes.md`
-
-### Si es una mejora pendiente propia del flujo de ventas
-
-Actualizar:
-
-- `4-1_plan_ventas.md`
-
-### Si el cambio toca base de datos
-
-Si ya fue aprobado y aplicado:
+Este archivo no documenta lo ya aplicado en detalle. Para eso viven:
 
 - `1_esquema_bd.md`
-- `2_reglas_negocio.md` si cambia la logica
+- `2_reglas_negocio.md`
+- `3_arquitectura.md`
 
-Si aun esta propuesto o pendiente:
+## Criterio de uso
 
-- el plan del modulo afectado
-- y solo cuando se cierre y aplique pasa a `1_esquema_bd.md`
+- lo ya implementado sale de este archivo y pasa a documentacion viva
+- lo pendiente, aprobado y con direccion clara se queda aqui
+- las fases hijas mas profundas viven en:
+  - `4-1_plan_ventas.md`
+  - `4-2_plan_dashboards.md`
+
+## Fase 1. Estabilizacion Multiproyecto
+
+Estado: `En curso`
+Impacto: `Alto`
+
+Pendientes:
+
+- eliminar hardcodes residuales de proyecto o empresa en frontend y backend
+- cerrar cualquier fallback que todavia pueda mezclar datos entre proyectos
+- dejar todos los endpoints privados filtrando por proyecto resuelto en backend
+- terminar el barrido de referencias legacy en rutas antiguas
+
+Entregable:
+
+- aislamiento consistente por `slug` y por sesion
+
+## Fase 2. Configuracion de Proyecto
+
+Estado: `En curso`
+Impacto: `Alto`
+
+Pendientes:
+
+- terminar UX de `Branding` e `Interfaz`
+- reemplazar JSON crudo por editores visuales donde siga expuesto
+- cerrar preview en vivo de paleta sin guardar
+- definir que campos quedan editables y cuales no
+- mejorar importacion y gestion de assets por etapa
+
+Entregable:
+
+- `/proyecto` usable como centro real de configuracion por proyecto
+
+## Fase 3. Inventario y Lotes
+
+Estado: `En curso`
+Impacto: `Alto`
+
+Pendientes:
+
+- crear importador reutilizable de lotes por CSV o Excel
+- validar automaticamente coincidencia entre `codigo` y overlay
+- terminar herramientas de configuracion masiva de lotes
+- definir reglas de actualizacion segura de estados y precios por lote
+
+Entregable:
+
+- alta y mantenimiento de inventario por proyecto sin SQL manual
+
+## Fase 4. Cotizador y Proforma
+
+Estado: `En curso`
+Impacto: `Alto`
+
+Pendientes:
+
+- terminar el ajuste manual completo contra configuracion comercial del proyecto
+- mejorar microcopy y feedback de limites operativos
+- revisar flujo multiselect y cambio masivo de estado desde drawer
+- cerrar consistencia entre drawer, proforma, venta y mapa
+
+Entregable:
+
+- cotizador manual sin hardcodes y alineado a reglas del proyecto activo
+
+## Fase 5. Ventas
+
+Estado: `En curso`
+Impacto: `Alto`
+
+Detalle operativo:
+
+- ver `4-1_plan_ventas.md`
+
+Pendientes padre:
+
+- terminar integracion del expediente con configuracion comercial del proyecto
+- revisar trazabilidad de cambios en ventas y pagos
+- evaluar soporte mas robusto para multi-lote sin romper compatibilidad
+
+## Fase 6. Usuarios, Roles y Equipos
+
+Estado: `En curso`
+Impacto: `Alto`
+
+Pendientes:
+
+- refinar experiencia de `usuarios` y `equipos` sin recargas visibles
+- consolidar permisos visibles por rol en UI
+- cerrar validaciones y mensajes de negocio para altas, bajas y reasignaciones
+- documentar matriz final de permisos por proyecto
+
+Entregable:
+
+- operacion segura de usuarios por proyecto y equipos internos
+
+## Fase 7. Dashboards
+
+Estado: `En curso`
+Impacto: `Medio`
+
+Detalle operativo:
+
+- ver `4-2_plan_dashboards.md`
+
+Pendientes padre:
+
+- revisar filtros, rendimiento y consistencia de KPIs
+- terminar coherencia visual entre panel admin y asesor
+
+## Fase 8. Calidad y Despliegue
+
+Estado: `En curso`
+Impacto: `Alto`
+
+Pendientes:
+
+- ampliar suite de `Vitest` mas alla del dominio puro
+- cubrir `ProjectContext`, cotizador y configuracion de proyecto
+- definir checklist minimo antes de deploy
+- limpiar archivos residuales y documentacion desactualizada de forma continua
+
+Entregable:
+
+- pipeline minima: `lint + test + build`
+
+## Orden recomendado de ejecucion
+
+1. estabilizacion multiproyecto
+2. configuracion de proyecto
+3. inventario y lotes
+4. cotizador y proforma
+5. ventas
+6. usuarios y equipos
+7. dashboards
+8. calidad y despliegue

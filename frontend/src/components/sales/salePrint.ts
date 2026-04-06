@@ -1,4 +1,5 @@
-import type { SaleRecord, SalesClient } from "../../domain/ventas";
+﻿import type { SaleRecord, SalesClient } from "../../domain/ventas";
+import { COMPANY_LOGO_IMAGE, PROJECT_LOGO_SVG } from "../../app/assets";
 import { waitForPrintWindowAssets } from "../../utils/printWindow";
 
 export type SalePrintKind = "separacion" | "contrato";
@@ -8,6 +9,12 @@ type SalePrintData = {
   sale: SaleRecord;
   cliente: SalesClient | null;
   cliente2: SalesClient | null;
+  project?: {
+    name?: string;
+    owner?: string;
+    logoProyectoUrl?: string;
+    logoEmpresaUrl?: string;
+  };
 };
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString("es-PE");
@@ -35,7 +42,8 @@ const buildSignatures = () => `
   </section>
 `;
 
-const buildTemplate = ({ kind, sale, cliente, cliente2 }: SalePrintData) => {
+const buildTemplate = ({ kind, sale, cliente, cliente2, project }: SalePrintData) => {
+  const projectName = project?.name || "Proyecto";
   const loteLabel = sale.lote ? `${sale.lote.mz} - Lote ${sale.lote.lote}` : "Sin lote";
   const clienteTitular = cliente?.nombreCompleto || "-";
   const dniTitular = cliente?.dni || "-";
@@ -45,7 +53,7 @@ const buildTemplate = ({ kind, sale, cliente, cliente2 }: SalePrintData) => {
 
   const resumen = `
     <section class="summary">
-      <p><strong>Proyecto:</strong> Arenas Malabrigo</p>
+      <p><strong>Proyecto:</strong> ${escapeHtml(projectName)}</p>
       <p><strong>Lote:</strong> ${escapeHtml(loteLabel)}</p>
       <p><strong>Fecha:</strong> ${escapeHtml(formatDate(sale.fechaVenta))}</p>
       <p><strong>Precio de venta:</strong> ${escapeHtml(formatMoney(sale.precioVenta))}</p>
@@ -66,7 +74,7 @@ const buildTemplate = ({ kind, sale, cliente, cliente2 }: SalePrintData) => {
         <p>
           Yo, <strong>${escapeHtml(clienteTitular)}</strong>, identificado con DNI
           <strong> ${escapeHtml(dniTitular)}</strong>, declaro mi voluntad de separar el lote
-          <strong> ${escapeHtml(loteLabel)}</strong> del proyecto Arenas Malabrigo.
+          <strong> ${escapeHtml(loteLabel)}</strong> del proyecto ${escapeHtml(projectName)}.
         </p>
         <p>
           Declaro conocer las condiciones comerciales vigentes, el cronograma de pagos y
@@ -109,8 +117,9 @@ export const printSaleDocument = async (data: SalePrintData) => {
 
   const title = data.kind === "separacion" ? "Ficha de Separacion" : "Ficha de Venta / Contrato";
   const content = buildTemplate(data);
-  const logoArenasMalabrigo = new URL("/assets/Logo_Arenas_Malabrigo.svg", window.location.origin).href;
-  const logoHolaTrujillo = new URL("/assets/HOLA-TRUJILLO_LOGOTIPO.webp", window.location.origin).href;
+  const projectName = data.project?.name || "Proyecto";
+  const logoArenasMalabrigo = new URL(data.project?.logoProyectoUrl || PROJECT_LOGO_SVG, window.location.origin).href;
+  const logoHolaTrujillo = new URL(data.project?.logoEmpresaUrl || COMPANY_LOGO_IMAGE, window.location.origin).href;
 
   popup.document.write(`
     <!doctype html>
@@ -135,7 +144,7 @@ export const printSaleDocument = async (data: SalePrintData) => {
       </head>
       <body>
         <header class="header">
-          <img src="${logoArenasMalabrigo}" alt="Arenas Malabrigo" />
+          <img src="${logoArenasMalabrigo}" alt="${escapeHtml(projectName)}" />
           <img src="${logoHolaTrujillo}" alt="Hola Trujillo" />
         </header>
         ${content}
@@ -147,4 +156,7 @@ export const printSaleDocument = async (data: SalePrintData) => {
   popup.focus();
   popup.print();
 };
+
+
+
 

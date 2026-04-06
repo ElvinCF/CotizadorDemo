@@ -3,7 +3,9 @@ import { loginAsync } from "./usuariosService.mjs";
 
 const mapAuthenticatedUser = (user) => {
   const frontendRole = String(user?.role || "").trim().toLowerCase();
-  const rawRole = frontendRole === "admin" ? "ADMIN" : "ASESOR";
+  const rawRole = String(user?.rawGlobalRole || (frontendRole === "admin" ? "ADMIN" : "ASESOR"))
+    .trim()
+    .toUpperCase();
 
   return {
     id: user.id,
@@ -33,7 +35,7 @@ export const requireAuthenticatedUserAsync = async (username, pin) => {
 
 export const requireAdminUserAsync = async (username, pin) => {
   const user = await requireAuthenticatedUserAsync(username, pin);
-  if (user.rawRole !== "ADMIN") {
+  if (user.rawRole !== "ADMIN" && user.rawRole !== "SUPERADMIN") {
     throw forbidden("No tienes permisos de administrador.");
   }
   return user;

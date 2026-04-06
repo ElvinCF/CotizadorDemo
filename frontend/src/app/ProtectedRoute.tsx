@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth, type Role } from "./AuthContext";
+import { useAuth, type RawRole, type Role } from "./AuthContext";
 
 type ProtectedRouteProps = {
   children: ReactNode;
   fallbackPath?: string;
   enabled?: boolean;
   allowedRoles?: Role[];
+  allowedRawRoles?: RawRole[];
 };
 
 /**
@@ -18,8 +19,9 @@ const ProtectedRoute = ({
   fallbackPath = "/login",
   enabled = true,
   allowedRoles,
+  allowedRawRoles,
 }: ProtectedRouteProps) => {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, role, rawRole } = useAuth();
   const location = useLocation();
 
   if (enabled && !isAuthenticated) {
@@ -30,6 +32,12 @@ const ProtectedRoute = ({
   if (enabled && isAuthenticated && allowedRoles && role) {
     if (!allowedRoles.includes(role)) {
       // Role not allowed, redirect to a safe page (or show Forbidden)
+      return <Navigate to="/" replace />;
+    }
+  }
+
+  if (enabled && isAuthenticated && allowedRawRoles && rawRole) {
+    if (!allowedRawRoles.includes(rawRole)) {
       return <Navigate to="/" replace />;
     }
   }

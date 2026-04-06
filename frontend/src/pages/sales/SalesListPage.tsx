@@ -2,6 +2,8 @@
 import { Link } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
+import { useProjectContext } from "../../app/ProjectContext";
+import { buildPublicProjectPath } from "../../app/projectRoutes";
 import DataTableFilters from "../../components/data-table/DataTableFilters";
 import DataTableShell from "../../components/data-table/DataTableShell";
 import DataTableToolbar from "../../components/data-table/DataTableToolbar";
@@ -85,6 +87,7 @@ const IconMap = () => (
 
 export default function SalesListPage() {
   const { role, loginUsername } = useAuth();
+  const { display } = useProjectContext();
   const [items, setItems] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +99,10 @@ export default function SalesListPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const salesData = await listSales();
+        setItems([]);
+        setError(null);
+        setLoading(true);
+        const salesData = await listSales({ slug: display.projectSlug });
         setItems(salesData);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "No se pudo cargar ventas.");
@@ -106,7 +112,7 @@ export default function SalesListPage() {
     };
 
     void run();
-  }, []);
+  }, [display.projectSlug]);
 
   const advisorSourceItems = useMemo(
     () =>
@@ -275,7 +281,7 @@ export default function SalesListPage() {
 
   const topbarActions = (
     <nav className="topbar-nav">
-      <Link className="btn ghost topbar-action" to="/">
+      <Link className="btn ghost topbar-action" to={buildPublicProjectPath(display.projectSlug)}>
         <IconMap />
         Mapa
       </Link>

@@ -2,10 +2,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 export type Role = "asesor" | "admin";
+export type RawRole = "ASESOR" | "ADMIN" | "SUPERADMIN";
 
 interface AuthState {
     isAuthenticated: boolean;
     role: Role | null;
+    rawRole: RawRole | null;
     username: string | null;
     telefono: string | null;
     loginUsername: string | null;
@@ -20,6 +22,7 @@ interface AuthContextType extends AuthState {
 const defaultState: AuthState = {
     isAuthenticated: false,
     role: null,
+    rawRole: null,
     username: null,
     telefono: null,
     loginUsername: null,
@@ -85,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                  const nextAuth: AuthState = {
                      isAuthenticated: true,
                      role: data.user.role as Role,
+                     rawRole: (String(data.user.rawRole || data.user.rawGlobalRole || "").trim().toUpperCase() || null) as RawRole | null,
                      username: data.user.nombre || data.user.username,
                      telefono: data.user.telefono || null,
                      loginUsername: username,

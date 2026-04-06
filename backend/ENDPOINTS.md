@@ -1,105 +1,114 @@
 # Endpoints Backend
 
-Documentacion operativa minima de los endpoints backend actuales.
+Base local:
 
-## Convenciones generales
+- `http://127.0.0.1:8787`
 
-- Base local Express: `http://127.0.0.1:8787`
-- Base serverless: `/api/*`
-- Formato de respuesta: JSON
-- Auth operativa: headers `x-auth-user` y `x-auth-pin`
-- Auth admin: headers `x-admin-user` y `x-admin-pin`
+Auth operativa:
 
-## Errores HTTP
+- `x-auth-user`
+- `x-auth-pin`
 
-- `400`: payload invalido o campos faltantes
+## Contexto y proyecto
+
+- `GET /api/proyectos`
+- `POST /api/proyectos`
+- `GET /api/contexto/proyecto`
+- `GET /api/contexto/visual/proyecto`
+- `GET /api/contexto/publico`
+- `GET /api/contexto/visual/publico`
+- `GET /api/empresa`
+- `PUT /api/empresa`
+- `GET /api/proyecto`
+- `PUT /api/proyecto`
+- `PUT /api/proyecto/config-ui`
+- `PUT /api/proyecto/config-comercial`
+- `GET /api/proyecto/config-ui/copy-source`
+
+## Lotes
+
+- `GET /api/lotes`
+- `GET /api/lotes/admin`
+- `PUT /api/lotes/:id`
+- `PUT /api/lotes/:id/config`
+- `POST /api/lotes/estado-masivo`
+- `POST /api/lotes/precios-masivos`
+
+Reglas:
+
+- `GET /api/lotes` es público por `slug`
+- `GET /api/lotes/admin` usa proyecto visible por sesión
+- `estado-masivo` solo para `ADMIN` y `SUPERADMIN`
+- `precio_minimo` no sale por endpoint público
+
+## Ventas
+
+- `GET /api/clientes?dni=...`
+- `GET /api/ventas`
+- `GET /api/ventas/:id`
+- `POST /api/ventas`
+- `PUT /api/ventas/:id`
+- `POST /api/ventas/:id/pagos`
+- `PUT /api/ventas/:id/pagos/:pagoId`
+- `GET /api/ventas/accesos-lote`
+
+Reglas:
+
+- el backend valida piso por `precio_minimo`
+- `ASESOR` no puede operar ventas de otro asesor
+- `CAIDA` queda restringido a `ADMIN`
+
+## Usuarios y equipos
+
+- `GET /api/usuarios`
+- `POST /api/usuarios`
+- `PUT /api/usuarios`
+- `DELETE /api/usuarios/:id`
+- `GET /api/equipos`
+- `POST /api/equipos`
+- `PUT /api/equipos/:id`
+- `DELETE /api/equipos/:id`
+
+Reglas:
+
+- `ADMIN` no ve `SUPERADMIN`
+- la estructura de equipos es de uso `SUPERADMIN`
+- altas, edición y borrado se filtran por proyecto visible
+
+## Dashboard
+
+### Admin
+
+- `GET /api/dashboard/admin/kpis`
+- `GET /api/dashboard/admin/ejecutivo`
+- `GET /api/dashboard/admin/resumen`
+- `GET /api/dashboard/admin/series-ventas`
+- `GET /api/dashboard/admin/series-cobros`
+- `GET /api/dashboard/admin/inventario`
+- `GET /api/dashboard/admin/resumen-asesores`
+- `GET /api/dashboard/admin/ranking-asesores`
+- `GET /api/dashboard/admin/ventas-activas`
+- `GET /api/dashboard/admin/operaciones-anuladas`
+
+### Asesor
+
+- `GET /api/dashboard/asesor/kpis`
+- `GET /api/dashboard/asesor/series-ventas`
+- `GET /api/dashboard/asesor/series-cobros`
+- `GET /api/dashboard/asesor/operaciones-por-etapa`
+- `GET /api/dashboard/asesor/operaciones`
+- `GET /api/dashboard/asesor/clientes`
+- `GET /api/dashboard/asesor/pagos`
+
+## Auth
+
+- `POST /api/auth/login`
+
+## Errores
+
+- `400`: payload inválido
 - `401`: credenciales faltantes
-- `403`: credenciales invalidas o accion no permitida por rol
+- `403`: rol o acceso no permitido
 - `404`: recurso no encontrado
-- `409`: conflicto de negocio o integridad
-- `500`: error interno no controlado
-
-## `POST /api/auth/login`
-
-Inicia sesion de usuario interno.
-
-## `GET /api/clientes?dni=...`
-
-Busca cliente por DNI.
-
-### Headers
-
-```http
-x-auth-user: asesor01
-x-auth-pin: 1234
-```
-
-### Response `200`
-
-```json
-{
-  "client": {
-    "id": "uuid",
-    "nombreCompleto": "Cliente Demo",
-    "dni": "12345678",
-    "celular": "999999999",
-    "direccion": "Lima",
-    "ocupacion": "Ingeniero"
-  }
-}
-```
-
-## `GET /api/ventas`
-
-Lista ventas registradas.
-
-### Headers
-
-```http
-x-auth-user: asesor01
-x-auth-pin: 1234
-```
-
-### Nota
-
-El listado devuelve `pagos` e `historial` vacios por diseno. El detalle completo se obtiene en `GET /api/ventas/:id`.
-
-## `POST /api/ventas`
-
-Crea una venta nueva y sus pagos iniciales dentro de una transaccion.
-
-### Reglas backend
-
-- el lote debe existir
-- el lote debe estar `DISPONIBLE`
-- no puede existir venta activa para el lote
-- el cliente se busca o actualiza por DNI
-- solo se permiten pagos iniciales `SEPARACION` o `INICIAL`
-- el estado inicial debe ser coherente con los pagos iniciales
-
-## `GET /api/ventas/:id`
-
-Obtiene el detalle completo de una venta.
-
-## `PUT /api/ventas/:id`
-
-Edita datos de la venta y permite cambios manuales de estado autorizados.
-
-### Reglas backend
-
-- `CAIDA` solo puede marcarla un `ADMIN`
-- cambios manuales permitidos:
-  - `INICIAL_PAGADA -> CONTRATO_FIRMADO`
-  - `SEPARADA|INICIAL_PAGADA|CONTRATO_FIRMADO|PAGANDO -> CAIDA` solo admin
-- no se permiten saltos manuales arbitrarios
-
-## `POST /api/ventas/:id/pagos`
-
-Registra un pago nuevo y recalcula venta e historial dentro de una transaccion.
-
-### Reglas backend
-
-- no se pueden registrar pagos sobre ventas `CAIDA`
-- no se pueden registrar pagos sobre ventas `COMPLETADA`
-- `CUOTA` requiere `nroCuota`
-- el nuevo estado se deriva de pagos y total abonado
+- `409`: conflicto de negocio
+- `500`: error interno

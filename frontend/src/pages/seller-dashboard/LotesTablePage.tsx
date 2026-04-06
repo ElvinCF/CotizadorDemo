@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
+import { useProjectContext } from "../../app/ProjectContext";
+import { buildPrivateProjectPath, buildPublicProjectPath } from "../../app/projectRoutes";
 import AdminSegmentedControl from "../../components/admin/AdminSegmentedControl";
 import DataTable from "../../components/data-table/DataTable";
 import DataTableFilters from "../../components/data-table/DataTableFilters";
@@ -13,6 +15,7 @@ import { resolveTableLoadState } from "../../components/data-table/loadState";
 import type { SortState } from "../../components/data-table/types";
 import { formatArea, statusToClass } from "../../domain/formatters";
 import type { Lote } from "../../domain/types";
+import { loadAdminLotesFromApi, loadLotesFromApi, updateLoteConfig } from "../../services/lotes";
 import { listSales } from "../../services/ventas";
 
 type EditableFields = {
@@ -104,9 +107,128 @@ const IconSale = () => (
   </svg>
 );
 
+type LoteConfigModalProps = {
+  row: Lote;
+  onClose: () => void;
+  onSaved: (row: Lote) => void;
+};
+
+const triStateValue = (value: boolean | null | undefined) => {
+  if (value === true) return "true";
+  if (value === false) return "false";
+  return "";
+};
+
+function LoteConfigModal({ row, onClose, onSaved }: LoteConfigModalProps) {
+  const [precioReferencial, setPrecioReferencial] = useState(toPriceInput(row.price));
+  const [precioMinimo, setPrecioMinimo] = useState(toPriceInput(row.precioMinimo));
+  const [estado, setEstado] = useState(normalizeStatus(row.condicion));
+  const [esEsquina, setEsEsquina] = useState(triStateValue(row.esEsquina));
+  const [esMedianero, setEsMedianero] = useState(triStateValue(row.esMedianero));
+  const [frenteParque, setFrenteParque] = useState(triStateValue(row.frenteParque));
+  const [frenteViaPrincipal, setFrenteViaPrincipal] = useState(triStateValue(row.frenteViaPrincipal));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toNullableBoolean = (value: string): boolean | null =>
+    value === "true" ? true : value === "false" ? false : null;
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      const updated = await updateLoteConfig(row.id, {
+        precioReferencial: numberFromInput(precioReferencial),
+        precioMinimo: numberFromInput(precioMinimo),
+        estado,
+        esEsquina: toNullableBoolean(esEsquina),
+        esMedianero: toNullableBoolean(esMedianero),
+        frenteParque: toNullableBoolean(frenteParque),
+        frenteViaPrincipal: toNullableBoolean(frenteViaPrincipal),
+      });
+      onSaved(updated);
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "No se pudo guardar configuracion del lote.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={saving ? undefined : onClose}>
+      <div className="seller-bulk-modal seller-bulk-modal--config" onClick={(event) => event.stopPropagation()}>
+        <header className="seller-bulk-modal__header">
+          <h3>{`Config lote ${row.id}`}</h3>
+        </header>
+        <div className="seller-bulk-modal__body seller-bulk-modal__body--config">
+          <label>
+            Precio ref. publico
+            <input type="number" step="0.01" value={precioReferencial} onChange={(event) => setPrecioReferencial(event.target.value)} />
+          </label>
+          <label>
+            Precio minimo interno
+            <input type="number" step="0.01" value={precioMinimo} onChange={(event) => setPrecioMinimo(event.target.value)} placeholder="No visible al publico" />
+          </label>
+          <label>
+            Estado comercial
+            <select value={estado} onChange={(event) => setEstado(normalizeStatus(event.target.value))}>
+              <option value="DISPONIBLE">Disponible</option>
+              <option value="SEPARADO">Separado</option>
+              <option value="VENDIDO">Vendido</option>
+            </select>
+          </label>
+          <label>
+            Esquina
+            <select value={esEsquina} onChange={(event) => setEsEsquina(event.target.value)}>
+              <option value="">No definido</option>
+              <option value="true">Si</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>
+            Medianero
+            <select value={esMedianero} onChange={(event) => setEsMedianero(event.target.value)}>
+              <option value="">No definido</option>
+              <option value="true">Si</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>
+            Frente parque
+            <select value={frenteParque} onChange={(event) => setFrenteParque(event.target.value)}>
+              <option value="">No definido</option>
+              <option value="true">Si</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>
+            Via principal
+            <select value={frenteViaPrincipal} onChange={(event) => setFrenteViaPrincipal(event.target.value)}>
+              <option value="">No definido</option>
+              <option value="true">Si</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          {error ? <p className="admin-error">{error}</p> : null}
+        </div>
+        <footer className="seller-bulk-modal__footer">
+          <button className="btn ghost" onClick={onClose} disabled={saving}>
+            Cancelar
+          </button>
+          <button className="btn" onClick={() => void handleSave()} disabled={saving}>
+            {saving ? "Guardando..." : "Guardar config"}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 function LotesTablePage() {
   const navigate = useNavigate();
   const { role } = useAuth();
+  const { display } = useProjectContext();
   const [rows, setRows] = useState<Lote[]>([]);
   const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, EditableFields>>({});
@@ -118,6 +240,7 @@ function LotesTablePage() {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [configRow, setConfigRow] = useState<Lote | null>(null);
   const [bulkType, setBulkType] = useState<"MONTO" | "PORCENTAJE">("MONTO");
   const [bulkValue, setBulkValue] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -127,11 +250,12 @@ function LotesTablePage() {
   const loadRows = async (keepNotice = true) => {
     try {
       setLoading(true);
+      setRows([]);
       if (!keepNotice) setNotice("");
-      const response = await fetch("/api/lotes", { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as { items?: Lote[] };
-      setRows(Array.isArray(payload.items) ? payload.items : []);
+      const items = role === "admin"
+        ? await loadAdminLotesFromApi({ slug: display.projectSlug })
+        : await loadLotesFromApi({ slug: display.projectSlug });
+      setRows(items);
       setError(null);
     } catch (loadError) {
       setError("No se pudo cargar la data del vendedor. Verifica la API.");
@@ -143,12 +267,13 @@ function LotesTablePage() {
 
   useEffect(() => {
     void loadRows();
-  }, []);
+  }, [display.projectSlug, role]);
 
   useEffect(() => {
     const run = async () => {
       try {
-        const sales = await listSales();
+        setSalesByLoteCode({});
+        const sales = await listSales({ slug: display.projectSlug });
         const mapping = sales.reduce<Record<string, string>>((acc, sale) => {
           if (sale.estadoVenta === "CAIDA") {
             return acc;
@@ -166,7 +291,7 @@ function LotesTablePage() {
     };
 
     void run();
-  }, []);
+  }, [display.projectSlug]);
 
   const mzOptions = useMemo(
     () =>
@@ -402,7 +527,7 @@ function LotesTablePage() {
   const openSaleFlow = (row: Lote, targetStatus?: "SEPARADO" | "VENDIDO") => {
     const activeSaleId = salesByLoteCode[row.id];
     if (activeSaleId) {
-      navigate(`/ventas/${activeSaleId}`);
+      navigate(buildPrivateProjectPath(display.projectSlug, "ventas", activeSaleId));
       return;
     }
 
@@ -410,7 +535,7 @@ function LotesTablePage() {
     if (targetStatus) {
       params.set("target", targetStatus);
     }
-    navigate(`/ventas/nueva?${params.toString()}`);
+    navigate(`${buildPrivateProjectPath(display.projectSlug, "ventas", "nueva")}?${params.toString()}`);
   };
 
   const applyBulkPriceUpdate = async () => {
@@ -467,7 +592,7 @@ function LotesTablePage() {
 
   const actions = (
     <nav className="topbar-nav">
-      <Link className="btn ghost topbar-action" to="/">
+      <Link className="btn ghost topbar-action" to={buildPublicProjectPath(display.projectSlug)}>
         <IconMap />
         Mapa
       </Link>
@@ -504,6 +629,11 @@ function LotesTablePage() {
       ) : null}
     </>
   );
+
+  const applyConfigRow = (updated: Lote) => {
+    setRows((current) => current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+    setConfigRow(updated);
+  };
 
   return (
     <AppShell title="Gestion de Lotes" actions={actions} contentClassName="main--data-table">
@@ -802,6 +932,16 @@ function LotesTablePage() {
                           <IconSale />
                           {activeSaleId ? "Venta" : "Vender"}
                         </button>
+                        {role === "admin" ? (
+                          <button
+                            type="button"
+                            className="btn ghost seller-sale-btn"
+                            onClick={() => setConfigRow(row)}
+                            title="Configurar lote"
+                          >
+                            Config
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -889,6 +1029,14 @@ function LotesTablePage() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {configRow ? (
+        <LoteConfigModal
+          row={configRow}
+          onClose={() => setConfigRow(null)}
+          onSaved={applyConfigRow}
+        />
       ) : null}
     </AppShell>
   );

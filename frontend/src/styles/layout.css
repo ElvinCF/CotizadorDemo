@@ -12,7 +12,7 @@
 
 :root {
   --header-height: 40px;
-  --app-footer-height: 34px;
+  --app-footer-height: 28px;
 }
 
 .app-footer {
@@ -22,7 +22,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 14px;
+  padding: 0 12px;
   flex: 0 0 var(--app-footer-height);
 }
 
@@ -33,7 +33,7 @@
   gap: 8px;
   min-width: 0;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   line-height: 1;
   white-space: nowrap;
 }
@@ -46,8 +46,8 @@
 }
 
 .app-footer__logo {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   object-fit: contain;
   display: block;
   flex: 0 0 auto;
@@ -176,6 +176,32 @@
 .topbar__context-actions {
   display: inline-flex;
   align-items: center;
+}
+
+.topbar__project-switcher {
+  display: inline-flex;
+  align-items: center;
+  min-width: 200px;
+}
+
+.topbar__project-switcher--mobile {
+  display: none;
+}
+
+.topbar__project-switcher select {
+  min-height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel-contrast);
+  color: var(--color-text);
+  padding: 0 30px 0 10px;
+  font: inherit;
+}
+
+.topbar__project-switcher select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent);
 }
 
 .topbar__theme {
@@ -452,7 +478,7 @@
 
 @media (max-width: 640px) {
   :root {
-    --app-footer-height: 32px;
+    --app-footer-height: 26px;
   }
 
   .app-shell {
@@ -477,6 +503,10 @@
     line-height: 1.1;
   }
 
+  .brand__title--with-project-switcher {
+    display: none;
+  }
+
   .brand {
     gap: 8px;
   }
@@ -491,6 +521,21 @@
 
   .topbar__context-actions {
     display: none;
+  }
+
+  .topbar__project-switcher--desktop {
+    display: none;
+  }
+
+  .topbar__project-switcher--mobile {
+    display: inline-flex;
+    min-width: min(230px, calc(100vw - 150px));
+    max-width: min(230px, calc(100vw - 150px));
+  }
+
+  .topbar__project-switcher--mobile select {
+    min-height: 32px;
+    font-size: 0.92rem;
   }
 
   .topbar__theme {
@@ -547,12 +592,12 @@
   }
 
   .app-footer__content {
-    font-size: 0.72rem;
-    gap: 6px;
+    font-size: 0.68rem;
+    gap: 5px;
   }
 
   .app-footer__logo {
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
   }
 }

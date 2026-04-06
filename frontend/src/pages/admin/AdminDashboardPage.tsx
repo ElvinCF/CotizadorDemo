@@ -2,6 +2,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
+import { useProjectContext } from "../../app/ProjectContext";
+import { buildPrivateProjectPath, buildPublicProjectPath } from "../../app/projectRoutes";
 import AdminDashboardBarChart from "../../components/admin-dashboard/AdminDashboardBarChart";
 import AdminDashboardDonutChart from "../../components/admin-dashboard/AdminDashboardDonutChart";
 import AdminDashboardLineChart from "../../components/admin-dashboard/AdminDashboardLineChart";
@@ -319,6 +321,7 @@ export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { loginUsername, loginPin, username } = useAuth();
+  const { display } = useProjectContext();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [filters, setFilters] = useState<DashboardFiltersState>(defaultFilters);
   const [lineGroupBy, setLineGroupBy] = useState<DashboardGroupBy>("day");
@@ -350,7 +353,7 @@ export default function AdminDashboardPage() {
     const loadUsers = async () => {
       try {
         const credentials = { username: loginUsername, pin: loginPin };
-        const result = await listAdminUsers(credentials);
+        const result = await listAdminUsers(credentials, { slug: display.projectSlug });
         if (!cancelled) {
           setUsers(result.users);
         }
@@ -684,15 +687,15 @@ export default function AdminDashboardPage() {
   const actions = (
     <div className="dashboard-topbar-actions">
       <nav className="topbar-nav dashboard-topbar-nav">
-        <Link className="btn ghost topbar-action" to="/">
+        <Link className="btn ghost topbar-action" to={buildPublicProjectPath(display.projectSlug)}>
           <IconMap />
           Mapa
         </Link>
-        <Link className="btn ghost topbar-action" to="/lotes">
+        <Link className="btn ghost topbar-action" to={buildPrivateProjectPath(display.projectSlug, "lotes")}>
           <IconTable />
           Lotes
         </Link>
-        <Link className="btn ghost topbar-action" to="/usuarios">
+        <Link className="btn ghost topbar-action" to={buildPrivateProjectPath(display.projectSlug, "usuarios")}>
           <IconUsers />
           Usuarios
         </Link>

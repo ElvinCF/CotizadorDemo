@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import type { AdminUser, AdminUserCatalogs, AdminUserPayload } from "../../domain/adminUsers";
 import AdminSegmentedControl from "./AdminSegmentedControl";
 import AdminTextInput from "./AdminTextInput";
+import AppModal from "../ui/AppModal";
 
 type AdminUserModalProps = {
   open: boolean;
@@ -38,6 +39,12 @@ const IconAdvisor = () => (
   </svg>
 );
 
+const IconSuperadmin = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="m12 3 2.8 5.6 6.2.9-4.5 4.3 1.1 6.1L12 17l-5.6 2.9 1.1-6.1L3 9.5l6.2-.9L12 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+  </svg>
+);
+
 const IconActive = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path d="m5 12 4 4L19 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -45,12 +52,6 @@ const IconActive = () => (
 );
 
 const IconInactive = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
-    <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-  </svg>
-);
-
-const IconClose = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
@@ -93,9 +94,11 @@ export default function AdminUserModal({
   const roleOptions = catalogs.roles.map((role) => ({
     value: role,
     label: role,
-    tone: (role === "ADMIN" ? "role-admin" : "role-asesor") as SegmentedTone,
-    disabled: role === "ADMIN" && !canCreateAdmin && user?.rol !== "ADMIN",
-    icon: role === "ADMIN" ? <IconAdmin /> : <IconAdvisor />,
+    tone: (role === "SUPERADMIN" ? "role-admin" : role === "ADMIN" ? "role-admin" : "role-asesor") as SegmentedTone,
+    disabled:
+      role === "SUPERADMIN" ||
+      (role === "ADMIN" && !canCreateAdmin && user?.rol !== "ADMIN"),
+    icon: role === "SUPERADMIN" ? <IconSuperadmin /> : role === "ADMIN" ? <IconAdmin /> : <IconAdvisor />,
   }));
 
   const statusOptions = catalogs.statuses.map((status) => ({
@@ -130,6 +133,11 @@ export default function AdminUserModal({
       return;
     }
 
+    if (form.rol === "SUPERADMIN") {
+      setLocalError("SUPERADMIN no se crea desde esta pantalla.");
+      return;
+    }
+
     if (form.rol === "ADMIN" && !canCreateAdmin && user?.rol !== "ADMIN") {
       setLocalError("Ya se alcanzo el maximo de administradores activos.");
       return;
@@ -147,20 +155,15 @@ export default function AdminUserModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={saving ? undefined : onClose}>
-      <div className="admin-user-modal" onClick={(event) => event.stopPropagation()}>
-        <header className="admin-user-modal__header">
-          <div className="admin-user-modal__headline">
-            <h3>{mode === "create" ? "Crear usuario" : "Editar usuario"}</h3>
-            <p>{mode === "create" ? "Registra un nuevo acceso para el equipo." : "Actualiza los datos del usuario seleccionado."}</p>
-          </div>
-          <button type="button" className="btn ghost admin-user-modal__close" onClick={onClose} disabled={saving}>
-            <IconClose />
-            Cerrar
-          </button>
-        </header>
-
-        <form className="admin-user-form" onSubmit={handleSubmit}>
+    <AppModal
+      open={open}
+      title={mode === "create" ? "Crear usuario" : "Editar usuario"}
+      description={mode === "create" ? "Registra un nuevo acceso para el equipo." : "Actualiza los datos del usuario seleccionado."}
+      onClose={onClose}
+      closeDisabled={saving}
+      className="admin-user-modal"
+    >
+      <form className="admin-user-form" onSubmit={handleSubmit}>
           <div className="admin-user-form__credentials">
             <label className="admin-user-form__field">
               Username *
@@ -247,16 +250,15 @@ export default function AdminUserModal({
           {localError ? <p className="admin-error">{localError}</p> : null}
           {error ? <p className="admin-error">{error}</p> : null}
 
-          <div className="admin-user-form__actions">
-            <button type="button" className="btn ghost" onClick={onClose} disabled={saving}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn" disabled={saving}>
-              {saving ? "Guardando..." : mode === "create" ? "Crear usuario" : "Guardar cambios"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="admin-user-form__actions">
+          <button type="button" className="btn ghost" onClick={onClose} disabled={saving}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn" disabled={saving}>
+            {saving ? "Guardando..." : mode === "create" ? "Crear usuario" : "Guardar cambios"}
+          </button>
+        </div>
+      </form>
+    </AppModal>
   );
 }

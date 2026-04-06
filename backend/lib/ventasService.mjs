@@ -27,6 +27,16 @@ const SALE_STATE_PRIORITY = new Map([
 const asTrimmed = (value) => String(value ?? "").trim();
 const asUpper = (value) => asTrimmed(value).toUpperCase();
 const hasValue = (value) => value !== null && value !== undefined && String(value).trim() !== "";
+const isProjectAwareSchema = (schema) => schema === "dev";
+
+const normalizeSlug = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
 const asNumber = (value, fieldName) => {
   if (value === null || value === undefined || value === "") {
@@ -285,7 +295,9 @@ const mapLot = (row) =>
         lote: row.lote_numero,
         areaM2: row.lote_area_m2,
         precioReferencial: Number(row.lote_precio_referencial ?? 0),
+        precioMinimo: row.lote_precio_minimo == null ? null : Number(row.lote_precio_minimo),
         estadoComercial: row.lote_estado_comercial,
+        proyectoId: row.lote_proyecto_id ?? null,
       }
     : null;
 
@@ -490,7 +502,7 @@ const ensureLoteAvailableForSale = async (client, schema, loteCodigo, excludeSal
   }
 
   const loteResult = await client.query(
-    `select id, codigo, estado_comercial
+    `select id, codigo, estado_comercial${isProjectAwareSchema(schema) ? ", precio_minimo, proyecto_id" : ""}
        from ${schema}.lotes
       where codigo = $1
       for update`,
@@ -518,6 +530,49 @@ const ensureLoteAvailableForSale = async (client, schema, loteCodigo, excludeSal
   }
 
   return lote;
+};
+
+const resolveVisibleProjectIdAsync = async (client, schema, operator, requestedRef = null) => {
+  if (!isProjectAwareSchema(schema)) return null;
+
+  const result = await client.query(
+    `select proyecto_id, slug
+       from ${schema}.fn_proyectos_visibles_app($1::uuid)
+      order by nombre asc`,
+    [operator.id]
+  );
+  const rows = result.rows;
+  const requestedText = String(requestedRef || "").trim();
+  const requestedSlug = normalizeSlug(requestedText);
+  const target =
+    (String(operator?.rawGlobalRole || "").toUpperCase() === "SUPERADMIN" && requestedText
+      ? rows.find((row) => row.proyecto_id === requestedText || row.slug === requestedSlug)
+      : null) ?? rows[0] ?? null;
+
+  return target?.proyecto_id ?? null;
+};
+
+const calculateSaleMinimumPrice = (lotes = []) =>
+  lotes.reduce((sum, lote) => sum + Number(lote?.precio_minimo ?? 0), 0);
+
+const assertSaleMeetsMinimumPrice = (precioVentaInput, lotes = []) => {
+  const precioVenta = asPositiveNumber(precioVentaInput, "Precio de venta", true);
+  const precioMinimoTotal = calculateSaleMinimumPrice(lotes);
+  if (precioMinimoTotal > 0 && precioVenta < precioMinimoTotal) {
+    throw badRequest(`El precio de venta no puede ser menor al precio minimo total (${precioMinimoTotal.toFixed(2)}).`);
+  }
+  return precioVenta;
+};
+
+const resolveProjectIdFromLotes = (lotes = []) => {
+  const projectIds = [...new Set(lotes.map((lote) => lote?.proyecto_id).filter(Boolean))];
+  if (projectIds.length === 0) {
+    return null;
+  }
+  if (projectIds.length > 1) {
+    throw badRequest("Todos los lotes de la venta deben pertenecer al mismo proyecto.");
+  }
+  return projectIds[0];
 };
 
 const resolveSaleLotesForMutationTx = async (client, schema, saleInput, excludeSaleId = null) => {
@@ -633,7 +688,7 @@ const getSaleLotsTx = async (client, schema, ventaId) => {
        l.manzana as lote_manzana,
        l.lote as lote_numero,
        l.area_m2 as lote_area_m2,
-       l.precio_referencial as lote_precio_referencial,
+       l.precio_referencial as lote_precio_referencial${isProjectAwareSchema(schema) ? ",\n       l.precio_minimo as lote_precio_minimo,\n       l.proyecto_id as lote_proyecto_id" : ""},
        l.estado_comercial as lote_estado_comercial
      from ${schema}.lotes l
      join (
@@ -849,7 +904,7 @@ const getSaleBaseByIdTx = async (client, schema, saleId) => {
        v.id,
        v.cliente_id,
        v.cliente2_id,
-       v.asesor_id,
+       v.asesor_id${isProjectAwareSchema(schema) ? ",\n       v.proyecto_id" : ""},
        v.precio_venta,
        v.estado_venta,
        v.tipo_financiamiento,
@@ -961,13 +1016,14 @@ export const findClientByDniAsync = async (username, pin, dni) => {
   };
 };
 
-export const listSalesAsync = async (username, pin) => {
+export const listSalesAsync = async (username, pin, requestedProjectRef = null) => {
   const operator = await requireOperator(username, pin);
   const schema = resolveDbSchema();
 
   try {
     return await withPgClient(async (client) => {
       const scopedByAsesor = !canManageAnySale(operator);
+      const projectId = await resolveVisibleProjectIdAsync(client, schema, operator, requestedProjectRef);
       const result = await client.query(
         `select
            v.id,
@@ -1009,10 +1065,24 @@ export const listSalesAsync = async (username, pin) => {
          left join ${schema}.lotes l on l.id = vl_primary.lote_id
          left join ${schema}.clientes c on c.id = v.cliente_id
          left join ${schema}.usuarios u on u.id = v.asesor_id
-        ${scopedByAsesor ? "where v.asesor_id = $1 and v.estado_venta <> 'CAIDA'" : ""}
+        ${
+          scopedByAsesor
+            ? isProjectAwareSchema(schema)
+              ? "where v.asesor_id = $1 and v.estado_venta <> 'CAIDA' and v.proyecto_id = $2"
+              : "where v.asesor_id = $1 and v.estado_venta <> 'CAIDA'"
+            : isProjectAwareSchema(schema)
+              ? "where v.proyecto_id = $1"
+              : ""
+        }
          order by v.fecha_venta desc, v.created_at desc`
         ,
-        scopedByAsesor ? [operator.id] : []
+        scopedByAsesor
+          ? isProjectAwareSchema(schema)
+            ? [operator.id, projectId]
+            : [operator.id]
+          : isProjectAwareSchema(schema)
+            ? [projectId]
+            : []
       );
       const saleIds = result.rows.map((row) => row.id).filter(Boolean);
       const lotsBySaleId = await getSaleLotsBySaleIdsTx(client, schema, saleIds);
@@ -1062,12 +1132,13 @@ export const listSalesAsync = async (username, pin) => {
   }
 };
 
-export const listSaleAccessByLotAsync = async (username, pin) => {
-  await requireOperator(username, pin);
+export const listSaleAccessByLotAsync = async (username, pin, requestedProjectRef = null) => {
+  const operator = await requireOperator(username, pin);
   const schema = resolveDbSchema();
 
   try {
     return await withPgClient(async (client) => {
+      const projectId = await resolveVisibleProjectIdAsync(client, schema, operator, requestedProjectRef);
       const result = await client.query(
         `select v.id,
                 l.codigo as lote_codigo,
@@ -1079,7 +1150,10 @@ export const listSaleAccessByLotAsync = async (username, pin) => {
            join ${schema}.lotes l on l.id = vl.lote_id
       left join ${schema}.usuarios u on u.id = v.asesor_id
           where v.estado_venta <> 'CAIDA'
+          ${isProjectAwareSchema(schema) ? "and v.proyecto_id = $1" : ""}
           order by v.created_at desc, v.fecha_venta desc, vl.orden asc, vl.created_at asc`
+        ,
+        isProjectAwareSchema(schema) ? [projectId] : []
       );
 
       return result.rows.reduce((acc, row) => {
@@ -1133,6 +1207,7 @@ export const createSaleAsync = async (username, pin, saleInput) => {
   try {
     saleId = await withPgTransaction(async (client) => {
       const lotes = await resolveSaleLotesForMutationTx(client, schema, saleInput);
+      const proyectoId = isProjectAwareSchema(schema) ? resolveProjectIdFromLotes(lotes) : null;
       const lotePrincipal = lotes[0] ?? null;
       const cliente =
         hasValue(saleInput?.cliente?.dni) && hasValue(saleInput?.cliente?.nombreCompleto)
@@ -1147,39 +1222,77 @@ export const createSaleAsync = async (username, pin, saleInput) => {
         throw badRequest("El segundo titular debe ser distinto al titular principal.");
       }
 
-      const saleResult = await client.query(
-        `insert into ${schema}.ventas (
-           cliente_id,
-           cliente2_id,
-           asesor_id,
-           fecha_venta,
-           fecha_pago_pactada,
-           precio_venta,
-           estado_venta,
-           tipo_financiamiento,
-           monto_inicial_total,
-           monto_financiado,
-           cantidad_cuotas,
-           monto_cuota,
-           observacion
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-          returning id`,
-        [
-          cliente?.id ?? null,
-          cliente2?.id ?? null,
-          await resolveAsesorIdForCreate(client, schema, operator, saleInput),
-          formatIso(saleInput?.fechaVenta, "Fecha de venta"),
-          hasValue(saleInput?.fechaPagoPactada) ? formatIso(saleInput?.fechaPagoPactada, "Fecha de pago pactada") : null,
-          hasValue(saleInput?.precioVenta) ? asPositiveNumber(saleInput?.precioVenta, "Precio de venta", true) : 0,
-          finalState,
-          financing.tipoFinanciamiento,
-          montoInicialTotal,
-          financing.montoFinanciado,
-          financing.cantidadCuotas,
-          financing.montoCuota,
-          asTrimmed(saleInput?.observacion),
-        ]
-      );
+      const precioVenta = assertSaleMeetsMinimumPrice(saleInput?.precioVenta, lotes);
+
+      const saleResult = isProjectAwareSchema(schema)
+        ? await client.query(
+            `insert into ${schema}.ventas (
+               proyecto_id,
+               cliente_id,
+               cliente2_id,
+               asesor_id,
+               fecha_venta,
+               fecha_pago_pactada,
+               precio_venta,
+               estado_venta,
+               tipo_financiamiento,
+               monto_inicial_total,
+               monto_financiado,
+               cantidad_cuotas,
+               monto_cuota,
+               observacion
+             ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+              returning id`,
+            [
+              proyectoId,
+              cliente?.id ?? null,
+              cliente2?.id ?? null,
+              await resolveAsesorIdForCreate(client, schema, operator, saleInput),
+              formatIso(saleInput?.fechaVenta, "Fecha de venta"),
+              hasValue(saleInput?.fechaPagoPactada) ? formatIso(saleInput?.fechaPagoPactada, "Fecha de pago pactada") : null,
+              precioVenta,
+              finalState,
+              financing.tipoFinanciamiento,
+              montoInicialTotal,
+              financing.montoFinanciado,
+              financing.cantidadCuotas,
+              financing.montoCuota,
+              asTrimmed(saleInput?.observacion),
+            ]
+          )
+        : await client.query(
+            `insert into ${schema}.ventas (
+               cliente_id,
+               cliente2_id,
+               asesor_id,
+               fecha_venta,
+               fecha_pago_pactada,
+               precio_venta,
+               estado_venta,
+               tipo_financiamiento,
+               monto_inicial_total,
+               monto_financiado,
+               cantidad_cuotas,
+               monto_cuota,
+               observacion
+             ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+              returning id`,
+            [
+              cliente?.id ?? null,
+              cliente2?.id ?? null,
+              await resolveAsesorIdForCreate(client, schema, operator, saleInput),
+              formatIso(saleInput?.fechaVenta, "Fecha de venta"),
+              hasValue(saleInput?.fechaPagoPactada) ? formatIso(saleInput?.fechaPagoPactada, "Fecha de pago pactada") : null,
+              precioVenta,
+              finalState,
+              financing.tipoFinanciamiento,
+              montoInicialTotal,
+              financing.montoFinanciado,
+              financing.cantidadCuotas,
+              financing.montoCuota,
+              asTrimmed(saleInput?.observacion),
+            ]
+          );
 
       const createdSale = saleResult.rows[0];
       await replaceSaleLotesTx(client, schema, createdSale.id, lotes);
@@ -1228,6 +1341,8 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
       const lotes = hasLotesPatch
         ? await resolveSaleLotesForMutationTx(client, schema, patchInput, existing.id)
         : [];
+      const effectiveLotes = hasLotesPatch ? lotes : await getSaleLotsTx(client, schema, existing.id);
+      const proyectoId = isProjectAwareSchema(schema) ? resolveProjectIdFromLotes(effectiveLotes) : null;
 
       let clienteId = existing.cliente_id;
       if (patchInput?.cliente?.dni) {
@@ -1264,45 +1379,90 @@ export const updateSaleAsync = async (username, pin, saleId, patchInput) => {
         montoCuota: patchInput?.montoCuota ?? existing.monto_cuota,
       });
 
-      await client.query(
-        `update ${schema}.ventas
-            set asesor_id = $2,
-                cliente_id = $3,
-                cliente2_id = $4,
-                fecha_venta = $5,
-                fecha_pago_pactada = $6,
-                precio_venta = $7,
-                estado_venta = $8,
-                tipo_financiamiento = $9,
-                monto_inicial_total = $10,
-                monto_financiado = $11,
-                cantidad_cuotas = $12,
-                monto_cuota = $13,
-                observacion = $14
-          where id = $1`,
-        [
-          existing.id,
-          asesorId,
-          clienteId,
-          cliente2Id,
-          patchInput?.fechaVenta ? formatIso(patchInput.fechaVenta, "Fecha de venta") : existing.fecha_venta,
-          Object.prototype.hasOwnProperty.call(patchInput || {}, "fechaPagoPactada")
-            ? hasValue(patchInput?.fechaPagoPactada)
-              ? formatIso(patchInput?.fechaPagoPactada, "Fecha de pago pactada")
-              : null
-            : existing.fecha_pago_pactada,
-          patchInput?.precioVenta !== undefined
-            ? asPositiveNumber(patchInput.precioVenta, "Precio de venta", true)
-            : Number(existing.precio_venta),
-          nextState,
-          financing.tipoFinanciamiento,
-          montoInicialTotal,
-          financing.montoFinanciado,
-          financing.cantidadCuotas,
-          financing.montoCuota,
-          patchInput?.observacion !== undefined ? asTrimmed(patchInput.observacion) : existing.observacion ?? "",
-        ]
+      const precioVenta = assertSaleMeetsMinimumPrice(
+        patchInput?.precioVenta !== undefined ? patchInput.precioVenta : existing.precio_venta,
+        effectiveLotes
       );
+
+      if (isProjectAwareSchema(schema)) {
+        await client.query(
+          `update ${schema}.ventas
+              set asesor_id = $2,
+                  proyecto_id = $3,
+                  cliente_id = $4,
+                  cliente2_id = $5,
+                  fecha_venta = $6,
+                  fecha_pago_pactada = $7,
+                  precio_venta = $8,
+                  estado_venta = $9,
+                  tipo_financiamiento = $10,
+                  monto_inicial_total = $11,
+                  monto_financiado = $12,
+                  cantidad_cuotas = $13,
+                  monto_cuota = $14,
+                  observacion = $15
+            where id = $1`,
+          [
+            existing.id,
+            asesorId,
+            proyectoId,
+            clienteId,
+            cliente2Id,
+            patchInput?.fechaVenta ? formatIso(patchInput.fechaVenta, "Fecha de venta") : existing.fecha_venta,
+            Object.prototype.hasOwnProperty.call(patchInput || {}, "fechaPagoPactada")
+              ? hasValue(patchInput?.fechaPagoPactada)
+                ? formatIso(patchInput?.fechaPagoPactada, "Fecha de pago pactada")
+                : null
+              : existing.fecha_pago_pactada,
+            precioVenta,
+            nextState,
+            financing.tipoFinanciamiento,
+            montoInicialTotal,
+            financing.montoFinanciado,
+            financing.cantidadCuotas,
+            financing.montoCuota,
+            patchInput?.observacion !== undefined ? asTrimmed(patchInput.observacion) : existing.observacion ?? "",
+          ]
+        );
+      } else {
+        await client.query(
+          `update ${schema}.ventas
+              set asesor_id = $2,
+                  cliente_id = $3,
+                  cliente2_id = $4,
+                  fecha_venta = $5,
+                  fecha_pago_pactada = $6,
+                  precio_venta = $7,
+                  estado_venta = $8,
+                  tipo_financiamiento = $9,
+                  monto_inicial_total = $10,
+                  monto_financiado = $11,
+                  cantidad_cuotas = $12,
+                  monto_cuota = $13,
+                  observacion = $14
+            where id = $1`,
+          [
+            existing.id,
+            asesorId,
+            clienteId,
+            cliente2Id,
+            patchInput?.fechaVenta ? formatIso(patchInput.fechaVenta, "Fecha de venta") : existing.fecha_venta,
+            Object.prototype.hasOwnProperty.call(patchInput || {}, "fechaPagoPactada")
+              ? hasValue(patchInput?.fechaPagoPactada)
+                ? formatIso(patchInput?.fechaPagoPactada, "Fecha de pago pactada")
+                : null
+              : existing.fecha_pago_pactada,
+            precioVenta,
+            nextState,
+            financing.tipoFinanciamiento,
+            montoInicialTotal,
+            financing.montoFinanciado,
+            financing.cantidadCuotas,
+            financing.montoCuota,
+            patchInput?.observacion !== undefined ? asTrimmed(patchInput.observacion) : existing.observacion ?? "",
+          ]
+        );
+      }
 
       if (hasLotesPatch) {
         await replaceSaleLotesTx(client, schema, existing.id, lotes);

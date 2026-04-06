@@ -17,6 +17,9 @@ deploy.env
 !.env.example
 .vite
 coverage
+vitest-report
+.nyc_output
+*.lcov
 *.tsbuildinfo
 tmp_svg_*.txt
 .vercel

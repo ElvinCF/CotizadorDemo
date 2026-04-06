@@ -61,10 +61,18 @@
   --sale-state-creacion-border: #b8aa98;
   --sale-state-creacion-text: #6b5d4d;
   
- --lot-fill-libre: rgba(0, 255, 102, 0.3);
-  --lot-fill-libre-strong: rgba(55, 255, 0, 0.538);
-  --lot-fill-separado: rgba(243, 195, 5, 0.378);
-  --lot-fill-vendido: rgba(255, 0, 0, 0.305);
+  --lot-color-disponible: #2d9b59;
+  --lot-color-separado: #d67900;
+  --lot-color-vendido: #d84532;
+  --lot-color-selected: #2f8cff;
+  --lot-fill-disponible: rgba(45, 155, 89, 0.14);
+  --lot-fill-separado: rgba(214, 121, 0, 0.14);
+  --lot-fill-vendido: rgba(216, 69, 50, 0.14);
+  --lot-fill-selected: rgba(47, 140, 255, 0.14);
+  --lot-fill-libre: rgba(45, 155, 89, 0.14);
+  --lot-fill-libre-strong: #2d9b59;
+  --lot-fill-separado: rgba(214, 121, 0, 0.14);
+  --lot-fill-vendido: rgba(216, 69, 50, 0.14);
 }
 
 :root[data-theme="dark"] {
@@ -129,8 +137,16 @@
   --sale-state-creacion-border: rgba(195, 178, 158, 0.38);
   --sale-state-creacion-text: #ddd0c3;
   
-  --lot-fill-libre: rgba(0, 255, 102, 0.3);
-  --lot-fill-libre-strong: rgba(55, 255, 0, 0.538);
-  --lot-fill-separado: rgba(243, 195, 5, 0.378);
-  --lot-fill-vendido: rgba(255, 0, 0, 0.305);
+  --lot-color-disponible: #54d67d;
+  --lot-color-separado: #f3cd05;
+  --lot-color-vendido: #ff7a63;
+  --lot-color-selected: #2f8cff;
+  --lot-fill-disponible: rgba(84, 214, 125, 0.14);
+  --lot-fill-separado: rgba(243, 205, 5, 0.14);
+  --lot-fill-vendido: rgba(255, 122, 99, 0.14);
+  --lot-fill-selected: rgba(47, 140, 255, 0.14);
+  --lot-fill-libre: rgba(84, 214, 125, 0.14);
+  --lot-fill-libre-strong: #54d67d;
+  --lot-fill-separado: rgba(243, 205, 5, 0.14);
+  --lot-fill-vendido: rgba(255, 122, 99, 0.14);
 }

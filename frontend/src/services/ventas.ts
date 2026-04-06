@@ -67,8 +67,18 @@ const buildError = async (response: Response, fallback: string) => {
   return new Error(payload.error || fallback);
 };
 
-export const listSales = async () => {
-  const response = await fetch("/api/ventas", {
+const appendProjectQuery = (basePath: string, options?: { slug?: string | null; projectId?: string | null }) => {
+  const query = new URLSearchParams();
+  const slug = String(options?.slug || "").trim().toLowerCase();
+  const projectId = String(options?.projectId || "").trim();
+  if (slug) query.set("slug", slug);
+  if (projectId) query.set("proyectoId", projectId);
+  const suffix = query.toString();
+  return suffix ? `${basePath}?${suffix}` : basePath;
+};
+
+export const listSales = async (options?: { slug?: string | null; projectId?: string | null }) => {
+  const response = await fetch(appendProjectQuery("/api/ventas", options), {
     headers: buildHeaders(),
     cache: "no-store",
   });
@@ -87,8 +97,8 @@ export type SaleAccessByLot = {
   ownerUsername: string | null;
 };
 
-export const listSaleAccessByLot = async () => {
-  const response = await fetch("/api/ventas/accesos-lote", {
+export const listSaleAccessByLot = async (options?: { slug?: string | null; projectId?: string | null }) => {
+  const response = await fetch(appendProjectQuery("/api/ventas/accesos-lote", options), {
     headers: buildHeaders(),
     cache: "no-store",
   });

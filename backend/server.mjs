@@ -21,14 +21,39 @@ import {
   getAdvisorDashboardSalesSeriesAsync,
 } from "./lib/dashboardService.mjs";
 import {
+  getProjectContextAsync,
+  getProjectVisualAsync,
+  getPublicProjectVisualAsync,
+  getPublicProjectContextAsync,
+  listVisibleProjectsAsync,
+} from "./lib/contextoService.mjs";
+import {
+  createProjectAsync,
+  getEmpresaSettingsAsync,
+  getProjectSettingsAsync,
+  getProjectUiCopySourceAsync,
+  updateEmpresaSettingsAsync,
+  updateProjectBaseAsync,
+  updateProjectCommercialConfigAsync,
+  updateProjectUiConfigAsync,
+} from "./lib/proyectoConfigService.mjs";
+import {
   listLotes,
+  listLotesAdminAsync,
   updateAvailablePricesMassive,
   updateLoteById,
+  updateLoteConfigByIdAsync,
+  updateLoteStatusMassiveAsync,
 } from "./lib/lotesService.mjs";
 import {
   createUserAsync,
+  createTeamAsync,
+  deleteTeamAsync,
+  deleteUserAsync,
   getUserCatalogsAsync,
+  listTeamsAsync,
   listUsersAsync,
+  updateTeamAsync,
   updateUserAsync,
 } from "./lib/usuariosService.mjs";
 import {
@@ -71,13 +96,28 @@ const PORT = Number(process.env.PORT || 8787);
 const app = express();
 app.use(express.json());
 
-app.get("/api/lotes", async (_req, res) => {
+app.get("/api/lotes", async (req, res) => {
   try {
-    const items = await listLotes();
+    const items = await listLotes(req.query?.slug ?? req.query?.proyectoId);
     res.json({ items, updatedAt: new Date().toISOString() });
   } catch (error) {
     console.error("Error reading lotes from database:", error);
     res.status(500).json({ error: "No se pudo leer lotes desde la base de datos" });
+  }
+});
+
+app.get("/api/lotes/admin", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const items = await listLotesAdminAsync(username, pin, req.query?.slug ?? req.query?.proyectoId);
+    res.json({ items, updatedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error reading admin lotes from database:", error);
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo leer lotes internos desde la base de datos" });
   }
 });
 
@@ -94,6 +134,43 @@ app.put("/api/lotes/:id", async (req, res) => {
   } catch (error) {
     console.error("Error updating lote in database:", error);
     res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar lote en la base de datos" });
+  }
+});
+
+app.put("/api/lotes/:id/config", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const item = await updateLoteConfigByIdAsync(username, pin, req.params.id, req.body ?? {});
+    res.json({ item, savedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error updating lote config in database:", error);
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar la configuracion del lote." });
+  }
+});
+
+app.post("/api/lotes/estado-masivo", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const items = await updateLoteStatusMassiveAsync(
+      username,
+      pin,
+      req.body ?? {},
+      req.query?.slug ?? req.query?.proyectoId
+    );
+    res.json({ items, savedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error updating lotes status massively:", error);
+    res.status(getErrorStatus(error, 500)).json({ error: error.message || "No se pudo actualizar el estado de los lotes." });
   }
 });
 
@@ -124,6 +201,197 @@ app.get("/api/dashboard/admin/kpis", async (req, res) => {
   } catch (error) {
     console.error("Error loading admin dashboard KPIs:", error);
     res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener KPIs del dashboard." });
+  }
+});
+
+app.get("/api/proyectos", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const items = await listVisibleProjectsAsync(username, pin);
+    res.json({ items });
+  } catch (error) {
+    console.error("Error loading visible projects:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener proyectos visibles." });
+  }
+});
+
+app.post("/api/proyectos", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await createProjectAsync(username, pin, req.body ?? {});
+    res.status(201).json({ item, savedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error creating project:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo crear proyecto." });
+  }
+});
+
+app.get("/api/contexto/proyecto", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await getProjectContextAsync(username, pin, req.query?.slug ?? req.query?.proyectoId);
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading project context:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener contexto del proyecto." });
+  }
+});
+
+app.get("/api/contexto/visual/proyecto", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await getProjectVisualAsync(username, pin, req.query?.slug ?? req.query?.proyectoId);
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading project visual context:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener bootstrap visual del proyecto." });
+  }
+});
+
+app.get("/api/contexto/publico", async (req, res) => {
+  try {
+    const item = await getPublicProjectContextAsync(req.query?.slug ?? req.query?.proyectoId);
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading public project context:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener contexto publico." });
+  }
+});
+
+app.get("/api/contexto/visual/publico", async (req, res) => {
+  try {
+    const item = await getPublicProjectVisualAsync(req.query?.slug ?? req.query?.proyectoId);
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading public visual context:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener bootstrap visual publico." });
+  }
+});
+
+app.get("/api/empresa", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await getEmpresaSettingsAsync(username, pin);
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading company settings:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener empresa." });
+  }
+});
+
+app.get("/api/proyecto/config-ui/copy-source", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const item = await getProjectUiCopySourceAsync(
+      username,
+      pin,
+      req.query?.sourceSlug ?? req.query?.sourceProjectId,
+      req.query?.section,
+    );
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading UI copy source:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo cargar origen para copiar UI." });
+  }
+});
+
+app.put("/api/empresa", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await updateEmpresaSettingsAsync(username, pin, req.body ?? {});
+    res.json({ item, savedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error updating company settings:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo actualizar empresa." });
+  }
+});
+
+app.get("/api/proyecto", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await getProjectSettingsAsync(username, pin, req.query?.slug ?? req.query?.proyectoId);
+    res.json({ item });
+  } catch (error) {
+    console.error("Error loading project settings:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo obtener proyecto." });
+  }
+});
+
+app.put("/api/proyecto", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await updateProjectBaseAsync(username, pin, req.body ?? {}, req.query?.slug ?? req.query?.proyectoId);
+    res.json({ item, savedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error updating base project settings:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo actualizar proyecto." });
+  }
+});
+
+app.put("/api/proyecto/config-ui", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await updateProjectUiConfigAsync(username, pin, req.body ?? {}, req.query?.slug ?? req.query?.proyectoId);
+    res.json({ item, savedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error updating UI project settings:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo actualizar configuracion UI del proyecto." });
+  }
+});
+
+app.put("/api/proyecto/config-comercial", async (req, res) => {
+  try {
+    const { username, pin } = getAuthCredentials(req);
+    if (!username || !pin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+    const item = await updateProjectCommercialConfigAsync(username, pin, req.body ?? {}, req.query?.slug ?? req.query?.proyectoId);
+    res.json({ item, savedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("Error updating commercial project settings:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo actualizar configuracion comercial del proyecto." });
   }
 });
 
@@ -411,7 +679,7 @@ app.get("/api/ventas", async (req, res) => {
       return;
     }
 
-    const items = await listSalesAsync(username, pin);
+    const items = await listSalesAsync(username, pin, req.query?.slug ?? req.query?.proyectoId);
     res.json({ items });
   } catch (error) {
     console.error("Error listing sales:", error);
@@ -427,7 +695,7 @@ app.get("/api/ventas/accesos-lote", async (req, res) => {
       return;
     }
 
-    const items = await listSaleAccessByLotAsync(username, pin);
+    const items = await listSaleAccessByLotAsync(username, pin, req.query?.slug ?? req.query?.proyectoId);
     res.json({ items });
   } catch (error) {
     console.error("Error listing sale access by lot:", error);
@@ -523,8 +791,9 @@ app.get("/api/usuarios", async (req, res) => {
       res.status(401).json({ error: "Credenciales de admin requeridas." });
       return;
     }
-    const users = await listUsersAsync(authUser, authPin);
-    const catalogs = await getUserCatalogsAsync(authUser, authPin);
+    const projectRef = req.query?.slug ?? req.query?.proyectoId;
+    const users = await listUsersAsync(authUser, authPin, projectRef);
+    const catalogs = await getUserCatalogsAsync(authUser, authPin, projectRef);
     res.json({ users, catalogs });
   } catch (error) {
     console.error("Error listing users:", error);
@@ -540,7 +809,7 @@ app.post("/api/usuarios", async (req, res) => {
       res.status(401).json({ error: "Credenciales de admin requeridas." });
       return;
     }
-    const user = await createUserAsync(authUser, authPin, nuevoUsuario);
+    const user = await createUserAsync(authUser, authPin, nuevoUsuario, req.query?.slug ?? req.query?.proyectoId);
     res.status(201).json({ success: true, user });
   } catch (error) {
     console.error("Error creating user:", error);
@@ -560,7 +829,7 @@ app.put("/api/usuarios", async (req, res) => {
       res.status(401).json({ error: "Credenciales de admin requeridas." });
       return;
     }
-    const user = await updateUserAsync(authUser, authPin, id, patch);
+    const user = await updateUserAsync(authUser, authPin, id, patch, req.query?.slug ?? req.query?.proyectoId);
     res.json({ success: true, user });
   } catch (error) {
     console.error("Error updating user:", error);
@@ -570,6 +839,93 @@ app.put("/api/usuarios", async (req, res) => {
       : error.message?.includes("no encontrado") ? 404
       : 400;
     res.status(status).json({ error: error.message || "Error al actualizar usuario." });
+  }
+});
+
+app.delete("/api/usuarios/:id", async (req, res) => {
+  try {
+    const { username: authUser, pin: authPin } = getAdminCredentials(req);
+    if (!authUser || !authPin) {
+      res.status(401).json({ error: "Credenciales de admin requeridas." });
+      return;
+    }
+    const result = await deleteUserAsync(authUser, authPin, req.params.id, req.query?.slug ?? req.query?.proyectoId);
+    res.json(result);
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    const status = error.message?.includes("permisos") ? 403
+      : error.message?.includes("superadmin") ? 403
+      : error.message?.includes("propio usuario") ? 403
+      : error.message?.includes("ventas asociadas") ? 409
+      : error.message?.includes("historial operativo") ? 409
+      : error.message?.includes("no encontrado") ? 404
+      : 400;
+    res.status(status).json({ error: error.message || "Error al eliminar usuario." });
+  }
+});
+
+app.get("/api/equipos", async (req, res) => {
+  try {
+    const { username: authUser, pin: authPin } = getAdminCredentials(req);
+    if (!authUser || !authPin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const result = await listTeamsAsync(authUser, authPin, req.query?.slug ?? req.query?.proyectoId);
+    res.json(result);
+  } catch (error) {
+    console.error("Error listing teams:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo listar equipos." });
+  }
+});
+
+app.post("/api/equipos", async (req, res) => {
+  try {
+    const { username: authUser, pin: authPin } = getAdminCredentials(req);
+    if (!authUser || !authPin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const result = await createTeamAsync(authUser, authPin, req.body ?? {}, req.query?.slug ?? req.query?.proyectoId);
+    res.status(201).json(result);
+  } catch (error) {
+    console.error("Error creating team:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo crear equipo." });
+  }
+});
+
+app.put("/api/equipos/:id", async (req, res) => {
+  try {
+    const { username: authUser, pin: authPin } = getAdminCredentials(req);
+    if (!authUser || !authPin) {
+      res.status(401).json({ error: "Credenciales requeridas." });
+      return;
+    }
+
+    const result = await updateTeamAsync(
+      authUser,
+      authPin,
+      req.params.id,
+      req.body ?? {},
+      req.query?.slug ?? req.query?.proyectoId
+    );
+    res.json(result);
+  } catch (error) {
+    console.error("Error updating team:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo actualizar equipo." });
+  }
+});
+
+app.delete("/api/equipos/:id", async (req, res) => {
+  try {
+    const { username, pin } = getAdminCredentials(req);
+    const item = await deleteTeamAsync(username, pin, req.params.id, req.query?.slug ?? req.query?.proyectoId);
+    res.json(item);
+  } catch (error) {
+    console.error("Error deleting team:", error);
+    res.status(getErrorStatus(error, 400)).json({ error: error.message || "No se pudo eliminar equipo." });
   }
 });
 

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { useProjectContext } from "./ProjectContext";
+import { buildPrivateProjectPath, buildPublicProjectPath } from "./projectRoutes";
+import { clearPreferredProjectSlug } from "../services/projectContext";
 import ThemeToggle from "./ThemeToggle";
 
 type MenuItem = {
@@ -66,6 +69,21 @@ const IconUsers = () => (
   </svg>
 );
 
+const IconBuilding = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M4 20V6l8-3 8 3v14" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    <path d="M9 20v-5h6v5M8 9h.01M12 9h.01M16 9h.01M8 12h.01M12 12h.01M16 12h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const IconProject = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+    <path d="M6 20V7.5L12 4l6 3.5V20" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    <path d="M9 20v-4h6v4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    <path d="M8.5 10h.01M12 10h.01M15.5 10h.01M8.5 13h.01M12 13h.01M15.5 13h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
 const IconSales = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
     <path d="M5 19V9M12 19V5M19 19v-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -89,35 +107,46 @@ const IconLogout = () => (
   </svg>
 );
 
-const roleMenuItems = (role: "asesor" | "admin" | null, isAuthenticated: boolean): MenuItem[] => {
+const roleMenuItems = (
+  role: "asesor" | "admin" | null,
+  rawRole: "ASESOR" | "ADMIN" | "SUPERADMIN" | null,
+  isAuthenticated: boolean,
+  projectSlug: string
+): MenuItem[] => {
   if (!isAuthenticated || !role) {
     return [{ label: "Iniciar sesion", to: "/login", icon: <IconLogin /> }];
   }
 
   const base: MenuItem[] = [
-    { label: "Mapa", to: "/", icon: <IconMap /> },
-    { label: "Editar lotes", to: "/lotes", icon: <IconTable /> },
-    { label: "Ventas", to: "/ventas", icon: <IconSales /> },
+    { label: "Mapa", to: buildPublicProjectPath(projectSlug), icon: <IconMap /> },
+    { label: "Editar lotes", to: buildPrivateProjectPath(projectSlug, "lotes"), icon: <IconTable /> },
+    { label: "Ventas", to: buildPrivateProjectPath(projectSlug, "ventas"), icon: <IconSales /> },
   ];
 
   if (role === "admin") {
-    return [
+    const adminItems: MenuItem[] = [
       ...base,
-      { label: "Dashboard", to: "/admin", icon: <IconDashboard /> },
-      { label: "Usuarios", to: "/usuarios", icon: <IconUsers /> },
+      { label: "Dashboard", to: buildPrivateProjectPath(projectSlug, "dashboard"), icon: <IconDashboard /> },
+      { label: "Proyecto", to: buildPrivateProjectPath(projectSlug, "proyecto"), icon: <IconProject /> },
+      { label: "Usuarios", to: buildPrivateProjectPath(projectSlug, "usuarios"), icon: <IconUsers /> },
     ];
+    if (rawRole === "SUPERADMIN") {
+      adminItems.splice(adminItems.length - 1, 0, { label: "Empresa", to: buildPrivateProjectPath(projectSlug, "empresa"), icon: <IconBuilding /> });
+    }
+    return adminItems;
   }
 
-  return [...base, { label: "Dashboard", to: "/asesor", icon: <IconDashboard /> }];
+  return [...base, { label: "Dashboard", to: buildPrivateProjectPath(projectSlug, "dashboard"), icon: <IconDashboard /> }];
 };
 
 const UserAvatarMenu = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, role, username, logout } = useAuth();
+  const { display } = useProjectContext();
+  const { isAuthenticated, role, rawRole, username, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const items = useMemo(() => roleMenuItems(role, isAuthenticated), [isAuthenticated, role]);
+  const items = useMemo(() => roleMenuItems(role, rawRole, isAuthenticated, display.projectSlug), [display.projectSlug, isAuthenticated, rawRole, role]);
   const avatarLabel = useMemo(() => {
     if (!isAuthenticated) {
       return null;
@@ -154,9 +183,10 @@ const UserAvatarMenu = () => {
   };
 
   const handleLogout = () => {
+    clearPreferredProjectSlug();
     logout();
     setOpen(false);
-    navigate("/");
+    navigate(buildPublicProjectPath(display.projectSlug));
   };
 
   return (

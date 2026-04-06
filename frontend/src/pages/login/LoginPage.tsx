@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import AppShell from "../../app/AppShell";
 import { useAuth } from "../../app/AuthContext";
+import { useProjectContext } from "../../app/ProjectContext";
+import { buildPrivateProjectPath, buildPublicProjectPath } from "../../app/projectRoutes";
 
 const IconMap = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none">
@@ -33,7 +35,8 @@ const IconLogin = () => (
 const PIN_SLOTS = 6;
 
 export default function LoginPage() {
-  const { isAuthenticated, login, role } = useAuth();
+  const { isAuthenticated, login } = useAuth();
+  const { display } = useProjectContext();
   const location = useLocation();
 
   const [username, setUsername] = useState("");
@@ -46,11 +49,9 @@ export default function LoginPage() {
   const from = location.state?.from?.pathname;
   const redirectTo =
     isAuthenticated && from && from !== "/login"
-      ? from
-      : isAuthenticated
-        ? role === "admin"
-          ? "/admin"
-          : "/asesor"
+        ? from
+        : isAuthenticated
+        ? buildPrivateProjectPath(display.projectSlug, "dashboard")
         : null;
 
   const submitLogin = useCallback(async () => {
@@ -111,7 +112,7 @@ export default function LoginPage() {
   const topbarActions = (
     <nav className="nav-links" aria-label="Navegacion principal">
       <NavLink
-        to="/"
+        to={buildPublicProjectPath(display.projectSlug)}
         aria-label="Ir al mapa"
         className={({ isActive }) => `nav-link nav-link--with-icon${isActive ? " active" : ""}`}
       >
@@ -131,7 +132,7 @@ export default function LoginPage() {
     >
       <section className="auth-layout">
         <div className="auth-shortcut">
-          <Link className="btn ghost auth-shortcut__button" to="/">
+          <Link className="btn ghost auth-shortcut__button" to={buildPublicProjectPath(display.projectSlug)}>
             <IconMap />
             <span>Ir al mapa</span>
           </Link>

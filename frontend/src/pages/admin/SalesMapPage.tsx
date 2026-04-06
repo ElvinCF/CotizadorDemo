@@ -1,26 +1,29 @@
-﻿import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+﻿import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import AppShell from "../../app/AppShell";
-import { MAP_BACKGROUND_IMAGE } from "../../app/assets";
+import { useProjectContext } from "../../app/ProjectContext";
+import { COMPANY_LOGO_IMAGE, PROJECT_LOGO_IMAGE, PROJECT_LOGO_SVG } from "../../app/assets";
 import { useAuth } from "../../app/AuthContext";
+import { buildPrivateProjectPath, buildPublicProjectPath } from "../../app/projectRoutes";
 import {
   TransformComponent,
   TransformWrapper,
   type ReactZoomPanPinchRef,
 } from "react-zoom-pan-pinch";
-import ArenasSvg from "../../components/arenas";
+import {
+  resolveProjectMapBackground,
+  resolveProjectOverlayComponent,
+} from "../../components/overlays/projectOverlayRegistry";
 import CotizadorDrawer from "../../components/drawer/CotizadorDrawer";
 import MapHeader from "../../components/map/MapHeader";
 import TableView from "../../components/map/TableView";
+import ProjectSetupState from "../../components/project/ProjectSetupState";
 import ProformaModal from "../../components/proforma/ProformaModal";
 import {
-  EMPRESA_DIRECCION,
   MAP_HEIGHT,
   MAP_WIDTH,
   PROFORMA_VENDOR_KEY,
-  PROYECTO_FIJO,
   defaultFilters,
-  defaultOverlay,
   defaultQuote,
   mapVars,
 } from "../../domain/constants";
@@ -35,12 +38,9 @@ import {
 } from "../../domain/formatters";
 import { buildIdSet, overlayStyle, quoteMonthly } from "../../domain/finance";
 import type { FiltersState, Lote, OverlayTransform, ProformaState, QuoteState } from "../../domain/types";
-import { projectInfo } from "../../data/projectInfo";
-import { loadLotesFromApi } from "../../services/lotes";
+import { loadAdminLotesFromApi, loadLotesFromApi, updateLoteStatusMassive } from "../../services/lotes";
 import { listSaleAccessByLot } from "../../services/ventas";
 import { waitForPrintWindowAssets } from "../../utils/printWindow";
-
-const MemoArenasSvg = memo(ArenasSvg);
 
 type SalesMapPageProps = {
   publicView?: boolean;
@@ -69,8 +69,9 @@ const toProformaLotRow = (lote?: Lote | null) => ({
 function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const params = useParams<{ loteCodigo?: string }>();
-  const { isAuthenticated, role, username, telefono, loginUsername } = useAuth();
+  const params = useParams<{ slug?: string; loteCodigo?: string }>();
+  const { display, context, loading: projectLoading } = useProjectContext();
+  const { isAuthenticated, role, rawRole, username, telefono, loginUsername } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
   const [rawLotes, setRawLotes] = useState<Lote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -82,11 +83,44 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoveredPos, setHoveredPos] = useState({ x: 0, y: 0 });
   const [rightOpen, setRightOpen] = useState(false);
-  const [quote, setQuote] = useState<QuoteState>(defaultQuote);
+  const initialMinima = display.initialMinima || defaultQuote.inicialMonto;
+  const separacionMinima = Math.max(Number(display.separacionMinima ?? 0), 0);
+  const cuotasMinimas = Math.max(Number(display.cuotasMinimas ?? 1), 1);
+  const cuotasMaximas = Math.max(Number(display.cuotasMaximas ?? 36), cuotasMinimas);
+  const mesesReferenciales = useMemo(() => {
+    const source = Array.isArray(display.mesesReferenciales) ? display.mesesReferenciales : [];
+    const normalized = source
+      .map((value) => Math.round(Number(value)))
+      .filter((value) => Number.isFinite(value) && value >= cuotasMinimas && value <= cuotasMaximas);
+    const uniqueSorted = Array.from(new Set(normalized)).sort((a, b) => a - b);
+    return uniqueSorted.length > 0 ? uniqueSorted : [12, 24, 36].filter((value) => value >= cuotasMinimas && value <= cuotasMaximas);
+  }, [cuotasMaximas, cuotasMinimas, display.mesesReferenciales]);
+  const defaultManualMonths = mesesReferenciales.includes(24)
+    ? 24
+    : mesesReferenciales[0] ?? cuotasMinimas;
+  const mapBackgroundImage = useMemo(
+    () => resolveProjectMapBackground(display.mapaWebpUrl, display.projectSlug, display.stage),
+    [display.mapaWebpUrl, display.projectSlug, display.stage],
+  );
+  const ProjectOverlayComponent = useMemo(
+    () => resolveProjectOverlayComponent(context?.ui.mapaSvgUrl, display.projectSlug, display.stage),
+    [context?.ui.mapaSvgUrl, display.projectSlug, display.stage],
+  );
+  const [quote, setQuote] = useState<QuoteState>(() => ({
+    ...defaultQuote,
+    inicialMonto: initialMinima,
+  }));
   const [filters, setFilters] = useState<FiltersState>(defaultFilters);
   const [tableFiltersOpen, setTableFiltersOpen] = useState(false);
   const [view, setView] = useState<"mapa" | "tabla">("mapa");
-  const [overlay] = useState<OverlayTransform>(defaultOverlay);
+  const overlay = useMemo<OverlayTransform>(
+    () => ({
+      x: Number(display.overlay.x || 0),
+      y: Number(display.overlay.y || 0),
+      scale: Number(display.overlay.scale || 1),
+    }),
+    [display.overlay.x, display.overlay.y, display.overlay.scale]
+  );
   const previousMzRef = useRef<string | null>(null);
   const previousLoteRef = useRef<number | null>(null);
   const [pulseMz, setPulseMz] = useState(false);
@@ -98,7 +132,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const [proformaAlert, setProformaAlert] = useState<string | null>(null);
   const [proforma, setProforma] = useState<ProformaState>({
     cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
-    proyecto: { proyecto: PROYECTO_FIJO, ubicacion: projectInfo.locationText },
+    proyecto: { proyecto: display.projectName, ubicacion: display.locationText },
     lotes: [],
     precioRegular: 0,
     precioPromocional: 0,
@@ -106,9 +140,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     descuentoPct: 0,
     diasVigencia: 3,
     fechaCaducidad: toDateValue(addDays(new Date(), 3)),
-    separacion: 0,
-    inicial: 6000,
-    meses: 24,
+    separacion: separacionMinima,
+    inicial: initialMinima,
+    meses: defaultManualMonths,
     vendedor: { nombre: "", celular: "" },
     creadoEn: new Date().toISOString(),
   });
@@ -136,14 +170,31 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   const lastTransformCommitRef = useRef(0);
 
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [lotesLoading, setLotesLoading] = useState(true);
+  const [bulkStatusValue, setBulkStatusValue] = useState("");
+  const [bulkStatusBusy, setBulkStatusBusy] = useState(false);
   const [salesByLoteCode, setSalesByLoteCode] = useState<Record<string, LoteSaleAccess>>({});
   const hidePublicRestrictedActions = publicView && !isAuthenticated;
   const routeLoteCodigo = params.loteCodigo?.trim().toUpperCase() ?? "";
-  const isCotizadorRoute = publicView && location.pathname.startsWith("/cotizador");
+  const isCotizadorRoute = publicView && location.pathname.includes("/cotizador");
   const DRAWER_PULSE_MS = 900;
   const currentUsername = loginUsername?.trim().toLowerCase() ?? null;
   const lotes = rawLotes;
+  const hasProjectMapAsset = Boolean(mapBackgroundImage);
+  const hasProjectLots = lotes.length > 0;
+  const hasProjectOverlay = Boolean(ProjectOverlayComponent);
+  const hasProjectMapContent = hasProjectMapAsset && hasProjectLots && hasProjectOverlay;
+  const isMapContentLoading = projectLoading || (hasProjectMapAsset && lotesLoading);
+  const projectName = display.projectName;
+  const projectLocation = display.locationText;
+  const projectStage = display.stage;
+  const companyName = display.owner;
+  const companyRuc = display.ownerRuc;
+  const companyAddress = display.companyAddress;
   const selectedLotIdList = useMemo(() => Array.from(selectedLotIds), [selectedLotIds]);
+  const canBulkUpdateStatus =
+    isAuthenticated &&
+    (role === "admin" || rawRole === "ADMIN" || rawRole === "SUPERADMIN");
   const salesByLoteFromCatalog = useMemo<Record<string, LoteSaleAccess>>(
     () =>
       rawLotes.reduce<Record<string, LoteSaleAccess>>((acc, lote) => {
@@ -159,13 +210,51 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   );
 
   useEffect(() => {
+    setQuote((current) =>
+      current.inicialMonto === defaultQuote.inicialMonto || current.inicialMonto === initialMinima
+        ? { ...current, inicialMonto: initialMinima }
+        : current
+    );
+  }, [initialMinima]);
+
+  useEffect(() => {
+    setProforma((current) => ({
+      ...current,
+      proyecto: {
+        proyecto: projectName,
+        ubicacion: projectLocation,
+      },
+      separacion:
+        current.separacion === 0 || current.separacion === separacionMinima
+          ? separacionMinima
+          : current.separacion,
+      inicial: current.inicial === defaultQuote.inicialMonto ? initialMinima : current.inicial,
+      meses:
+        current.meses === 24 || current.meses === cuotasMinimas || current.meses === defaultManualMonths
+          ? defaultManualMonths
+          : current.meses,
+    }));
+  }, [cuotasMinimas, defaultManualMonths, initialMinima, projectLocation, projectName, separacionMinima]);
+
+  useEffect(() => {
+    setRawLotes([]);
+    setSalesByLoteCode({});
+    setSelectedId(null);
+    setSelectedLotIds(new Set());
+    setHoveredId(null);
+    setRightOpen(false);
+    setLoadError(null);
+    setLotesLoading(true);
+  }, [display.projectSlug]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const media = window.matchMedia("(max-width: 640px)");
     const sync = () => setIsSmallScreen(media.matches);
     sync();
     media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
-  }, []);
+  }, [display.projectSlug]);
 
   const canAccessSaleFromLot = useCallback(
     (saleAccess?: LoteSaleAccess | null) => {
@@ -235,7 +324,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       setRightOpen(true);
 
       if (publicView) {
-        const nextPath = buildCotizadorPath(nextSelectedId);
+        const nextPath = buildCotizadorPath(display.projectSlug, nextSelectedId);
         if (location.pathname !== nextPath) {
           navigate(nextPath);
         }
@@ -252,9 +341,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     }
 
     if (publicView && isCotizadorRoute) {
-      navigate("/", { replace: true });
+      navigate(buildPublicProjectPath(display.projectSlug), { replace: true });
     }
-  }, [isCotizadorRoute, isSmallScreen, navigate, publicView]);
+  }, [display.projectSlug, isCotizadorRoute, isSmallScreen, navigate, publicView]);
 
   const openCotizadorFromFloatingCard = useCallback(() => {
     if (selectedLotIds.size === 0 && !selectedId) return;
@@ -292,14 +381,18 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       setSelectedId(null);
       setSelectedLotIds(new Set());
     }
-    navigate("/", { replace: true });
-  }, [isCotizadorRoute, isSmallScreen, navigate, publicView, routeLoteCodigo]);
+    navigate(buildPublicProjectPath(display.projectSlug), { replace: true });
+  }, [display.projectSlug, isCotizadorRoute, isSmallScreen, navigate, publicView, routeLoteCodigo]);
 
   useEffect(() => {
     let active = true;
     const syncLotes = async () => {
       try {
-        const items = await loadLotesFromApi();
+        setLotesLoading(true);
+        const items =
+          !publicView && isAuthenticated
+            ? await loadAdminLotesFromApi({ slug: display.projectSlug })
+            : await loadLotesFromApi({ slug: display.projectSlug });
         if (!active) return;
         setRawLotes(items);
         setLoadError(null);
@@ -310,6 +403,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         setLoadError(
           "No se pudo cargar lotes desde Supabase/API. Verifica SUPABASE_DB_SCHEMA y variables del backend."
         );
+      } finally {
+        if (!active) return;
+        setLotesLoading(false);
       }
     };
 
@@ -317,7 +413,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [display.projectSlug, isAuthenticated, publicView]);
 
   useEffect(() => {
     let cancelled = false;
@@ -329,7 +425,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       }
 
       try {
-        const sales = await listSaleAccessByLot();
+        const sales = await listSaleAccessByLot({ slug: display.projectSlug });
         if (cancelled) return;
         const mapping = sales.reduce<Record<string, LoteSaleAccess>>((acc, sale) => {
           const loteCode = sale.loteCodigo;
@@ -353,7 +449,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, salesByLoteFromCatalog]);
+  }, [display.projectSlug, isAuthenticated, salesByLoteFromCatalog]);
 
   useEffect(() => {
     const raw = localStorage.getItem(PROFORMA_VENDOR_KEY);
@@ -450,10 +546,11 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     const cachedQuote = readCachedCotizadorQuote(selectedLote.id);
     setQuote({
       ...defaultQuote,
+      inicialMonto: initialMinima,
       ...cachedQuote,
       precio: drawerTotalPrice > 0 ? drawerTotalPrice : selectedLote.price ?? cachedQuote?.precio ?? 0,
     });
-  }, [drawerTotalPrice, selectedLote]);
+  }, [drawerTotalPrice, initialMinima, selectedLote]);
 
   useEffect(() => {
     if (!selectedLote) return;
@@ -721,8 +818,8 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   const resetFilters = () => setFilters(defaultFilters);
 
-  const quoteInvalidInicial = quote.inicialMonto < 6000;
-  const quoteInvalidMeses = quote.cuotas < 1 || quote.cuotas > 36;
+  const quoteInvalidInicial = quote.inicialMonto < initialMinima;
+  const quoteInvalidMeses = quote.cuotas < cuotasMinimas || quote.cuotas > cuotasMaximas;
   const montoInicial = Math.min(Math.max(quote.inicialMonto, 0), quote.precio);
   const financiado = Math.max(quote.precio - montoInicial, 0);
   const cuota = quoteMonthly(financiado, quote.cuotas, 0);
@@ -735,8 +832,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   );
 
   const proformaAhorro = Math.max(proforma.precioRegular - proforma.precioPromocional, 0);
-  const proformaInvalidInicial = proforma.inicial < 6000;
-  const proformaInvalidMeses = proforma.meses < 1 || proforma.meses > 36;
+  const proformaInvalidInicial = proforma.inicial < initialMinima;
+  const proformaInvalidSeparacion = proforma.separacion < separacionMinima;
+  const proformaInvalidMeses = proforma.meses < cuotasMinimas || proforma.meses > cuotasMaximas;
   const precioFinanciarRegular = Math.max(
     proforma.precioRegular - proforma.separacion - proforma.inicial,
     0
@@ -747,24 +845,36 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
   );
   const proformaCuotaRegular = proforma.meses > 0 ? precioFinanciarRegular / proforma.meses : 0;
   const proformaCuotaPromo = proforma.meses > 0 ? precioFinanciarPromo / proforma.meses : 0;
-  const cuotasRapidas = (monto: number) => ({
-    12: Math.max(monto / 12, 0),
-    24: Math.max(monto / 24, 0),
-    36: Math.max(monto / 36, 0),
-  });
+  const cuotasRapidas = (monto: number, meses: number) => Math.max(monto / Math.max(meses, 1), 0);
+  const quickRowsRegularHtml = mesesReferenciales
+    .map(
+      (meses) =>
+        `<div class="quick-row"><span>${meses} meses</span><strong>${formatMoney(
+          cuotasRapidas(precioFinanciarRegular, meses)
+        )}</strong></div>`
+    )
+    .join("");
+  const quickRowsPromoHtml = mesesReferenciales
+    .map(
+      (meses) =>
+        `<div class="quick-row"><span>${meses} meses</span><strong>${formatMoney(
+          cuotasRapidas(precioFinanciarPromo, meses)
+        )}</strong></div>`
+    )
+    .join("");
 
   const refreshProformaFromLotes = (lotesSeleccionados: Lote[]) => {
     const totalLotes = lotesSeleccionados.reduce((sum, lote) => sum + Math.max(Number(lote.price ?? 0), 0), 0);
     const regular = Math.max(quote.precio || totalLotes || 0, 0);
     const promo = regular;
-    const inicialCotizada = Math.max(Math.round(quote.inicialMonto || 0), 6000);
-    const inicial = clamp(inicialCotizada, 6000, promo || 6000);
-    const meses = clamp(Math.round(quote.cuotas || 0), 1, 36);
+    const inicialCotizada = Math.max(Math.round(quote.inicialMonto || 0), initialMinima);
+    const inicial = clamp(inicialCotizada, initialMinima, promo || initialMinima);
+    const meses = clamp(Math.round(quote.cuotas || 0), cuotasMinimas, cuotasMaximas);
     const dias = 3;
     lastPriceEditedRef.current = null;
     setProforma({
       cliente: { nombre: "", dni: "", celular: "", direccion: "", correo: "" },
-      proyecto: { proyecto: PROYECTO_FIJO, ubicacion: projectInfo.locationText },
+      proyecto: { proyecto: projectName, ubicacion: projectLocation },
       lotes: lotesSeleccionados.map((lote) => toProformaLotRow(lote)),
       precioRegular: regular,
       precioPromocional: promo,
@@ -772,7 +882,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       descuentoPct: regular ? Math.max(((regular - promo) / regular) * 100, 0) : 0,
       diasVigencia: dias,
       fechaCaducidad: toDateValue(addDays(new Date(), dias)),
-      separacion: 0,
+      separacion: separacionMinima,
       inicial,
       meses,
       vendedor: proforma.vendedor,
@@ -916,10 +1026,14 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     const transformGroup = document.createElementNS(svgNamespace, "g");
     const nestedSvg = document.createElementNS(svgNamespace, "svg");
     const rootStyles = window.getComputedStyle(document.documentElement);
-    const fillDisponible = rootStyles.getPropertyValue("--lot-fill-libre").trim() || "rgba(0,255,102,0.3)";
-    const fillSeparado = rootStyles.getPropertyValue("--lot-fill-separado").trim() || "rgba(243,195,5,0.378)";
-    const fillVendido = rootStyles.getPropertyValue("--lot-fill-vendido").trim() || "rgba(255,0,0,0.305)";
-    const fillMulti = "rgba(47, 140, 255, 0.16)";
+    const fillDisponible = rootStyles.getPropertyValue("--lot-fill-disponible").trim() || "rgba(45, 155, 89, 0.14)";
+    const fillSeparado = rootStyles.getPropertyValue("--lot-fill-separado").trim() || "rgba(214, 121, 0, 0.14)";
+    const fillVendido = rootStyles.getPropertyValue("--lot-fill-vendido").trim() || "rgba(216, 69, 50, 0.14)";
+    const fillSelected = rootStyles.getPropertyValue("--lot-fill-selected").trim() || "rgba(47, 140, 255, 0.14)";
+    const strokeDisponible = rootStyles.getPropertyValue("--lot-color-disponible").trim() || "#2d9b59";
+    const strokeSeparado = rootStyles.getPropertyValue("--lot-color-separado").trim() || "#d67900";
+    const strokeVendido = rootStyles.getPropertyValue("--lot-color-vendido").trim() || "#d84532";
+    const strokeSelected = rootStyles.getPropertyValue("--lot-color-selected").trim() || "#2f8cff";
 
     const parseColor = (value: string) => {
       const normalized = value.trim();
@@ -963,20 +1077,30 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       const status = (pathNode.getAttribute("data-status") || "DISPONIBLE").toUpperCase();
       const classes = new Set(Array.from(pathNode.classList));
       let fill = fillDisponible;
+      let stroke = strokeDisponible;
       let opacity = "1";
 
-      if (status === "SEPARADO") fill = fillSeparado;
-      if (status === "VENDIDO") fill = fillVendido;
+      if (status === "SEPARADO") {
+        fill = fillSeparado;
+        stroke = strokeSeparado;
+      }
+      if (status === "VENDIDO") {
+        fill = fillVendido;
+        stroke = strokeVendido;
+      }
 
-      if (classes.has("is-multi-selected")) {
-        fill = fillMulti;
+      if (classes.has("is-selected") || classes.has("is-multi-selected")) {
+        fill = fillSelected;
+        stroke = strokeSelected;
       }
 
       const parsedFill = parseColor(fill);
+      const parsedStroke = parseColor(stroke);
       clonedPath.setAttribute("fill", parsedFill.color);
       clonedPath.setAttribute("fill-opacity", parsedFill.opacity);
-      clonedPath.setAttribute("stroke", "none");
-      clonedPath.setAttribute("stroke-width", "0");
+      clonedPath.setAttribute("stroke", parsedStroke.color);
+      clonedPath.setAttribute("stroke-opacity", parsedStroke.opacity);
+      clonedPath.setAttribute("stroke-width", classes.has("is-selected") || classes.has("is-multi-selected") ? "2" : "1.6");
       clonedPath.setAttribute("stroke-linejoin", "round");
       clonedPath.setAttribute("stroke-linecap", "round");
       clonedPath.setAttribute("vector-effect", "non-scaling-stroke");
@@ -998,17 +1122,21 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   const exportExecutivePdf = async () => {
     if (exportExecutiveLoading) return;
+    if (!hasProjectMapContent) {
+      setLoadError("El proyecto activo todavia no tiene mapa y lotes configurados.");
+      return;
+    }
     setExportExecutiveLoading(true);
     try {
       const { svg2pdf } = await import("svg2pdf.js");
       const { jsPDF } = await import("jspdf");
-      const backgroundImage = await loadImageElement(MAP_BACKGROUND_IMAGE);
+      const backgroundImage = await loadImageElement(mapBackgroundImage);
       const backgroundImageData = imageElementToDataUrl(backgroundImage, "image/png", 1);
-      const logoSvgMarkup = (await loadTextAsset("/assets/Logo_Arenas_Malabrigo.svg")).replace(
+      const logoSvgMarkup = (await loadTextAsset(PROJECT_LOGO_SVG)).replace(
         /<\?xml[\s\S]*?\?>\s*/i,
         ""
       );
-      const logoClubImage = await loadImageElement("/assets/arenas_club_cele.png");
+      const logoClubImage = await loadImageElement(PROJECT_LOGO_IMAGE);
       const logoClubImageData = imageElementToDataUrl(logoClubImage, "image/png", 1);
       await nextFrame();
       const sourceBackgroundLayout = getMapBackgroundLayout(backgroundImage);
@@ -1187,14 +1315,18 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
   const printExecutiveMap = async () => {
     if (exportExecutiveLoading) return;
+    if (!hasProjectMapContent) {
+      setLoadError("El proyecto activo todavia no tiene mapa y lotes configurados.");
+      return;
+    }
     setExportExecutiveLoading(true);
     try {
-      const backgroundImage = await loadImageElement(MAP_BACKGROUND_IMAGE);
-      const logoSvgMarkup = (await loadTextAsset("/assets/Logo_Arenas_Malabrigo.svg")).replace(
+      const backgroundImage = await loadImageElement(mapBackgroundImage);
+      const logoSvgMarkup = (await loadTextAsset(PROJECT_LOGO_SVG)).replace(
         /<\?xml[\s\S]*?\?>\s*/i,
         ""
       );
-      const logoClubUrl = new URL("/assets/arenas_club_cele.png", window.location.origin).href;
+      const logoClubUrl = new URL(PROJECT_LOGO_IMAGE, window.location.origin).href;
       await nextFrame();
       const sourceBackgroundLayout = getMapBackgroundLayout(backgroundImage);
       const overlaySvg = svgRef.current ? buildPdfOverlaySvg(svgRef.current, overlay, {
@@ -1214,7 +1346,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       const panelH = 338;
       const logoBoxH = 92;
       const logoBoxW = panelW - 28;
-      const mapBackgroundUrl = new URL(MAP_BACKGROUND_IMAGE, window.location.origin).href;
+      const mapBackgroundUrl = new URL(mapBackgroundImage, window.location.origin).href;
       const printHtml = `
         <html>
           <head>
@@ -1495,14 +1627,14 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       )
       .join("");
 
-    const logoArenasClub = new URL("/assets/arenas_club_cele.png", window.location.origin).href;
-    const logoHolaTrujillo = new URL("/assets/HOLA-TRUJILLO_LOGOTIPO.webp", window.location.origin).href;
+    const logoArenasClub = new URL(PROJECT_LOGO_IMAGE, window.location.origin).href;
+    const logoHolaTrujillo = new URL(COMPANY_LOGO_IMAGE, window.location.origin).href;
 
     const html = `
       <html>
         <head>
           <meta charset="UTF-8" />
-          <title>Proforma Arenas Malabrigo</title>
+          <title>Proforma ${projectName}</title>
           <style>
             @page { size: A4; margin: 12mm; }
             body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b1b1b; }
@@ -1544,7 +1676,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             <div class="page-content">
             <div class="header">
               <div>
-                <h1>Proforma Arenas Malabrigo</h1>
+                <h1>Proforma ${projectName}</h1>
                 <div class="meta-line">
                   <div class="meta">Fecha y hora: ${created.toLocaleString("es-PE")}</div>
                   <div class="expiry">Vence: ${proforma.fechaCaducidad}</div>
@@ -1572,9 +1704,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
               <h2>Proyecto</h2>
               <div class="grid-project">
                 <div><span class="label">Proyecto</span><span class="value">${proforma.proyecto.proyecto}</span></div>
-                <div><span class="label">Etapa</span><span class="value">${projectInfo.stage || "-"}</span></div>
-                <div><span class="label">Razon social</span><span class="value">${projectInfo.owner || "-"}</span></div>
-                <div><span class="label">RUC</span><span class="value">${projectInfo.ownerRuc || "-"}</span></div>
+                <div><span class="label">Etapa</span><span class="value">${projectStage || "-"}</span></div>
+                <div><span class="label">Razon social</span><span class="value">${companyName || "-"}</span></div>
+                <div><span class="label">RUC</span><span class="value">${companyRuc || "-"}</span></div>
                 <div><span class="label">Ubicacion referencial</span><span class="value">${proforma.proyecto.ubicacion}</span></div>
               </div>
             </section>
@@ -1611,9 +1743,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 </div>
                 <div class="quick">
                   <div class="sub">Cotizado rapido de pago mensual</div>
-                  <div class="quick-row"><span>12 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarRegular)[12])}</strong></div>
-                  <div class="quick-row"><span>24 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarRegular)[24])}</strong></div>
-                  <div class="quick-row"><span>36 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarRegular)[36])}</strong></div>
+                  ${quickRowsRegularHtml}
                 </div>
                 <div class="sub monthly">Pago mensual en ${proforma.meses} meses: ${formatMoney(proformaCuotaRegular)}</div>
               </div>
@@ -1627,9 +1757,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                 </div>
                 <div class="quick">
                   <div class="sub">Cotizado rapido de pago mensual</div>
-                  <div class="quick-row"><span>12 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarPromo)[12])}</strong></div>
-                  <div class="quick-row"><span>24 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarPromo)[24])}</strong></div>
-                  <div class="quick-row"><span>36 meses</span><strong>${formatMoney(cuotasRapidas(precioFinanciarPromo)[36])}</strong></div>
+                  ${quickRowsPromoHtml}
                 </div>
                 <div class="sub monthly">Pago mensual en ${proforma.meses} meses: ${formatMoney(proformaCuotaPromo)}</div>
               </div>
@@ -1640,9 +1768,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             <div class="footer">
               <div class="meta">
                 <div><strong>Datos de la empresa</strong></div>
-                <div>RAZON SOCIAL: ${projectInfo.owner}</div>
-                <div>RUC: ${projectInfo.ownerRuc}</div>
-                <div>DIRECCIÃ“N: ${EMPRESA_DIRECCION}</div>
+                <div>RAZON SOCIAL: ${companyName}</div>
+                <div>RUC: ${companyRuc}</div>
+                <div>DIRECCION: ${companyAddress}</div>
               </div>
               <img src="${logoHolaTrujillo}" class="project-logo" alt="Hola Trujillo" />
             </div>
@@ -1723,25 +1851,33 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
       .find((saleAccess) => Boolean(saleAccess));
 
     if (firstActiveSale) {
-      navigate(`/ventas/${firstActiveSale.saleId}`);
+      navigate(buildPrivateProjectPath(display.projectSlug, "ventas", firstActiveSale.saleId));
       return;
     }
 
     const lotesParam = encodeURIComponent(drawerLotes.map((lote) => lote.id).join(","));
     const firstLote = drawerLotes[0];
-    const draftCuotas = Math.min(Math.max(Math.round(Number(quote.cuotas || 24)), 1), 36);
-    const draftInicial = Math.max(Number(quote.inicialMonto || 0), 0);
+    const draftCuotas = Math.min(
+      Math.max(Math.round(Number(quote.cuotas || defaultManualMonths)), cuotasMinimas),
+      cuotasMaximas
+    );
+    const draftInicial = Math.max(Number(quote.inicialMonto || 0), initialMinima);
     const draftPrecio = Math.max(Number(drawerTotalPrice || quote.precio || firstLote.price || 0), 0);
-    const draftMontoCuota = draftCuotas > 0 ? Number((Math.max(draftPrecio - draftInicial, 0) / draftCuotas).toFixed(2)) : 0;
+    const draftMontoCuota =
+      draftCuotas > 0
+        ? Number((Math.max(draftPrecio - draftInicial - separacionMinima, 0) / draftCuotas).toFixed(2))
+        : 0;
     persistSaleDraft({
       loteCodigos: drawerLotes.map((lote) => lote.id),
       precioVenta: draftPrecio,
       inicial: draftInicial,
-      separacion: 0,
+      separacion: separacionMinima,
       meses: draftCuotas,
       montoCuota: draftMontoCuota,
     });
-    navigate(`/ventas/nueva?lote=${firstLote.id}&lotes=${lotesParam}&target=${firstLote.condicion}`);
+    navigate(
+      `${buildPrivateProjectPath(display.projectSlug, "ventas", "nueva")}?lote=${firstLote.id}&lotes=${lotesParam}&target=${firstLote.condicion}`
+    );
   };
 
   const openSaleFromProforma = () => {
@@ -1780,7 +1916,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 
     setProformaOpen(false);
     navigate(
-      `/ventas/nueva?lote=${lotCodes[0]}&lotes=${lotesParam}&target=${firstLot?.condicion ?? "DISPONIBLE"}`
+      `${buildPrivateProjectPath(display.projectSlug, "ventas", "nueva")}?lote=${lotCodes[0]}&lotes=${lotesParam}&target=${firstLot?.condicion ?? "DISPONIBLE"}`
     );
   };
 
@@ -1804,6 +1940,34 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
     });
   };
 
+  const handleBulkStatusChange = async (nextStatus: string) => {
+    const normalizedStatus = String(nextStatus || "").trim().toUpperCase();
+    setBulkStatusValue(normalizedStatus);
+    if (!normalizedStatus) {
+      return;
+    }
+    if (!canBulkUpdateStatus || selectedLotIdList.length === 0) {
+      setBulkStatusValue("");
+      return;
+    }
+
+    try {
+      setBulkStatusBusy(true);
+      const updatedItems = await updateLoteStatusMassive(selectedLotIdList, normalizedStatus, {
+        slug: display.projectSlug,
+      });
+      const updatesById = new Map(updatedItems.map((item) => [item.id, item]));
+      setRawLotes((current) => current.map((item) => updatesById.get(item.id) ?? item));
+      setLoadError(null);
+    } catch (error) {
+      console.error(error);
+      setLoadError(error instanceof Error ? error.message : "No se pudo actualizar el estado de los lotes.");
+    } finally {
+      setBulkStatusBusy(false);
+      setBulkStatusValue("");
+    }
+  };
+
 
   const mapShellClassName = rightOpen ? "map-shell has-drawer" : "map-shell";
   const MapView = (
@@ -1817,7 +1981,7 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             onExportExecutivePdf={exportExecutivePdf}
             onPrintExecutiveMap={printExecutiveMap}
             onExportTable={exportTableCsv}
-            hideExecutiveExport={hidePublicRestrictedActions}
+            hideExecutiveExport={hidePublicRestrictedActions || !hasProjectMapContent}
             exportExecutiveLoading={exportExecutiveLoading}
           />
           <div
@@ -1826,6 +1990,39 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
             style={mapVars as CSSProperties}
           >
             {view === "mapa" ? (
+              isMapContentLoading ? (
+                <section className="route-skeleton route-skeleton--map-loading" aria-label="Cargando mapa del proyecto">
+                  <div className="route-skeleton__map-layout">
+                    <div className="route-skeleton__map-canvas" />
+                    {!publicView ? <div className="route-skeleton__map-drawer" /> : null}
+                  </div>
+                </section>
+              ) : !hasProjectMapContent ? (
+                <ProjectSetupState
+                  title={publicView ? "Proyecto en configuracion" : "Completa el proyecto antes de usar el mapa"}
+                  message={
+                    publicView
+                      ? "Este proyecto aun no tiene mapa y lotes cargados."
+                      : "Este proyecto aun no tiene mapa WEBP/SVG o lotes importados. Configuralo primero para evitar editar datos del proyecto equivocado."
+                  }
+                  hint={
+                    publicView
+                      ? "Vuelve mas tarde cuando el proyecto ya tenga su inventario publicado."
+                      : "Ve a Proyecto para cargar branding, mapa y luego importa los lotes del nuevo proyecto."
+                  }
+                  actions={
+                    !publicView && role === "admin" ? (
+                      <button
+                        type="button"
+                        className="btn primary"
+                        onClick={() => navigate(buildPrivateProjectPath(display.projectSlug, "proyecto"))}
+                      >
+                        Ir a configuracion
+                      </button>
+                    ) : null
+                  }
+                />
+              ) : (
               <Fragment>
                 <TransformWrapper
                   ref={transformRef}
@@ -1923,25 +2120,28 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                       <TransformComponent wrapperClass="transform-wrapper">
                         <div className="map-layer">
                           <img
-                            src={MAP_BACKGROUND_IMAGE}
+                            src={mapBackgroundImage}
                             alt="Plano de fondo"
                             className="map-background"
                             draggable={false}
                           />
-                          <MemoArenasSvg
-                            svgRef={svgRef}
-                            className="lotes-svg"
-                            style={overlayStyleMemo}
-                            onMouseMove={handleSvgPointer}
-                            onClick={handleSvgPointer}
-                            onMouseLeave={handleSvgLeave}
-                          />
+                          {ProjectOverlayComponent ? (
+                            <ProjectOverlayComponent
+                              svgRef={svgRef}
+                              className="lotes-svg"
+                              style={overlayStyleMemo}
+                              onMouseMove={handleSvgPointer}
+                              onClick={handleSvgPointer}
+                              onMouseLeave={handleSvgLeave}
+                            />
+                          ) : null}
                         </div>
                       </TransformComponent>
                     </Fragment>
                   )}
                 </TransformWrapper>
               </Fragment>
+              )
             ) : (
               <TableView
                 tableFiltersOpen={tableFiltersOpen}
@@ -1964,10 +2164,12 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
                     if (!canAccessSaleFromLot(activeSale)) {
                       return;
                     }
-                    navigate(`/ventas/${activeSale.saleId}`);
+                    navigate(buildPrivateProjectPath(display.projectSlug, "ventas", activeSale.saleId));
                     return;
                   }
-                  navigate(`/ventas/nueva?lote=${lote.id}&lotes=${encodeURIComponent(lote.id)}&target=${lote.condicion}`);
+                  navigate(
+                    `${buildPrivateProjectPath(display.projectSlug, "ventas", "nueva")}?lote=${lote.id}&lotes=${encodeURIComponent(lote.id)}&target=${lote.condicion}`
+                  );
                 }}
               />
             )}
@@ -2012,6 +2214,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           pulseMz={pulseMz}
           pulseLote={pulseLote}
           quote={quote}
+          initialMinima={initialMinima}
+          cuotasMinimas={cuotasMinimas}
+          cuotasMaximas={cuotasMaximas}
+          mesesReferenciales={mesesReferenciales}
           quoteInvalidInicial={quoteInvalidInicial}
           quoteInvalidMeses={quoteInvalidMeses}
           cuota={cuota}
@@ -2021,6 +2227,10 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
           onClose={closeQuoteDrawer}
           onChangeQuote={setQuote}
           onRemoveSelectedLot={handleRemoveSelectedLot}
+          canBulkUpdateStatus={canBulkUpdateStatus}
+          bulkStatusValue={bulkStatusValue}
+          bulkStatusBusy={bulkStatusBusy}
+          onChangeBulkStatus={handleBulkStatusChange}
           hideProformaButton={hidePublicRestrictedActions}
           showSaleButton={!hidePublicRestrictedActions && drawerLotes.length > 0}
           saleButtonDisabled={
@@ -2054,7 +2264,13 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
         <ProformaModal
           proforma={proforma}
           lotesCatalog={lotes}
+          proformaInitialMinima={initialMinima}
+          proformaSeparacionMinima={separacionMinima}
+          proformaCuotasMinimas={cuotasMinimas}
+          proformaCuotasMaximas={cuotasMaximas}
+          proformaMesesReferenciales={mesesReferenciales}
           proformaInvalidInicial={proformaInvalidInicial}
+          proformaInvalidSeparacion={proformaInvalidSeparacion}
           proformaInvalidMeses={proformaInvalidMeses}
           precioFinanciarRegular={precioFinanciarRegular}
           precioFinanciarPromo={precioFinanciarPromo}
@@ -2153,6 +2369,9 @@ function SalesMapPage({ publicView = false }: SalesMapPageProps) {
 }
 
 export default SalesMapPage;
+
+
+
 
 
 

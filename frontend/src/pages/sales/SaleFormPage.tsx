@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+﻿import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import AppShell from "../../app/AppShell";
+import { COMPANY_LOGO_IMAGE, PRINT_FOOTER_RIBBON, PROJECT_LOGO_SVG } from "../../app/assets";
 import { useAuth } from "../../app/AuthContext";
+import { useProjectContext } from "../../app/ProjectContext";
+import { buildPrivateProjectPath, buildPublicProjectPath } from "../../app/projectRoutes";
 import AdminTextInput from "../../components/admin/AdminTextInput";
 import DataTable from "../../components/data-table/DataTable";
 import SaleClientCard from "../../components/sales/SaleClientCard";
@@ -18,7 +21,6 @@ import { readCachedCotizadorQuote } from "../../domain/cotizador";
 import { formatArea, formatMoney } from "../../domain/formatters";
 import type { Lote } from "../../domain/types";
 import type { AdminUser } from "../../domain/adminUsers";
-import { projectInfo } from "../../data/projectInfo";
 import type {
   InitialPaymentInput,
   SalePayment,
@@ -30,7 +32,7 @@ import type {
 } from "../../domain/ventas";
 import { formatSaleStateLabel, saleStateClassName } from "../../domain/ventas";
 import { listAdminUsers } from "../../services/adminUsers";
-import { loadLotesFromApi } from "../../services/lotes";
+import { loadAdminLotesFromApi } from "../../services/lotes";
 import { addSalePayment, createSale, deleteSalePayment, findClientByDni, getSaleById, listSaleAccessByLot, updateSale, updateSalePayment } from "../../services/ventas";
 import { waitForPrintWindowAssets } from "../../utils/printWindow";
 
@@ -538,6 +540,7 @@ export default function SaleFormPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { role, loginUsername, loginPin } = useAuth();
+  const { display } = useProjectContext();
   const isEdit = Boolean(saleId);
   const [lotesCatalog, setLotesCatalog] = useState<Lote[]>([]);
   const [lotRows, setLotRows] = useState<SaleLotRow[]>([]);
@@ -564,16 +567,18 @@ export default function SaleFormPage() {
       navigate(-1);
       return;
     }
-    navigate("/ventas");
+    navigate(buildPrivateProjectPath(display.projectSlug, "ventas"));
   };
 
   useEffect(() => {
     const run = async () => {
       try {
         setLoading(true);
+        setLotesCatalog([]);
+        setActiveSaleByLotCode({});
         const [allLotes, lotAccess] = await Promise.all([
-          loadLotesFromApi(),
-          listSaleAccessByLot().catch(() => []),
+          loadAdminLotesFromApi({ slug: display.projectSlug }),
+          listSaleAccessByLot({ slug: display.projectSlug }).catch(() => []),
         ]);
         setLotesCatalog(allLotes);
         setActiveSaleByLotCode(
@@ -713,7 +718,7 @@ export default function SaleFormPage() {
     };
 
     void run();
-  }, [isEdit, saleId, searchParams]);
+  }, [display.projectSlug, isEdit, saleId, searchParams]);
 
   useEffect(() => {
     const nextCodes = [...new Set(lotRows.map((row) => row.loteCode).filter(Boolean))];
@@ -738,7 +743,7 @@ export default function SaleFormPage() {
 
     const run = async () => {
       try {
-        const payload = await listAdminUsers({ username: loginUsername, pin: loginPin });
+        const payload = await listAdminUsers({ username: loginUsername, pin: loginPin }, { slug: display.projectSlug });
         const users = payload.users
           .map((user) => ({
             id: user.id,
@@ -956,7 +961,7 @@ export default function SaleFormPage() {
         pagosIniciales: filterFilledInitialPayments(form.pagosIniciales),
         asesorId: role === "admin" ? form.asesorId ?? currentUserId ?? null : currentUserId ?? null,
       });
-      navigate(`/ventas/${created.id}`, { replace: true });
+      navigate(buildPrivateProjectPath(display.projectSlug, "ventas", created.id), { replace: true });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "No se pudo guardar la venta.");
     } finally {
@@ -1293,13 +1298,13 @@ export default function SaleFormPage() {
       .trim();
     const advisorName = advisorNameClean.split(" ").filter(Boolean).slice(0, 2).join(" ");
     const advisorPhone = "";
-    const projectName = projectInfo.name || "Arenas Malabrigo";
-    const projectLocation = projectInfo.locationText || "-";
-    const empresaRuc = projectInfo.ownerRuc || "20606633131";
-    const empresaNombre = projectInfo.owner || "HOLA TRUJILLO S.A.C";
-    const logoHolaTrujillo = new URL("/assets/HOLA-TRUJILLO_LOGOTIPO.webp", window.location.origin).href;
-    const logoArenasMalabrigo = new URL("/assets/Logo_Arenas_Malabrigo.svg", window.location.origin).href;
-    const footerRibbonUrl = new URL("/assets/print-footer-ribbon.svg", window.location.origin).href;
+    const projectName = display.projectName || "Proyecto";
+    const projectLocation = display.locationText || "-";
+    const empresaRuc = display.ownerRuc || "-";
+    const empresaNombre = display.owner || "-";
+    const logoHolaTrujillo = new URL(display.logoFooterUrl || COMPANY_LOGO_IMAGE, window.location.origin).href;
+    const logoArenasMalabrigo = new URL(display.logoProyectoUrl || PROJECT_LOGO_SVG, window.location.origin).href;
+    const footerRibbonUrl = new URL(PRINT_FOOTER_RIBBON, window.location.origin).href;
     const hasValue = (value: string) => value.trim().length > 0;
     const renderInlineField = (value: string, size: "wide" | "mid" | "short" = "mid") =>
       hasValue(value)
@@ -1383,7 +1388,7 @@ export default function SaleFormPage() {
           <div class="doc">
             <div class="head">
               <img src="${logoHolaTrujillo}" alt="Hola Trujillo" />
-              <img src="${logoArenasMalabrigo}" alt="Arenas Malabrigo" />
+              <img src="${logoArenasMalabrigo}" alt="${escapeHtml(projectName)}" />
             </div>
             <div class="title">PRE-ACUERDO DE PAGO POR SEPARACI&Oacute;N DE LOTE</div>
             <p class="legal-text">
@@ -1559,15 +1564,15 @@ export default function SaleFormPage() {
 
   const actions = (
     <nav className="topbar-nav">
-      <Link className="btn ghost topbar-action" to="/">
+      <Link className="btn ghost topbar-action" to={buildPublicProjectPath(display.projectSlug)}>
         <IconMap />
         Mapa
       </Link>
-      <Link className="btn ghost topbar-action" to="/lotes">
+      <Link className="btn ghost topbar-action" to={buildPrivateProjectPath(display.projectSlug, "lotes")}>
         <IconLotes />
         Lotes
       </Link>
-      <Link className="btn ghost topbar-action" to="/ventas">
+      <Link className="btn ghost topbar-action" to={buildPrivateProjectPath(display.projectSlug, "ventas")}>
         Ventas
       </Link>
     </nav>
@@ -1687,3 +1692,7 @@ export default function SaleFormPage() {
     </AppShell>
   );
 }
+
+
+
+
